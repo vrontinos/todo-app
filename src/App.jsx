@@ -876,17 +876,25 @@ function App() {
       return
     }
 
-    const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
+const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
 
-    const stillExists = selectedListRef.current
-      ? loadedLists.find((l) => l.id === selectedListRef.current.id)
-      : null
+const stillExists = selectedListRef.current
+  ? loadedLists.find((l) => l.id === selectedListRef.current.id)
+  : null
 
-    const savedList = savedListId
-      ? loadedLists.find((l) => l.id === savedListId)
-      : null
+const savedList = savedListId
+  ? loadedLists.find((l) => l.id === savedListId)
+  : null
 
-    const nextSelected = stillExists || savedList || loadedLists[0]
+console.log('FETCH LISTS DEBUG', {
+  savedListId,
+  loadedListIds: loadedLists.map((l) => l.id),
+  stillExistsId: stillExists?.id || null,
+  savedListFoundId: savedList?.id || null,
+  nextSelectedId: (stillExists || savedList || loadedLists[0])?.id || null,
+})
+
+const nextSelected = stillExists || savedList || loadedLists[0]
     setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
     setSelectedList(nextSelected)
 
