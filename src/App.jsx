@@ -29,8 +29,6 @@ function App() {
 
   const [lists, setLists] = useState([])
   const [selectedList, setSelectedList] = useState(null)
-  const [selectedListIds, setSelectedListIds] = useState([])
-  const [listSelectionAnchorId, setListSelectionAnchorId] = useState(null)
   const [currentListRole, setCurrentListRole] = useState('owner')
   const [tasks, setTasks] = useState([])
   const [allTasks, setAllTasks] = useState([])
@@ -69,7 +67,6 @@ function App() {
   const [multiMoveMenuOpen, setMultiMoveMenuOpen] = useState(false)
 
   const [shareModalList, setShareModalList] = useState(null)
-  const [shareModalLists, setShareModalLists] = useState([])
   const [pendingInvites, setPendingInvites] = useState([])
   const [invitesLoading, setInvitesLoading] = useState(false)
   const [inviteActionLoading, setInviteActionLoading] = useState(null)
@@ -95,6 +92,8 @@ function App() {
   const activeTaskRef = useRef(null)
   const selectedListRef = useRef(null)
   const contextMenuRef = useRef(null)
+
+  const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
 
   const currentSortMode =
     selectedList && listSortSettings[selectedList.id]?.mode
@@ -140,6 +139,12 @@ function App() {
 
   useEffect(() => {
     selectedListRef.current = selectedList
+  }, [selectedList])
+
+  useEffect(() => {
+    if (selectedList?.id) {
+      localStorage.setItem(LAST_SELECTED_LIST_KEY, selectedList.id)
+    }
   }, [selectedList])
 
   useEffect(() => {
@@ -255,8 +260,6 @@ function App() {
       setSelectedList(null)
       setTasks([])
       setAllTasks([])
-      setSelectedListIds([])
-      setListSelectionAnchorId(null)
       setNoteCountsByTask({})
       setActiveTask(null)
       setTaskNotes([])
@@ -458,6 +461,7 @@ function App() {
     setLists((prev) => prev.filter((item) => item.id !== list.id))
 
     if (selectedListRef.current?.id === list.id) {
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
       setSelectedList(null)
       setTasks([])
       setActiveTask(null)
@@ -480,7 +484,6 @@ function App() {
 
   function closeShareModal() {
     setShareModalList(null)
-    setShareModalLists([])
     setShareEmail('')
     setShareOwnerEmail('')
     setShareMembers([])
@@ -608,13 +611,6 @@ function App() {
     return counts
   }, [allTasks])
 
-  const ownedSelectedLists = useMemo(
-    () => lists.filter((list) => selectedListIds.includes(list.id) && list.owner_user_id === session?.user?.id),
-    [lists, selectedListIds, session?.user?.id]
-  )
-
-  const isBulkShareModal = shareModalLists.length > 1
-
   const visibleTasks = useMemo(() => {
     const q = taskSearch.trim().toLowerCase()
 
@@ -706,8 +702,6 @@ function App() {
 
         setSelectedTasks([])
         setSelectionAnchorId(null)
-        setSelectedListIds([])
-        setListSelectionAnchorId(null)
         closeContextMenu()
         setEditingTaskTitle(false)
         setEditingNoteId(null)
@@ -842,25 +836,6 @@ function App() {
     shareModalList,
   ])
 
-  function applySingleListSelection(list) {
-    if (!list) return
-
-    setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
-    setSelectedList(list)
-    setSelectedListIds([list.id])
-    setListSelectionAnchorId(list.id)
-    setActiveTask(null)
-    setTaskNotes([])
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
-    setTaskSearch('')
-    setEditingTaskTitle(false)
-    setEditingNoteId(null)
-    setEditingNoteValue('')
-    fetchTasks(list.id, false)
-    closeContextMenu()
-  }
-
   async function fetchLists(updateStatus = true) {
     if (!session?.user?.id) return
     if (updateStatus) setLoadingLists(true)
@@ -891,6 +866,7 @@ function App() {
     })
 
     if (loadedLists.length === 0) {
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
       setSelectedList(null)
       setTasks([])
       setActiveTask(null)
@@ -900,21 +876,19 @@ function App() {
       return
     }
 
+    const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
+
     const stillExists = selectedListRef.current
       ? loadedLists.find((l) => l.id === selectedListRef.current.id)
       : null
 
-    const nextSelected = stillExists || loadedLists[0]
+    const savedList = savedListId
+      ? loadedLists.find((l) => l.id === savedListId)
+      : null
+
+    const nextSelected = stillExists || savedList || loadedLists[0]
     setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
     setSelectedList(nextSelected)
-    setSelectedListIds((prev) => {
-      const existingIds = new Set(loadedLists.map((list) => list.id))
-      const filtered = prev.filter((id) => existingIds.has(id))
-      return filtered.length > 0 ? filtered : [nextSelected.id]
-    })
-    setListSelectionAnchorId((prev) =>
-      loadedLists.some((list) => list.id === prev) ? prev : nextSelected.id
-    )
 
     if (updateStatus) {
       setLoadingLists(false)
@@ -1187,20 +1161,11 @@ async function fetchShareDetails(list) {
     setShareLoading(false)
   }
 
-  async function openShareModal(listOrLists) {
-    const normalizedLists = Array.isArray(listOrLists)
-      ? listOrLists.filter((list) => list?.id)
-      : listOrLists?.id
-        ? [listOrLists]
-        : []
-
-    if (normalizedLists.length === 0) return
-
-    const primaryList = normalizedLists[0]
+  async function openShareModal(list) {
+    if (!list?.id) return
 
     closeContextMenu()
-    setShareModalList(primaryList)
-    setShareModalLists(normalizedLists)
+    setShareModalList(list)
     setShareEmail('')
     setShareOwnerEmail('')
     setShareMembers([])
@@ -1209,28 +1174,13 @@ async function fetchShareDetails(list) {
     setShareError('')
     setShareMessage('')
     setShareRemovingUserId(null)
-
-    if (normalizedLists.length === 1) {
-      await fetchShareDetails(primaryList)
-      return
-    }
-
-    setShareOwnerEmail(String(session?.user?.email || '').trim().toLowerCase())
+    await fetchShareDetails(list)
   }
 
   async function handleInviteToList(e) {
     e.preventDefault()
 
     if (!shareModalList || !session?.user?.id || isOffline) return
-
-    const targetLists = (shareModalLists.length > 0 ? shareModalLists : [shareModalList]).filter(
-      (list) => list?.owner_user_id === session.user.id
-    )
-
-    if (targetLists.length === 0) {
-      setShareError('Δεν υπάρχουν επιλεγμένες λίστες που μπορείς να μοιραστείς.')
-      return
-    }
 
     const email = shareEmail.trim().toLowerCase()
     if (!email) {
@@ -1243,46 +1193,41 @@ async function fetchShareDetails(list) {
       return
     }
 
-    if (targetLists.length === 1) {
-      const alreadyShared = shareMembers.some(
-        (member) => String(member.email || '').trim().toLowerCase() === email
-      )
+    const alreadyShared = shareMembers.some(
+      (member) => String(member.email || '').trim().toLowerCase() === email
+    )
 
-      if (alreadyShared) {
-        setShareError('Ο χρήστης έχει ήδη πρόσβαση σε αυτή τη λίστα.')
-        return
-      }
+    if (alreadyShared) {
+      setShareError('Ο χρήστης έχει ήδη πρόσβαση σε αυτή τη λίστα.')
+      return
     }
 
     setShareSubmitting(true)
     setShareError('')
     setShareMessage('')
 
-    const inviteResults = await Promise.all(
-      targetLists.map((list) =>
-        supabase.from('list_invites').insert({
-          list_id: list.id,
-          invited_email: email,
-          invited_by_user_id: session.user.id,
-          status: 'pending',
-          list_name_snapshot: list.name,
-        })
-      )
-    )
+    const { error: insertError } = await supabase
+  .from('list_invites')
+  .insert({
+    list_id: shareModalList.id,
+    invited_email: email,
+    invited_by_user_id: session.user.id,
+    status: 'pending',
+    list_name_snapshot: shareModalList.name, // Εμφάνιση ονόματος λίστας
+  })
 
-    const failedNonDuplicate = inviteResults.filter(
-      (result) => result.error && !String(result.error.message || '').toLowerCase().includes('duplicate')
-    )
+    if (insertError) {
+      console.error('Σφάλμα δημιουργίας πρόσκλησης:', insertError)
 
-    if (failedNonDuplicate.length > 0) {
-      console.error('Σφάλμα δημιουργίας invitations:', failedNonDuplicate)
-      setShareError('Δεν ήταν δυνατή η αποστολή της πρόσκλησης σε όλες τις λίστες.')
+      if (String(insertError.message || '').toLowerCase().includes('duplicate')) {
+        setShareError('Υπάρχει ήδη εκκρεμές invite για αυτό το email.')
+      } else {
+        setShareError('Δεν ήταν δυνατή η αποστολή της πρόσκλησης.')
+      }
+
       setShareSubmitting(false)
       return
     }
-
-    const createdCount = inviteResults.filter((result) => !result.error).length
-    const duplicateCount = inviteResults.length - createdCount
 
     try {
       const { error: emailError } = await supabase.functions.invoke('send-list-invite-email', {
@@ -1290,7 +1235,7 @@ async function fetchShareDetails(list) {
           invitedEmail: email,
           inviterEmail: String(session.user.email || shareOwnerEmail || '').trim().toLowerCase(),
           ownerEmail: String(shareOwnerEmail || '').trim().toLowerCase(),
-          listNames: targetLists.map((list) => list.name),
+          listNames: [shareModalList.name],
           appUrl: window.location.origin,
         },
       })
@@ -1298,40 +1243,20 @@ async function fetchShareDetails(list) {
       if (emailError) {
         console.error('Σφάλμα αποστολής email invitation:', emailError)
         setShareEmail('')
-        setShareMessage(
-          createdCount > 0
-            ? 'Οι προσκλήσεις αποθηκεύτηκαν, αλλά το email δεν στάλθηκε.'
-            : 'Τα invites υπήρχαν ήδη, αλλά το email δεν στάλθηκε.'
-        )
+        setShareMessage('Η πρόσκληση αποθηκεύτηκε, αλλά το email δεν στάλθηκε.')
         setShareSubmitting(false)
         return
       }
     } catch (emailError) {
       console.error('Σφάλμα κλήσης function για email invitation:', emailError)
       setShareEmail('')
-      setShareMessage(
-        createdCount > 0
-          ? 'Οι προσκλήσεις αποθηκεύτηκαν, αλλά το email δεν στάλθηκε.'
-          : 'Τα invites υπήρχαν ήδη, αλλά το email δεν στάλθηκε.'
-      )
+      setShareMessage('Η πρόσκληση αποθηκεύτηκε, αλλά το email δεν στάλθηκε.')
       setShareSubmitting(false)
       return
     }
 
     setShareEmail('')
-
-    if (createdCount > 0 && duplicateCount === 0) {
-      setShareMessage(
-        targetLists.length === 1
-          ? 'Η πρόσκληση στάλθηκε επιτυχώς και το email εστάλη.'
-          : `Οι προσκλήσεις στάλθηκαν σε ${createdCount} λίστες και το email εστάλη.`
-      )
-    } else if (createdCount > 0) {
-      setShareMessage(`Στάλθηκαν invites σε ${createdCount} λίστες. Σε ${duplicateCount} υπήρχε ήδη εκκρεμές invite.`)
-    } else {
-      setShareMessage('Υπήρχε ήδη εκκρεμές invite σε όλες τις επιλεγμένες λίστες.')
-    }
-
+    setShareMessage('Η πρόσκληση στάλθηκε επιτυχώς και το email εστάλη.')
     setShareSubmitting(false)
   }
 
@@ -1380,12 +1305,7 @@ async function fetchShareDetails(list) {
     setActiveTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
   }
 
-  function handleSelectList(list, event) {
-    if (!list?.id) return
-
-    const orderedListIds = lists.map((item) => item.id)
-    const clickedIndex = orderedListIds.findIndex((id) => id === list.id)
-
+  function handleSelectList(list) {
     setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
     setSelectedList(list)
     setActiveTask(null)
@@ -1398,28 +1318,6 @@ async function fetchShareDetails(list) {
     setEditingNoteValue('')
     fetchTasks(list.id, false)
     closeContextMenu()
-
-    if (event?.shiftKey && listSelectionAnchorId !== null) {
-      const anchorIndex = orderedListIds.findIndex((id) => id === listSelectionAnchorId)
-
-      if (clickedIndex !== -1 && anchorIndex !== -1) {
-        const start = Math.min(clickedIndex, anchorIndex)
-        const end = Math.max(clickedIndex, anchorIndex)
-        setSelectedListIds(orderedListIds.slice(start, end + 1))
-        return
-      }
-    }
-
-    if (event?.ctrlKey || event?.metaKey) {
-      setSelectedListIds((prev) =>
-        prev.includes(list.id) ? prev.filter((id) => id !== list.id) : [...prev, list.id]
-      )
-      setListSelectionAnchorId(list.id)
-      return
-    }
-
-    setSelectedListIds([list.id])
-    setListSelectionAnchorId(list.id)
   }
 
   async function handleSignIn(e) {
@@ -1536,8 +1434,6 @@ async function fetchShareDetails(list) {
     )
 
     setLists(updatedLists)
-    setSelectedListIds([data.id])
-    setListSelectionAnchorId(data.id)
     setListSortSettings((prev) => ({
       ...prev,
       [data.id]: { mode: 'created', direction: 'asc' },
@@ -1572,8 +1468,6 @@ async function fetchShareDetails(list) {
     }
 
     setLists((prev) => prev.map((l) => (l.id === list.id ? { ...l, name } : l)))
-
-    setSelectedListIds((prev) => prev.filter((id) => id !== list.id))
 
     if (selectedList?.id === list.id) {
       setSelectedList((prev) => ({ ...prev, name }))
@@ -1729,62 +1623,6 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  async function handleDeleteSelectedLists() {
-    if (isOffline) return
-
-    const listsToDelete = ownedSelectedLists
-
-    if (listsToDelete.length === 0) return
-
-    const label =
-      listsToDelete.length === 1
-        ? `Να διαγραφεί η λίστα "${listsToDelete[0].name}";`
-        : `Να διαγραφούν ${listsToDelete.length} επιλεγμένες λίστες;`
-
-    if (!window.confirm(label)) return
-
-    const idsToDelete = listsToDelete.map((list) => list.id)
-    const oldLists = [...lists]
-
-    setLists((prev) => prev.filter((list) => !idsToDelete.includes(list.id)))
-    setSelectedListIds((prev) => prev.filter((id) => !idsToDelete.includes(id)))
-
-    if (selectedList?.id && idsToDelete.includes(selectedList.id)) {
-      const remainingLists = lists.filter((list) => !idsToDelete.includes(list.id))
-
-      if (remainingLists.length > 0) {
-        applySingleListSelection(remainingLists[0])
-      } else {
-        setSelectedList(null)
-        setSelectedListIds([])
-        setListSelectionAnchorId(null)
-        setTasks([])
-        setActiveTask(null)
-        setTaskNotes([])
-        setEditingNoteId(null)
-        setEditingNoteValue('')
-      }
-    }
-
-    if (shareModalList?.id && idsToDelete.includes(shareModalList.id)) {
-      closeShareModal()
-    }
-
-    markSaving()
-
-    const { error } = await supabase.from('lists').delete().in('id', idsToDelete)
-
-    if (error) {
-      console.error('Σφάλμα διαγραφής λιστών:', error)
-      setLists(oldLists)
-      setSyncStatus('error')
-      return
-    }
-
-    closeContextMenu()
-    markSynced()
-  }
-
   async function handleDeleteList(list) {
     if (list?.owner_user_id !== session?.user?.id) return
     if (!list || isOffline) return
@@ -1805,9 +1643,9 @@ async function fetchShareDetails(list) {
     const updatedLists = lists.filter((l) => l.id !== list.id)
     setLists(updatedLists)
 
-    setSelectedListIds((prev) => prev.filter((id) => id !== list.id))
-
     if (selectedList?.id === list.id) {
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+
       if (updatedLists.length > 0) {
         const nextList = updatedLists[0]
         setSelectedList(nextList)
@@ -2903,22 +2741,11 @@ async function fetchShareDetails(list) {
     event.preventDefault()
     event.stopPropagation()
 
-    const nextSelectedListIds =
-      selectedListIds.length > 1 && selectedListIds.includes(list.id)
-        ? selectedListIds
-        : [list.id]
-
-    if (!(selectedListIds.length > 1 && selectedListIds.includes(list.id))) {
-      setSelectedListIds([list.id])
-      setListSelectionAnchorId(list.id)
-    }
-
     setContextMenu({
-      type: nextSelectedListIds.length > 1 ? 'list_multi' : 'list',
+      type: 'list',
       x: event.clientX,
       y: event.clientY,
       list,
-      listIds: nextSelectedListIds,
     })
     setMoveMenuOpen(false)
     setMultiMoveMenuOpen(false)
@@ -3177,8 +3004,8 @@ async function fetchShareDetails(list) {
                       <button
                         className={`list-button ${selectedList?.id === list.id ? 'active' : ''} ${
                           draggedListId === list.id ? 'dragging' : ''
-                        } ${selectedListIds.includes(list.id) ? 'task-item-selected' : ''}`}
-                        onClick={(event) => handleSelectList(list, event)}
+                        }`}
+                        onClick={() => handleSelectList(list)}
                         onContextMenu={(event) => handleListRightClick(event, list)}
                         draggable={!isOffline}
                         onDragStart={() => handleListDragStart(list.id)}
@@ -3797,30 +3624,6 @@ async function fetchShareDetails(list) {
           </div>
         )}
 
-        {contextMenu && contextMenu.type === 'list_multi' && (
-  <div
-    className="context-menu"
-    style={getContextMenuPosition()}
-    onClick={(e) => e.stopPropagation()}
-  >
-    <button
-      className="context-menu-item"
-      onClick={() => openShareModal(ownedSelectedLists)}
-      disabled={ownedSelectedLists.length === 0 || isOffline}
-    >
-      Κοινή χρήση επιλεγμένων
-    </button>
-
-    <button
-      className="context-menu-item danger"
-      onClick={handleDeleteSelectedLists}
-      disabled={ownedSelectedLists.length === 0 || isOffline}
-    >
-      Διαγραφή επιλεγμένων
-    </button>
-  </div>
-)}
-
         {contextMenu && contextMenu.type === 'list' && (
   <div
     className="context-menu"
@@ -3938,13 +3741,9 @@ async function fetchShareDetails(list) {
               }}
             >
               <div>
-                <div style={{ fontSize: '16px', fontWeight: 700 }}>
-                  {isBulkShareModal ? 'Κοινή χρήση λιστών' : 'Κοινή χρήση λίστας'}
-                </div>
+                <div style={{ fontSize: '16px', fontWeight: 700 }}>Κοινή χρήση λίστας</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-soft)', marginTop: '4px' }}>
-                  {isBulkShareModal
-                    ? `${shareModalLists.length} επιλεγμένες λίστες`
-                    : shareModalList.name}
+                  {shareModalList.name}
                 </div>
               </div>
 
@@ -3953,7 +3752,7 @@ async function fetchShareDetails(list) {
               </button>
             </div>
 
-            {(isBulkShareModal || shareModalList.owner_user_id === session?.user?.id) ? (
+            {shareModalList.owner_user_id === session?.user?.id ? (
               <form
                 onSubmit={handleInviteToList}
                 style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
@@ -3972,11 +3771,7 @@ async function fetchShareDetails(list) {
                   className="add-button"
                   disabled={shareSubmitting || isOffline}
                 >
-                  {shareSubmitting
-                    ? 'Αποστολή...'
-                    : isBulkShareModal
-                      ? 'Αποστολή invite σε όλες τις επιλεγμένες'
-                      : 'Αποστολή invite'}
+                  {shareSubmitting ? 'Αποστολή...' : 'Αποστολή invite'}
                 </button>
               </form>
             ) : (
@@ -4031,7 +3826,7 @@ async function fetchShareDetails(list) {
                   marginBottom: '8px',
                 }}
               >
-                {isBulkShareModal ? 'Ιδιοκτήτης των επιλεγμένων' : 'Ιδιοκτήτης'}
+                Ιδιοκτήτης
               </div>
 
               <div
@@ -4043,9 +3838,7 @@ async function fetchShareDetails(list) {
                   fontSize: '12px',
                 }}
               >
-                {isBulkShareModal
-                  ? shareOwnerEmail || String(session?.user?.email || '').trim().toLowerCase() || '—'
-                  : shareOwnerEmail || '—'}
+                {shareOwnerEmail || '—'}
               </div>
             </div>
 
@@ -4063,28 +3856,10 @@ async function fetchShareDetails(list) {
                   marginBottom: '8px',
                 }}
               >
-                {isBulkShareModal ? 'Επιλεγμένες λίστες' : 'Διαμοιραζόμενοι χρήστες'}
+                Διαμοιραζόμενοι χρήστες
               </div>
 
-              {isBulkShareModal ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {shareModalLists.map((list) => (
-                    <div
-                      key={list.id}
-                      style={{
-                        padding: '10px 12px',
-                        border: '1px solid var(--border)',
-                        borderRadius: '10px',
-                        background: 'var(--panel-soft)',
-                        fontSize: '12px',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {list.name}
-                    </div>
-                  ))}
-                </div>
-              ) : shareLoading ? (
+              {shareLoading ? (
                 <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>Φόρτωση...</div>
               ) : shareMembers.length === 0 ? (
                 <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
@@ -4127,7 +3902,7 @@ async function fetchShareDetails(list) {
                         </span>
                       </div>
 
-                      {!isBulkShareModal && shareModalList.owner_user_id === session?.user?.id && (
+                      {shareModalList.owner_user_id === session?.user?.id && (
                         <button
                           type="button"
                           className="theme-toggle"
