@@ -883,16 +883,8 @@ const stillExists = selectedListRef.current
   : null
 
 const savedList = savedListId
-  ? loadedLists.find((l) => l.id === savedListId)
+  ? loadedLists.find((l) => String(l.id) === String(savedListId))
   : null
-
-console.log('FETCH LISTS DEBUG', {
-  savedListId,
-  loadedListIds: loadedLists.map((l) => l.id),
-  stillExistsId: stillExists?.id || null,
-  savedListFoundId: savedList?.id || null,
-  nextSelectedId: (stillExists || savedList || loadedLists[0])?.id || null,
-})
 
 const nextSelected = stillExists || savedList || loadedLists[0]
     setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
