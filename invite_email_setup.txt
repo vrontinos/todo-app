@@ -1,0 +1,10 @@
+1. Δημιούργησε λογαριασμό στο Resend και πάρε API key.
+2. Στο Supabase Dashboard πήγαινε Edge Functions -> Secrets και πρόσθεσε:
+   RESEND_API_KEY=το_api_key_σου
+   INVITE_FROM_EMAIL=Task App <onboarding@resend.dev>
+   ή verified sender/domain από το Resend.
+3. Δημιούργησε Edge Function με όνομα send-list-invite-email και βάλε μέσα το αρχείο supabase/functions/send-list-invite-email/index.ts.
+4. Deploy τη function.
+5. Αντικατέστησε το src/App.jsx με το App_invite_email.jsx.
+6. Κάνε restart το frontend.
+7. Δοκίμασε share σε ένα email που δεν έχει λογαριασμό. Θα γραφτεί invite στο list_invites και θα σταλεί email με link προς την εφαρμογή.
