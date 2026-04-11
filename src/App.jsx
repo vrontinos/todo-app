@@ -1876,6 +1876,59 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
+  async function handleLeaveSelectedLists(targetLists) {
+    const safeLists = (targetLists || []).filter(Boolean)
+    if (safeLists.length === 0 || !session?.user?.id || isOffline) return
+
+    if (!window.confirm(`Να αποχωρήσεις από ${safeLists.length} επιλεγμένες λίστες;`)) return
+
+    const idsToLeave = safeLists.map((list) => list.id)
+
+    const { error } = await supabase
+      .from('list_members')
+      .delete()
+      .eq('user_id', session.user.id)
+      .in('list_id', idsToLeave)
+
+    if (error) {
+      console.error('Σφάλμα μαζικής αποχώρησης από λίστες:', error)
+      return
+    }
+
+    closeContextMenu()
+
+    const updatedLists = lists.filter((list) => !idsToLeave.includes(list.id))
+    setLists(updatedLists)
+    setSelectedLists([])
+    setListSelectionAnchorId(null)
+
+    if (selectedList?.id && idsToLeave.includes(selectedList.id)) {
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+
+      if (updatedLists.length > 0) {
+        const nextList = updatedLists[0]
+        setSelectedList(nextList)
+        setSelectedLists([nextList.id])
+        setListSelectionAnchorId(nextList.id)
+        fetchTasks(nextList.id, false)
+      } else {
+        setSelectedList(null)
+        setSelectedLists([])
+        setListSelectionAnchorId(null)
+        setTasks([])
+        setActiveTask(null)
+        setTaskNotes([])
+        setEditingTaskTitle(false)
+        setEditingNoteId(null)
+        setEditingNoteValue('')
+      }
+    }
+
+    fetchLists(false)
+    fetchAllTasks(false)
+    fetchTaskNoteCounts(false)
+  }
+
   async function handleDeleteSelectedLists(targetLists) {
     const safeLists = (targetLists || []).filter(Boolean)
     if (safeLists.length === 0 || isOffline) return
@@ -3015,6 +3068,10 @@ async function fetchShareDetails(list) {
       effectiveLists.length > 0 &&
       effectiveLists.every((item) => item.owner_user_id === session?.user?.id)
 
+    const canBulkLeave =
+      effectiveLists.length > 0 &&
+      effectiveLists.every((item) => item.owner_user_id !== session?.user?.id)
+
     setContextMenu({
       type: effectiveLists.length > 1 ? 'list_multi' : 'list',
       x: event.clientX,
@@ -3022,6 +3079,7 @@ async function fetchShareDetails(list) {
       list,
       lists: effectiveLists,
       canBulkManage,
+      canBulkLeave,
     })
     setMoveMenuOpen(false)
     setMultiMoveMenuOpen(false)
@@ -3983,9 +4041,16 @@ async function fetchShareDetails(list) {
                   Διαγραφή λιστών
                 </button>
               </>
+            ) : contextMenu.canBulkLeave ? (
+              <button
+                className="context-menu-item danger"
+                onClick={() => handleLeaveSelectedLists(contextMenu.lists)}
+              >
+                Αποχώρηση από λίστες
+              </button>
             ) : (
               <div className="context-menu-item" style={{ cursor: 'default', opacity: 0.7 }}>
-                Η μαζική διαχείριση είναι διαθέσιμη μόνο για λίστες που σου ανήκουν.
+                Η μαζική διαχείριση είναι διαθέσιμη μόνο όταν όλες οι επιλεγμένες λίστες είναι είτε δικές σου είτε κοινόχρηστες προς εσένα.
               </div>
             )}
           </div>
