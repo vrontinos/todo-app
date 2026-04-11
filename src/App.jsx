@@ -142,6 +142,16 @@ function App() {
   }, [selectedList])
 
   useEffect(() => {
+  if (!session?.user?.id) return
+  if (!selectedList?.id) {
+    setTasks([])
+    return
+  }
+
+  fetchTasks(selectedList.id, false)
+}, [selectedList?.id, session?.user?.id])
+
+  useEffect(() => {
     if (selectedList?.id) {
       localStorage.setItem(LAST_SELECTED_LIST_KEY, selectedList.id)
     }
