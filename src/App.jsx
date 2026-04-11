@@ -29,6 +29,8 @@ function App() {
 
   const [lists, setLists] = useState([])
   const [selectedList, setSelectedList] = useState(null)
+  const [selectedLists, setSelectedLists] = useState([])
+  const [listSelectionAnchorId, setListSelectionAnchorId] = useState(null)
   const [currentListRole, setCurrentListRole] = useState('owner')
   const [tasks, setTasks] = useState([])
   const [allTasks, setAllTasks] = useState([])
@@ -91,9 +93,11 @@ function App() {
   const editingNoteIdRef = useRef(null)
   const activeTaskRef = useRef(null)
   const selectedListRef = useRef(null)
+  const selectedListsRef = useRef([])
   const contextMenuRef = useRef(null)
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
+  const INVITE_BATCH_PREFIX = '[[BATCH:'
 
   const currentSortMode =
     selectedList && listSortSettings[selectedList.id]?.mode
@@ -140,6 +144,10 @@ function App() {
   useEffect(() => {
     selectedListRef.current = selectedList
   }, [selectedList])
+
+  useEffect(() => {
+    selectedListsRef.current = selectedLists
+  }, [selectedLists])
 
   useEffect(() => {
   if (!session?.user?.id) return
@@ -275,6 +283,8 @@ function App() {
       setTaskNotes([])
       setSelectedTasks([])
       setSelectionAnchorId(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
       setNewListName('')
       setNewTaskTitle('')
       setNewNoteText('')
@@ -449,875 +459,59 @@ function App() {
     setMultiMoveMenuOpen(false)
   }
 
-  async function handleLeaveList(list) {
-    if (!list?.id || !session?.user?.id || isOffline) return
-
-    const confirmed = window.confirm('Να αποχωρήσεις από αυτή τη λίστα;')
-    if (!confirmed) return
-
-    const { error } = await supabase
-      .from('list_members')
-      .delete()
-      .eq('list_id', list.id)
-      .eq('user_id', session.user.id)
-
-    if (error) {
-      console.error('Σφάλμα αποχώρησης από λίστα:', error)
-      return
-    }
-
-    closeContextMenu()
-
-    setLists((prev) => prev.filter((item) => item.id !== list.id))
-
-    if (selectedListRef.current?.id === list.id) {
-      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
-      setSelectedList(null)
-      setTasks([])
-      setActiveTask(null)
-      setTaskNotes([])
-      setSelectedTasks([])
-      setSelectionAnchorId(null)
-    }
-
-    fetchLists(false)
-    fetchAllTasks(false)
-    fetchTaskNoteCounts(false)
+  function buildInviteSnapshot(batchId, listName) {
+    if (!batchId) return listName
+    return `${INVITE_BATCH_PREFIX}${batchId}]]${listName}`
   }
 
-  function clearEditingNoteIfStillSame(noteId, nextValue = '') {
-    if (editingNoteIdRef.current === noteId) {
-      setEditingNoteId(null)
-      setEditingNoteValue(nextValue)
+  function parseInviteSnapshot(snapshot) {
+    const value = String(snapshot || '')
+    if (!value.startsWith(INVITE_BATCH_PREFIX)) {
+      return { batchId: null, listName: value }
     }
-  }
 
-  function closeShareModal() {
-    setShareModalList(null)
-    setShareEmail('')
-    setShareOwnerEmail('')
-    setShareMembers([])
-    setShareLoading(false)
-    setShareSubmitting(false)
-    setShareError('')
-    setShareMessage('')
-    setShareRemovingUserId(null)
-  }
-  function getContextMenuPosition() {
-    const menuWidth = 270
-    const menuHeight = 220
-    const padding = 8
-
-    const x = Math.min(
-      Math.max(contextMenu?.x || 0, padding),
-      window.innerWidth - menuWidth - padding
-    )
-
-    const y = Math.min(
-      Math.max(contextMenu?.y || 0, padding),
-      window.innerHeight - menuHeight - padding
-    )
+    const closeIndex = value.indexOf(']]')
+    if (closeIndex === -1) {
+      return { batchId: null, listName: value }
+    }
 
     return {
-      left: `${x}px`,
-      top: `${y}px`,
+      batchId: value.slice(INVITE_BATCH_PREFIX.length, closeIndex),
+      listName: value.slice(closeIndex + 2),
     }
   }
 
-  function getFullscreenSubmenuPosition() {
-    const submenuWidth = Math.min(560, Math.floor(window.innerWidth * 0.7))
-    const padding = 8
-    const overlap = 10
-
-    const menuRect = contextMenuRef.current?.getBoundingClientRect()
-
-    if (!menuRect) {
-      return {
-        left: `${padding}px`,
-        top: `${padding}px`,
-      }
-    }
-
-    const openRightLeft = menuRect.right - overlap
-    const openLeftLeft = menuRect.left - submenuWidth + overlap
-
-    const fitsRight = openRightLeft + submenuWidth <= window.innerWidth - padding
-
-    return {
-      left: `${fitsRight ? openRightLeft : Math.max(padding, openLeftLeft)}px`,
-      top: `${padding}px`,
-    }
-  }
-
-  function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
-    const factor = direction === 'desc' ? -1 : 1
-
-    return [...taskArray].sort((a, b) => {
-      if (a.completed !== b.completed) {
-        return a.completed - b.completed
-      }
-
-      if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
-        return a.needs_weighing ? 1 : -1
-      }
-
-      if (mode === 'alpha') {
-        return (
-          (a.title || '').localeCompare(b.title || '', 'el', {
-            sensitivity: 'base',
-          }) * factor
-        )
-      }
-
-      if (mode === 'created') {
-        const aTime = new Date(a.created_at || 0).getTime()
-        const bTime = new Date(b.created_at || 0).getTime()
-        return (aTime - bTime) * factor
-      }
-
-      return ((a.position || 0) - (b.position || 0)) * factor
-    })
-  }
-
-  function sortNotes(noteArray) {
-    return [...noteArray].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed - b.completed
-      return new Date(a.created_at) - new Date(b.created_at)
-    })
-  }
-
-  function formatDateTime(value) {
-    if (!value) return '—'
-    const d = new Date(value)
-    return d.toLocaleString('el-GR')
-  }
-
-  const syncText = useMemo(() => {
-    if (isOffline) return 'Χωρίς σύνδεση στο internet'
-    if (syncStatus === 'saving') return 'Συγχρονίζεται...'
-    if (syncStatus === 'syncing') return 'Ενημέρωση...'
-    if (syncStatus === 'error') return 'Πρόβλημα συγχρονισμού'
-    if (lastSyncAt) return `Συγχρονισμένο ${formatDateTime(lastSyncAt)}`
-    return 'Σύνδεση...'
-  }, [syncStatus, lastSyncAt, isOffline])
-
-  const incompleteCountByList = useMemo(() => {
-    const counts = {}
-    for (const task of allTasks) {
-      if (!task.completed) {
-        counts[task.list_id] = (counts[task.list_id] || 0) + 1
-      }
-    }
-    return counts
-  }, [allTasks])
-
-  const completedCountByList = useMemo(() => {
-    const counts = {}
-    for (const task of allTasks) {
-      if (task.completed) {
-        counts[task.list_id] = (counts[task.list_id] || 0) + 1
-      }
-    }
-    return counts
-  }, [allTasks])
-
-  const visibleTasks = useMemo(() => {
-    const q = taskSearch.trim().toLowerCase()
-
-    if (!q) {
-      return tasks.map((task) => ({
-        ...task,
-        list_name: selectedList?.name || '',
-        notes_count: noteCountsByTask[task.id] || 0,
-      }))
-    }
-
-    const listMap = new Map(lists.map((list) => [list.id, list.name]))
-
-    return sortTasks(allTasks, 'alpha', 'asc')
-      .filter((task) => (task.title || '').toLowerCase().includes(q))
-      .map((task) => ({
-        ...task,
-        list_name: listMap.get(task.list_id) || '',
-        notes_count: noteCountsByTask[task.id] || 0,
-      }))
-  }, [
-    tasks,
-    allTasks,
-    taskSearch,
-    lists,
-    selectedList,
-    currentSortMode,
-    currentSortDirection,
-    noteCountsByTask,
-  ])
-
-  useEffect(() => {
-    function handleWindowClick(event) {
-      const rawTarget = event.target
-      const target =
-        rawTarget && rawTarget.nodeType === 3 ? rawTarget.parentElement : rawTarget
-
-      const clickedContext = target?.closest?.('.context-menu')
-      if (!clickedContext) {
-        closeContextMenu()
-      }
-
-      const clickedTask = target?.closest?.('.task-item')
-      const clickedList = target?.closest?.('.list-button')
-      const clickedMain = target?.closest?.('.main')
-      const clickedDetails = target?.closest?.('.details-panel')
-      const clickedMainHeader = target?.closest?.('.main-header')
-      const clickedAddTaskForm = target?.closest?.('.add-task-form')
-      const clickedInput = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(
-        target?.tagName
-      )
-
-      if (!clickedTask && !clickedContext && !clickedList && !clickedInput && !clickedDetails) {
-        setSelectedTasks([])
-        setSelectionAnchorId(null)
-      }
-
-      const clickedEmptyMainArea =
-        clickedMain &&
-        !clickedTask &&
-        !clickedMainHeader &&
-        !clickedAddTaskForm &&
-        !clickedInput
-
-      if (clickedEmptyMainArea) {
-        setActiveTask(null)
-        setTaskNotes([])
-        setEditingTaskTitle(false)
-        setEditingNoteId(null)
-        setEditingNoteValue('')
-      }
-    }
-
-    function handleWindowKeyDown(event) {
-      const tag = document.activeElement?.tagName?.toLowerCase()
-      const isTyping =
-        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
-
-      const pressedSelectAll =
-        (event.ctrlKey || event.metaKey) && event.code === 'KeyA'
-
-      const mainHasFocus = document.activeElement === mainRef.current
-
-      if (event.key === 'Escape') {
-        if (shareModalList) {
-          closeShareModal()
-          return
-        }
-
-        setSelectedTasks([])
-        setSelectionAnchorId(null)
-        closeContextMenu()
-        setEditingTaskTitle(false)
-        setEditingNoteId(null)
-        setEditingNoteValue('')
-      }
-
-      if (!isTyping && mainHasFocus && pressedSelectAll && visibleTasks.length > 0) {
-        event.preventDefault()
-
-        const incompleteIds = visibleTasks
-          .filter((task) => !task.completed)
-          .map((task) => task.id)
-
-        const allIds = visibleTasks.map((task) => task.id)
-
-        const alreadyOnlyIncompleteSelected =
-          incompleteIds.length > 0 &&
-          selectedTasks.length === incompleteIds.length &&
-          incompleteIds.every((id) => selectedTasks.includes(id))
-
-        if (alreadyOnlyIncompleteSelected) {
-          setSelectedTasks(allIds)
-          setSelectionAnchorId(allIds[0] || null)
-
-          const firstTask = visibleTasks[0]
-          if (firstTask) {
-            setActiveTask(firstTask)
-            setEditingTaskValue(firstTask.title)
-            fetchNotes(firstTask.id, false)
-          }
-
-          return
-        }
-
-        setSelectedTasks(incompleteIds)
-        setSelectionAnchorId(incompleteIds[0] || null)
-
-        const firstIncompleteTask = visibleTasks.find((task) => !task.completed)
-        if (firstIncompleteTask) {
-          setActiveTask(firstIncompleteTask)
-          setEditingTaskValue(firstIncompleteTask.title)
-          fetchNotes(firstIncompleteTask.id, false)
-        }
-
-        return
-      }
-
-      if (!isTyping && event.key === 'Delete' && selectedTasks.length > 0) {
-        event.preventDefault()
-        handleDeleteSelected()
-        return
-      }
-
-      if (
-        !isTyping &&
-        event.shiftKey &&
-        (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
-        visibleTasks.length > 0 &&
-        activeTask
-      ) {
-        event.preventDefault()
-
-        const currentIndex = visibleTasks.findIndex((t) => t.id === activeTask.id)
-        if (currentIndex === -1) return
-
-        const nextIndex =
-          event.key === 'ArrowDown'
-            ? Math.min(currentIndex + 1, visibleTasks.length - 1)
-            : Math.max(currentIndex - 1, 0)
-
-        if (nextIndex === currentIndex) return
-
-        const nextTask = visibleTasks[nextIndex]
-        const anchorId = selectionAnchorId ?? activeTask.id
-
-        setActiveTask(nextTask)
-        setEditingTaskValue(nextTask.title)
-        fetchNotes(nextTask.id, false)
-
-        const anchorIndex = visibleTasks.findIndex((t) => t.id === anchorId)
-        if (anchorIndex === -1) return
-
-        const start = Math.min(anchorIndex, nextIndex)
-        const end = Math.max(anchorIndex, nextIndex)
-        const rangeIds = visibleTasks.slice(start, end + 1).map((t) => t.id)
-
-        setSelectedTasks(rangeIds)
-        setSelectionAnchorId(anchorId)
-      }
-    }
-
-    function handleMouseMove(event) {
-      if (!appRef.current) return
-
-      const rect = appRef.current.getBoundingClientRect()
-
-      if (isResizingSidebar) {
-        const next = Math.max(180, Math.min(420, event.clientX - rect.left))
-        setSidebarWidth(next)
-      }
-
-      if (isResizingDetails) {
-        const next = Math.max(260, Math.min(520, rect.right - event.clientX))
-        setDetailsWidth(next)
-      }
-    }
-
-    function handleMouseUp() {
-      setIsResizingSidebar(false)
-      setIsResizingDetails(false)
-      setTaskDropListId(null)
-    }
-
-    window.addEventListener('click', handleWindowClick)
-    window.addEventListener('keydown', handleWindowKeyDown)
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('click', handleWindowClick)
-      window.removeEventListener('keydown', handleWindowKeyDown)
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [
-    activeTask,
-    selectedTasks,
-    selectionAnchorId,
-    isResizingSidebar,
-    isResizingDetails,
-    visibleTasks,
-    shareModalList,
-  ])
-
-  async function fetchLists(updateStatus = true) {
-    if (!session?.user?.id) return
-    if (updateStatus) setLoadingLists(true)
-
-    const { data, error } = await supabase
-      .from('lists')
-      .select('*')
-      .order('position', { ascending: true })
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης λιστών:', error)
-      setSyncStatus('error')
-      if (updateStatus) setLoadingLists(false)
-      return
-    }
-
-    const loadedLists = data || []
-    setLists(loadedLists)
-
-    setListSortSettings((prev) => {
-      const next = { ...prev }
-      for (const list of loadedLists) {
-        if (!next[list.id]) {
-          next[list.id] = { mode: 'created', direction: 'asc' }
-        }
-      }
-      return next
-    })
-
-    if (loadedLists.length === 0) {
-      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
-      setSelectedList(null)
-      setTasks([])
-      setActiveTask(null)
-      setTaskNotes([])
-      if (updateStatus) setLoadingLists(false)
-      if (updateStatus) markSynced()
-      return
-    }
-
-const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
-
-const stillExists = selectedListRef.current
-  ? loadedLists.find((l) => l.id === selectedListRef.current.id)
-  : null
-
-const savedList = savedListId
-  ? loadedLists.find((l) => String(l.id) === String(savedListId))
-  : null
-
-const nextSelected = stillExists || savedList || loadedLists[0]
-    setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
-    setSelectedList(nextSelected)
-
-    if (updateStatus) {
-      setLoadingLists(false)
-      markSynced()
-    } else {
-      setLoadingLists(false)
-    }
-  }
-
-  async function fetchAllTasks(updateStatus = true) {
-    if (!session?.user?.id) return
-
-    const { data, error } = await supabase.from('tasks').select('*')
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης όλων των εργασιών:', error)
-      setSyncStatus('error')
-      return
-    }
-
-    setAllTasks(data || [])
-    if (updateStatus) markSynced()
-  }
-
-  async function fetchTaskNoteCounts(updateStatus = true) {
-    if (!session?.user?.id) return
-
-    const { data, error } = await supabase.from('task_notes').select('task_id')
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης μετρητών σημειώσεων:', error)
-      setSyncStatus('error')
-      return
-    }
-
-    const counts = {}
-    for (const note of data || []) {
-      counts[note.task_id] = (counts[note.task_id] || 0) + 1
-    }
-
-    setNoteCountsByTask(counts)
-    if (updateStatus) markSynced()
-  }
-  async function fetchTasks(listId, updateStatus = true) {
-    if (!session?.user?.id) return
-    if (!listId) return
-    if (updateStatus) setLoadingTasks(true)
-
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('list_id', listId)
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης εργασιών:', error)
-      setTasks([])
-      setSyncStatus('error')
-      if (updateStatus) setLoadingTasks(false)
-      return
-    }
-
-    const loadedTasks = sortTasks(data || [], currentSortMode, currentSortDirection)
-    setTasks(loadedTasks)
-
-    const currentActiveTask = activeTaskRef.current
-
-    if (currentActiveTask) {
-      const refreshedActiveTask = loadedTasks.find((t) => t.id === currentActiveTask.id)
-      if (refreshedActiveTask) {
-        setActiveTask(refreshedActiveTask)
-        if (!editingTaskTitle) {
-          setEditingTaskValue(refreshedActiveTask.title)
-        }
+  const groupedPendingInvites = useMemo(() => {
+    const grouped = new Map()
+
+    for (const invite of pendingInvites) {
+      const parsed = parseInviteSnapshot(invite.list_name_snapshot)
+      const key = parsed.batchId || `single-${invite.id}`
+      const existing = grouped.get(key)
+
+      if (existing) {
+        existing.invites.push(invite)
+        existing.listNames.push(parsed.listName || `#${invite.list_id}`)
       } else {
-        const globalActive = (allTasks || []).find((t) => t.id === currentActiveTask.id)
-        if (!globalActive || globalActive.list_id !== listId) {
-          setActiveTask(null)
-          setTaskNotes([])
-          setEditingTaskTitle(false)
-          setEditingNoteId(null)
-          setEditingNoteValue('')
-        }
-      }
-    }
-
-    if (updateStatus) {
-      setLoadingTasks(false)
-      markSynced()
-    } else {
-      setLoadingTasks(false)
-    }
-  }
-
-  async function fetchNotes(taskId, updateStatus = true) {
-    if (!session?.user?.id) return
-    if (!taskId) return
-
-    const { data, error } = await supabase
-      .from('task_notes')
-      .select('*')
-      .eq('task_id', taskId)
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
-      setTaskNotes([])
-      setSyncStatus('error')
-      return
-    }
-
-    const sorted = sortNotes(data || [])
-
-    if (editingNoteIdRef.current === null) {
-      setTaskNotes(sorted)
-    } else {
-      setTaskNotes((prev) => {
-        const editingId = editingNoteIdRef.current
-        const existingEditingNote = prev.find((note) => note.id === editingId)
-
-        return sorted.map((note) => {
-          if (note.id === editingId && existingEditingNote) {
-            return existingEditingNote
-          }
-          return note
+        grouped.set(key, {
+          key,
+          invites: [invite],
+          listNames: [parsed.listName || `#${invite.list_id}`],
         })
-      })
-    }
-
-    if (updateStatus) markSynced()
-  }
-
-  
-  async function fetchPendingInvites() {
-    if (!session?.user?.id || !session?.user?.email) {
-      setPendingInvites([])
-      return
-    }
-
-    setInvitesLoading(true)
-
-    const email = String(session.user.email).trim().toLowerCase()
-
-    const { data, error } = await supabase
-      .from('list_invites')
-      .select(`
-        id,
-        list_id,
-        invited_email,
-        status,
-        created_at,
-        list_name_snapshot
-      `)
-      .eq('invited_email', email)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Σφάλμα φόρτωσης invitations:', error)
-      setPendingInvites([])
-      setInvitesLoading(false)
-      return
-    }
-
-    setPendingInvites(data || [])
-    setInvitesLoading(false)
-  }
-
-  async function handleAcceptInvite(inviteId) {
-    if (!inviteId || isOffline) return
-
-    setInviteActionLoading(inviteId)
-
-    const { error } = await supabase.rpc('accept_list_invite', {
-      invite_id: inviteId,
-    })
-
-    if (error) {
-      console.error('Σφάλμα αποδοχής invitation:', error)
-      alert('Δεν ήταν δυνατή η αποδοχή της πρόσκλησης.')
-      setInviteActionLoading(null)
-      return
-    }
-
-    await fetchPendingInvites()
-    await fetchLists(false)
-    setInviteActionLoading(null)
-  }
-
-  async function handleRejectInvite(inviteId) {
-    if (!inviteId || isOffline) return
-
-    const confirmed = window.confirm('Θέλεις να απορρίψεις αυτή την πρόσκληση;')
-    if (!confirmed) return
-
-    setInviteActionLoading(inviteId)
-
-    const { error } = await supabase.rpc('reject_list_invite', {
-      invite_id: inviteId,
-    })
-
-    if (error) {
-      console.error('Σφάλμα απόρριψης invitation:', error)
-      alert('Δεν ήταν δυνατή η απόρριψη της πρόσκλησης.')
-      setInviteActionLoading(null)
-      return
-    }
-
-    await fetchPendingInvites()
-    setInviteActionLoading(null)
-  }
-
-async function fetchShareDetails(list) {
-    if (!list?.id) return
-
-    setShareLoading(true)
-    setShareError('')
-    setShareMessage('')
-
-    const ownerPromise = supabase
-      .from('profiles')
-      .select('email')
-      .eq('id', list.owner_user_id)
-      .maybeSingle()
-
-    const membersPromise = supabase
-      .from('list_members')
-      .select('user_id, role, created_at')
-      .eq('list_id', list.id)
-      .order('created_at', { ascending: true })
-
-    const [{ data: ownerProfile, error: ownerError }, { data: memberRows, error: membersError }] =
-      await Promise.all([ownerPromise, membersPromise])
-
-    if (ownerError) {
-      console.error('Σφάλμα φόρτωσης owner profile:', ownerError)
-    }
-
-    if (membersError) {
-      console.error('Σφάλμα φόρτωσης μελών λίστας:', membersError)
-      setShareError('Δεν ήταν δυνατή η φόρτωση των κοινόχρηστων χρηστών.')
-      setShareLoading(false)
-      return
-    }
-
-    const uniqueUserIds = [...new Set((memberRows || []).map((row) => row.user_id))]
-
-    let profilesMap = new Map()
-    if (uniqueUserIds.length > 0) {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .in('id', uniqueUserIds)
-
-      if (profilesError) {
-        console.error('Σφάλμα φόρτωσης profiles μελών:', profilesError)
-      } else {
-        profilesMap = new Map((profilesData || []).map((profile) => [profile.id, profile.email]))
       }
     }
 
-    const mappedMembers = (memberRows || [])
-      .filter((row) => row.user_id !== list.owner_user_id)
-      .map((row) => ({
-        user_id: row.user_id,
-        role: row.role,
-        email: profilesMap.get(row.user_id) || 'Άγνωστο email',
-      }))
-
-    setShareOwnerEmail(ownerProfile?.email || 'Άγνωστο email')
-    setShareMembers(mappedMembers)
-    setShareLoading(false)
-  }
-
-  async function openShareModal(list) {
-    if (!list?.id) return
-
-    closeContextMenu()
-    setShareModalList(list)
-    setShareEmail('')
-    setShareOwnerEmail('')
-    setShareMembers([])
-    setShareLoading(false)
-    setShareSubmitting(false)
-    setShareError('')
-    setShareMessage('')
-    setShareRemovingUserId(null)
-    await fetchShareDetails(list)
-  }
-
-  async function handleInviteToList(e) {
-    e.preventDefault()
-
-    if (!shareModalList || !session?.user?.id || isOffline) return
-
-    const email = shareEmail.trim().toLowerCase()
-    if (!email) {
-      setShareError('Συμπλήρωσε email.')
-      return
-    }
-
-    if (email === String(shareOwnerEmail || '').trim().toLowerCase()) {
-      setShareError('Αυτό το email είναι ήδη ο ιδιοκτήτης της λίστας.')
-      return
-    }
-
-    const alreadyShared = shareMembers.some(
-      (member) => String(member.email || '').trim().toLowerCase() === email
-    )
-
-    if (alreadyShared) {
-      setShareError('Ο χρήστης έχει ήδη πρόσβαση σε αυτή τη λίστα.')
-      return
-    }
-
-    setShareSubmitting(true)
-    setShareError('')
-    setShareMessage('')
-
-    const { error: insertError } = await supabase
-  .from('list_invites')
-  .insert({
-    list_id: shareModalList.id,
-    invited_email: email,
-    invited_by_user_id: session.user.id,
-    status: 'pending',
-    list_name_snapshot: shareModalList.name, // Εμφάνιση ονόματος λίστας
-  })
-
-    if (insertError) {
-      console.error('Σφάλμα δημιουργίας πρόσκλησης:', insertError)
-
-      if (String(insertError.message || '').toLowerCase().includes('duplicate')) {
-        setShareError('Υπάρχει ήδη εκκρεμές invite για αυτό το email.')
-      } else {
-        setShareError('Δεν ήταν δυνατή η αποστολή της πρόσκλησης.')
-      }
-
-      setShareSubmitting(false)
-      return
-    }
-
-    try {
-      const { error: emailError } = await supabase.functions.invoke('send-list-invite-email', {
-        body: {
-          invitedEmail: email,
-          inviterEmail: String(session.user.email || shareOwnerEmail || '').trim().toLowerCase(),
-          ownerEmail: String(shareOwnerEmail || '').trim().toLowerCase(),
-          listNames: [shareModalList.name],
-          appUrl: window.location.origin,
-        },
-      })
-
-      if (emailError) {
-        console.error('Σφάλμα αποστολής email invitation:', emailError)
-        setShareEmail('')
-        setShareMessage('Η πρόσκληση αποθηκεύτηκε, αλλά το email δεν στάλθηκε.')
-        setShareSubmitting(false)
-        return
-      }
-    } catch (emailError) {
-      console.error('Σφάλμα κλήσης function για email invitation:', emailError)
-      setShareEmail('')
-      setShareMessage('Η πρόσκληση αποθηκεύτηκε, αλλά το email δεν στάλθηκε.')
-      setShareSubmitting(false)
-      return
-    }
-
-    setShareEmail('')
-    setShareMessage('Η πρόσκληση στάλθηκε επιτυχώς και το email εστάλη.')
-    setShareSubmitting(false)
-  }
-
-  async function handleRemoveSharedUser(member) {
-    if (!shareModalList?.id || !member?.user_id || isOffline) return
-
-    if (!window.confirm(`Να αφαιρεθεί ο χρήστης "${member.email}" από τη λίστα;`)) {
-      return
-    }
-
-    setShareRemovingUserId(member.user_id)
-    setShareError('')
-    setShareMessage('')
-
-    const { error } = await supabase
-      .from('list_members')
-      .delete()
-      .eq('list_id', shareModalList.id)
-      .eq('user_id', member.user_id)
-
-    if (error) {
-      console.error('Σφάλμα αφαίρεσης χρήστη από λίστα:', error)
-      setShareError('Δεν ήταν δυνατή η αφαίρεση του χρήστη.')
-      setShareRemovingUserId(null)
-      return
-    }
-
-    setShareMembers((prev) => prev.filter((item) => item.user_id !== member.user_id))
-    setShareMessage('Ο χρήστης αφαιρέθηκε από τη λίστα.')
-    setShareRemovingUserId(null)
-  }
-
-  function updateTaskEverywhere(taskId, patch) {
-    setTasks((prev) =>
-      sortTasks(
-        prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
-        currentSortMode,
-        currentSortDirection
-      )
-    )
-
-    setAllTasks((prev) =>
-      prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task))
-    )
-
-    setActiveTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
-  }
+    return Array.from(grouped.values()).map((group) => ({
+      ...group,
+      listNames: [...new Set(group.listNames)],
+    }))
+  }, [pendingInvites])
 
   function handleSelectList(list) {
     setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
     setSelectedList(list)
+    setSelectedLists([list.id])
+    setListSelectionAnchorId(list.id)
     setActiveTask(null)
     setTaskNotes([])
     setSelectedTasks([])
@@ -1328,6 +522,207 @@ async function fetchShareDetails(list) {
     setEditingNoteValue('')
     fetchTasks(list.id, false)
     closeContextMenu()
+  }
+
+  function handleListClick(list, event) {
+    if (!list) return
+
+    const isToggle = event.ctrlKey || event.metaKey
+    const isRange = event.shiftKey
+
+    if (isRange && lists.length > 0) {
+      const anchorId = listSelectionAnchorId ?? selectedListRef.current?.id ?? list.id
+      const anchorIndex = lists.findIndex((item) => item.id === anchorId)
+      const clickedIndex = lists.findIndex((item) => item.id === list.id)
+
+      if (anchorIndex !== -1 && clickedIndex !== -1) {
+        const start = Math.min(anchorIndex, clickedIndex)
+        const end = Math.max(anchorIndex, clickedIndex)
+        const rangeIds = lists.slice(start, end + 1).map((item) => item.id)
+
+        setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+        setSelectedList(list)
+        setSelectedLists(rangeIds)
+        setListSelectionAnchorId(anchorId)
+        setActiveTask(null)
+        setTaskNotes([])
+        setSelectedTasks([])
+        setSelectionAnchorId(null)
+        setTaskSearch('')
+        setEditingTaskTitle(false)
+        setEditingNoteId(null)
+        setEditingNoteValue('')
+        closeContextMenu()
+        return
+      }
+    }
+
+    if (isToggle) {
+      const alreadySelected = selectedListsRef.current.includes(list.id)
+      const nextIds = alreadySelected
+        ? selectedListsRef.current.filter((id) => id !== list.id)
+        : [...selectedListsRef.current, list.id]
+
+      setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+      setSelectedList(list)
+      setSelectedLists(nextIds.length > 0 ? nextIds : [list.id])
+      setListSelectionAnchorId(list.id)
+      setActiveTask(null)
+      setTaskNotes([])
+      setSelectedTasks([])
+      setSelectionAnchorId(null)
+      setTaskSearch('')
+      setEditingTaskTitle(false)
+      setEditingNoteId(null)
+      setEditingNoteValue('')
+      closeContextMenu()
+      return
+    }
+
+    handleSelectList(list)
+  }
+
+  function handleListRightClick(event, list) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const currentIds = selectedListsRef.current
+    const shouldKeepCurrentSelection = currentIds.length > 1 && currentIds.includes(list.id)
+    const nextIds = shouldKeepCurrentSelection ? currentIds : [list.id]
+
+    setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+    setSelectedList(list)
+    setSelectedLists(nextIds)
+    setListSelectionAnchorId(list.id)
+
+    const selectedListItems = lists.filter((item) => nextIds.includes(item.id))
+    const canBulkManage =
+      selectedListItems.length > 0 &&
+      selectedListItems.every((item) => item.owner_user_id === session?.user?.id)
+
+    setContextMenu({
+      type: nextIds.length > 1 ? 'list_multi' : 'list',
+      x: event.clientX,
+      y: event.clientY,
+      list,
+      lists: selectedListItems,
+      canBulkManage,
+    })
+    setMoveMenuOpen(false)
+    setMultiMoveMenuOpen(false)
+  }
+
+  async function openMultiShareModal(targetLists) {
+    const ownedLists = (targetLists || []).filter(
+      (list) => list.owner_user_id === session?.user?.id
+    )
+
+    if (!ownedLists.length) return
+
+    closeContextMenu()
+    setShareModalList({
+      id: `multi-${ownedLists.map((list) => list.id).join('-')}`,
+      isMulti: true,
+      lists: ownedLists,
+      owner_user_id: session?.user?.id,
+      name:
+        ownedLists.length === 1
+          ? ownedLists[0].name
+          : `${ownedLists.length} επιλεγμένες λίστες`,
+    })
+    setShareEmail('')
+    setShareOwnerEmail(String(session?.user?.email || '').trim().toLowerCase())
+    setShareMembers([])
+    setShareLoading(false)
+    setShareSubmitting(false)
+    setShareError('')
+    setShareMessage('')
+    setShareRemovingUserId(null)
+  }
+
+  async function handleDeleteSelectedLists(targetLists) {
+    const deletableLists = (targetLists || []).filter(
+      (list) => list.owner_user_id === session?.user?.id
+    )
+
+    if (!deletableLists.length || isOffline) return
+
+    const label =
+      deletableLists.length === 1
+        ? `τη λίστα "${deletableLists[0].name}"`
+        : `τις ${deletableLists.length} επιλεγμένες λίστες`
+
+    if (!window.confirm(`Να διαγραφούν ${label};`)) return
+
+    markSaving()
+
+    const results = await Promise.all(
+      deletableLists.map((list) => supabase.from('lists').delete().eq('id', list.id))
+    )
+
+    const hasError = results.some((result) => result.error)
+
+    if (hasError) {
+      console.error('Σφάλμα μαζικής διαγραφής λιστών:', results)
+      setSyncStatus('error')
+      return
+    }
+
+    closeContextMenu()
+
+    const deletedIds = new Set(deletableLists.map((list) => list.id))
+    const updatedLists = lists.filter((list) => !deletedIds.has(list.id))
+    setLists(updatedLists)
+    setSelectedLists([])
+
+    if (selectedList?.id && deletedIds.has(selectedList.id)) {
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+
+      if (updatedLists.length > 0) {
+        const nextList = updatedLists[0]
+        setSelectedList(nextList)
+        setCurrentListRole(nextList.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+        setSelectedLists([nextList.id])
+        setListSelectionAnchorId(nextList.id)
+        setActiveTask(null)
+        setTaskNotes([])
+        setEditingNoteId(null)
+        setEditingNoteValue('')
+        fetchTasks(nextList.id, false)
+      } else {
+        setSelectedList(null)
+        setListSelectionAnchorId(null)
+        setTasks([])
+        setActiveTask(null)
+        setTaskNotes([])
+        setEditingNoteId(null)
+        setEditingNoteValue('')
+      }
+    }
+
+    if (shareModalList?.isMulti) {
+      const remaining = (shareModalList.lists || []).filter((list) => !deletedIds.has(list.id))
+      if (!remaining.length) {
+        closeShareModal()
+      } else {
+        setShareModalList((prev) =>
+          prev
+            ? {
+                ...prev,
+                lists: remaining,
+                name:
+                  remaining.length === 1
+                    ? remaining[0].name
+                    : `${remaining.length} επιλεγμένες λίστες`,
+              }
+            : prev
+        )
+      }
+    } else if (shareModalList?.id && deletedIds.has(shareModalList.id)) {
+      closeShareModal()
+    }
+
+    markSynced()
   }
 
   async function handleSignIn(e) {
@@ -1409,6 +804,8 @@ async function fetchShareDetails(list) {
     setAuthError('')
     setAuthMessage('')
     closeShareModal()
+    setSelectedLists([])
+    setListSelectionAnchorId(null)
   }
   async function handleAddList(e) {
     e.preventDefault()
@@ -1450,6 +847,8 @@ async function fetchShareDetails(list) {
     }))
     setNewListName('')
     setSelectedList(data)
+    setSelectedLists([data.id])
+    setListSelectionAnchorId(data.id)
     setTasks([])
     setActiveTask(null)
     setTaskNotes([])
@@ -1653,12 +1052,20 @@ async function fetchShareDetails(list) {
     const updatedLists = lists.filter((l) => l.id !== list.id)
     setLists(updatedLists)
 
+    setSelectedLists((prev) => prev.filter((id) => id !== list.id))
+    if (listSelectionAnchorId === list.id) {
+      setListSelectionAnchorId(null)
+    }
+
     if (selectedList?.id === list.id) {
       localStorage.removeItem(LAST_SELECTED_LIST_KEY)
 
       if (updatedLists.length > 0) {
         const nextList = updatedLists[0]
         setSelectedList(nextList)
+        setCurrentListRole(nextList.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+        setSelectedLists([nextList.id])
+        setListSelectionAnchorId(nextList.id)
         setActiveTask(null)
         setTaskNotes([])
         setEditingNoteId(null)
@@ -1666,6 +1073,7 @@ async function fetchShareDetails(list) {
         fetchTasks(nextList.id, false)
       } else {
         setSelectedList(null)
+        setSelectedLists([])
         setTasks([])
         setActiveTask(null)
         setTaskNotes([])
@@ -2747,20 +2155,6 @@ async function fetchShareDetails(list) {
     setMultiMoveMenuOpen(false)
   }
 
-  function handleListRightClick(event, list) {
-    event.preventDefault()
-    event.stopPropagation()
-
-    setContextMenu({
-      type: 'list',
-      x: event.clientX,
-      y: event.clientY,
-      list,
-    })
-    setMoveMenuOpen(false)
-    setMultiMoveMenuOpen(false)
-  }
-
   function handleNoteRightClick(event, note) {
     event.preventDefault()
     event.stopPropagation()
@@ -3012,10 +2406,10 @@ async function fetchShareDetails(list) {
                       className={`list-drop-wrapper ${showTopLine ? 'drop-top' : ''} ${showBottomLine ? 'drop-bottom' : ''} ${taskDropActive ? 'task-drop-active' : ''}`}
                     >
                       <button
-                        className={`list-button ${selectedList?.id === list.id ? 'active' : ''} ${
+                        className={`list-button ${selectedLists.includes(list.id) ? 'active' : ''} ${
                           draggedListId === list.id ? 'dragging' : ''
                         }`}
-                        onClick={() => handleSelectList(list)}
+                        onClick={(event) => handleListClick(list, event)}
                         onContextMenu={(event) => handleListRightClick(event, list)}
                         draggable={!isOffline}
                         onDragStart={() => handleListDragStart(list.id)}
@@ -3097,34 +2491,49 @@ async function fetchShareDetails(list) {
               <h3>Προσκλήσεις σε λίστες</h3>
               <p>Φόρτωση προσκλήσεων...</p>
             </div>
-          ) : pendingInvites.length > 0 ? (
+          ) : groupedPendingInvites.length > 0 ? (
             <div className="invites-banner">
               <h3>Προσκλήσεις σε λίστες</h3>
-              {pendingInvites.map((invite) => (
-                <div key={invite.id} className="invite-item">
-                  <span>
-                    Έχεις εκκρεμή πρόσκληση για λίστα{' '}
-                    <strong>{invite.list_name_snapshot || `#${invite.list_id}`}</strong>
-                  </span>
-                  <div className="invite-actions">
-                    <button
-                      type="button"
-                      onClick={() => handleAcceptInvite(invite.id)}
-                      disabled={inviteActionLoading === invite.id || isOffline}
-                    >
-                      {inviteActionLoading === invite.id ? 'Αποδοχή...' : 'Αποδοχή'}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => handleRejectInvite(invite.id)}
-                      disabled={inviteActionLoading === invite.id || isOffline}
-                    >
-                      Απόρριψη
-                    </button>
+              {groupedPendingInvites.map((group) => {
+                const inviteIds = group.invites.map((invite) => invite.id)
+                const loadingKey = inviteIds.join(',')
+                const isLoading = inviteActionLoading === loadingKey
+
+                return (
+                  <div key={group.key} className="invite-item">
+                    <span>
+                      {group.listNames.length === 1 ? (
+                        <>
+                          Έχεις εκκρεμή πρόσκληση για λίστα{' '}
+                          <strong>{group.listNames[0]}</strong>
+                        </>
+                      ) : (
+                        <>
+                          Έχεις εκκρεμή πρόσκληση για λίστες{' '}
+                          <strong>{group.listNames.join(', ')}</strong>
+                        </>
+                      )}
+                    </span>
+                    <div className="invite-actions">
+                      <button
+                        type="button"
+                        onClick={() => handleAcceptInvite(inviteIds)}
+                        disabled={isLoading || isOffline}
+                      >
+                        {isLoading ? 'Αποδοχή...' : 'Αποδοχή'}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => handleRejectInvite(inviteIds)}
+                        disabled={isLoading || isOffline}
+                      >
+                        Απόρριψη
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : null}
 
@@ -3680,6 +3089,36 @@ async function fetchShareDetails(list) {
   </div>
 )}
 
+        {contextMenu && contextMenu.type === 'list_multi' && (
+          <div
+            className="context-menu"
+            style={getContextMenuPosition()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {contextMenu.canBulkManage ? (
+              <>
+                <button
+                  className="context-menu-item"
+                  onClick={() => openMultiShareModal(contextMenu.lists)}
+                >
+                  Κοινή χρήση λιστών
+                </button>
+
+                <button
+                  className="context-menu-item danger"
+                  onClick={() => handleDeleteSelectedLists(contextMenu.lists)}
+                >
+                  Διαγραφή λιστών
+                </button>
+              </>
+            ) : (
+              <div className="context-menu-item" style={{ cursor: 'default', opacity: 0.7 }}>
+                Η μαζική διαχείριση είναι διαθέσιμη μόνο για λίστες που σου ανήκουν.
+              </div>
+            )}
+          </div>
+        )}
+
         {contextMenu && contextMenu.type === 'note' && (
           <div
             className="context-menu"
@@ -3781,7 +3220,11 @@ async function fetchShareDetails(list) {
                   className="add-button"
                   disabled={shareSubmitting || isOffline}
                 >
-                  {shareSubmitting ? 'Αποστολή...' : 'Αποστολή invite'}
+                  {shareSubmitting
+                    ? 'Αποστολή...'
+                    : shareModalList.isMulti
+                      ? 'Αποστολή κοινής πρόσκλησης'
+                      : 'Αποστολή invite'}
                 </button>
               </form>
             ) : (
@@ -3792,7 +3235,7 @@ async function fetchShareDetails(list) {
                   lineHeight: 1.5,
                 }}
               >
-                Μπορείς να δεις ποιος είναι ο ιδιοκτήτης και ποιοι έχουν πρόσβαση στη λίστα.
+                {shareModalList.isMulti ? 'Μπορείς να δεις τον ιδιοκτήτη των λιστών.' : 'Μπορείς να δεις ποιος είναι ο ιδιοκτήτης και ποιοι έχουν πρόσβαση στη λίστα.'}
               </div>
             )}
 
@@ -3852,85 +3295,87 @@ async function fetchShareDetails(list) {
               </div>
             </div>
 
-            <div
-              style={{
-                marginTop: '16px',
-                paddingTop: '12px',
-                borderTop: '1px solid var(--border)',
-              }}
-            >
+            {!shareModalList.isMulti && (
               <div
                 style={{
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  marginBottom: '8px',
+                  marginTop: '16px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--border)',
                 }}
               >
-                Διαμοιραζόμενοι χρήστες
-              </div>
-
-              {shareLoading ? (
-                <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>Φόρτωση...</div>
-              ) : shareMembers.length === 0 ? (
-                <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
-                  Δεν υπάρχουν ακόμη διαμοιραζόμενοι χρήστες.
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    marginBottom: '8px',
+                  }}
+                >
+                  Διαμοιραζόμενοι χρήστες
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {shareMembers.map((member) => (
-                    <div
-                      key={member.user_id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '10px',
-                        padding: '10px 12px',
-                        border: '1px solid var(--border)',
-                        borderRadius: '10px',
-                        background: 'var(--panel-soft)',
-                        fontSize: '12px',
-                      }}
-                    >
+
+                {shareLoading ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>Φόρτωση...</div>
+                ) : shareMembers.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-soft)' }}>
+                    Δεν υπάρχουν ακόμη διαμοιραζόμενοι χρήστες.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {shareMembers.map((member) => (
                       <div
+                        key={member.user_id}
                         style={{
-                          minWidth: 0,
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px',
-                          flex: 1,
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '10px',
+                          padding: '10px 12px',
+                          border: '1px solid var(--border)',
+                          borderRadius: '10px',
+                          background: 'var(--panel-soft)',
+                          fontSize: '12px',
                         }}
                       >
-                        <span style={{ minWidth: 0, wordBreak: 'break-word' }}>{member.email}</span>
-                        <span
+                        <div
                           style={{
-                            fontSize: '11px',
-                            color: 'var(--text-soft)',
+                            minWidth: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            flex: 1,
                           }}
                         >
-                          {member.role}
-                        </span>
-                      </div>
+                          <span style={{ minWidth: 0, wordBreak: 'break-word' }}>{member.email}</span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              color: 'var(--text-soft)',
+                            }}
+                          >
+                            {member.role}
+                          </span>
+                        </div>
 
-                      {shareModalList.owner_user_id === session?.user?.id && (
-                        <button
-                          type="button"
-                          className="theme-toggle"
-                          onClick={() => handleRemoveSharedUser(member)}
-                          disabled={shareRemovingUserId === member.user_id || isOffline}
-                          style={{
-                            flexShrink: 0,
-                            padding: '6px 10px',
-                          }}
-                        >
-                          {shareRemovingUserId === member.user_id ? 'Αφαίρεση...' : 'Αφαίρεση'}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                        {shareModalList.owner_user_id === session?.user?.id && (
+                          <button
+                            type="button"
+                            className="theme-toggle"
+                            onClick={() => handleRemoveSharedUser(member)}
+                            disabled={shareRemovingUserId === member.user_id || isOffline}
+                            style={{
+                              flexShrink: 0,
+                              padding: '6px 10px',
+                            }}
+                          >
+                            {shareRemovingUserId === member.user_id ? 'Αφαίρεση...' : 'Αφαίρεση'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
