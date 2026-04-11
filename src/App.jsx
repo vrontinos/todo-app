@@ -150,14 +150,14 @@ function App() {
   }, [selectedLists])
 
   useEffect(() => {
-    if (!session?.user?.id) return
-    if (!selectedList?.id) {
-      setTasks([])
-      return
-    }
+  if (!session?.user?.id) return
+  if (!selectedList?.id) {
+    setTasks([])
+    return
+  }
 
-    fetchTasks(selectedList.id, false)
-  }, [selectedList?.id, session?.user?.id])
+  fetchTasks(selectedList.id, false)
+}, [selectedList?.id, session?.user?.id])
 
   useEffect(() => {
     if (selectedList?.id) {
@@ -239,7 +239,20 @@ function App() {
       setIsOffline(false)
       if (session?.user?.id) {
         setSyncStatus('syncing')
-        void refreshAppData(false)
+        fetchLists(false)
+        fetchAllTasks(false)
+        fetchTaskNoteCounts(false)
+
+        const currentSelectedList = selectedListRef.current
+        const currentActiveTask = activeTaskRef.current
+
+        if (currentSelectedList?.id) {
+          fetchTasks(currentSelectedList.id, false)
+        }
+
+        if (currentActiveTask?.id && editingNoteIdRef.current === null) {
+          fetchNotes(currentActiveTask.id, false)
+        }
       }
     }
 
@@ -261,7 +274,27 @@ function App() {
 
   useEffect(() => {
     if (!session?.user?.id) {
-      resetSessionState()
+      setLists([])
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      setTasks([])
+      setAllTasks([])
+      setNoteCountsByTask({})
+      setActiveTask(null)
+      setTaskNotes([])
+      setSelectedTasks([])
+      setSelectionAnchorId(null)
+      setNewListName('')
+      setNewTaskTitle('')
+      setNewNoteText('')
+      setEditingTaskTitle(false)
+      setEditingNoteId(null)
+      setEditingNoteValue('')
+      setLastEditorEmail('')
+      setPendingInvites([])
+      setSyncStatus('connecting')
+      setLastSyncAt(null)
       return
     }
 
@@ -284,8 +317,24 @@ function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'lists' },
         async () => {
+          const currentSelectedList = selectedListRef.current
+          const currentActiveTask = activeTaskRef.current
+          const isEditingNote = editingNoteIdRef.current !== null
+
           setSyncStatus('syncing')
-          await refreshAppData(false)
+
+          await fetchLists(false)
+          await fetchAllTasks(false)
+          await fetchTaskNoteCounts(false)
+
+          if (currentSelectedList?.id) {
+            await fetchTasks(currentSelectedList.id, false)
+          }
+
+          if (currentActiveTask?.id && !isEditingNote) {
+            await fetchNotes(currentActiveTask.id, false)
+          }
+
           setSyncStatus('synced')
         }
       )
@@ -293,8 +342,24 @@ function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         async () => {
+          const currentSelectedList = selectedListRef.current
+          const currentActiveTask = activeTaskRef.current
+          const isEditingNote = editingNoteIdRef.current !== null
+
           setSyncStatus('syncing')
-          await refreshAppData(false)
+
+          await fetchLists(false)
+          await fetchAllTasks(false)
+          await fetchTaskNoteCounts(false)
+
+          if (currentSelectedList?.id) {
+            await fetchTasks(currentSelectedList.id, false)
+          }
+
+          if (currentActiveTask?.id && !isEditingNote) {
+            await fetchNotes(currentActiveTask.id, false)
+          }
+
           setSyncStatus('synced')
         }
       )
@@ -302,8 +367,24 @@ function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'task_notes' },
         async () => {
+          const currentSelectedList = selectedListRef.current
+          const currentActiveTask = activeTaskRef.current
+          const isEditingNote = editingNoteIdRef.current !== null
+
           setSyncStatus('syncing')
-          await refreshAppData(false)
+
+          await fetchLists(false)
+          await fetchAllTasks(false)
+          await fetchTaskNoteCounts(false)
+
+          if (currentSelectedList?.id) {
+            await fetchTasks(currentSelectedList.id, false)
+          }
+
+          if (currentActiveTask?.id && !isEditingNote) {
+            await fetchNotes(currentActiveTask.id, false)
+          }
+
           setSyncStatus('synced')
         }
       )
@@ -325,7 +406,22 @@ function App() {
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible' && session?.user?.id) {
         setSyncStatus('syncing')
-        void refreshAppData(false)
+
+        const currentSelectedList = selectedListRef.current
+        const currentActiveTask = activeTaskRef.current
+        const isEditingNote = editingNoteIdRef.current !== null
+
+        fetchLists(false)
+        fetchAllTasks(false)
+        fetchTaskNoteCounts(false)
+
+        if (currentSelectedList?.id) {
+          fetchTasks(currentSelectedList.id, false)
+        }
+
+        if (currentActiveTask?.id && !isEditingNote) {
+          fetchNotes(currentActiveTask.id, false)
+        }
       }
     }
 
@@ -363,57 +459,6 @@ function App() {
     setMultiMoveMenuOpen(false)
   }
 
-  function clearSelectedTaskState() {
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
-  }
-
-  function clearSelectedListState() {
-    localStorage.removeItem(LAST_SELECTED_LIST_KEY)
-    setSelectedList(null)
-    setSelectedLists([])
-    setListSelectionAnchorId(null)
-    setTasks([])
-    setActiveTask(null)
-    setTaskNotes([])
-  }
-
-  function resetSessionState() {
-    clearSelectedListState()
-    clearSelectedTaskState()
-    setLists([])
-    setAllTasks([])
-    setNoteCountsByTask({})
-    setNewListName('')
-    setNewTaskTitle('')
-    setNewNoteText('')
-    setEditingTaskTitle(false)
-    setEditingNoteId(null)
-    setEditingNoteValue('')
-    setLastEditorEmail('')
-    setPendingInvites([])
-    setSyncStatus('connecting')
-    setLastSyncAt(null)
-  }
-
-  async function refreshAppData(updateStatus = false) {
-    const currentSelectedList = selectedListRef.current
-    const currentActiveTask = activeTaskRef.current
-    const isEditingNote = editingNoteIdRef.current !== null
-
-    await fetchLists(updateStatus)
-    await fetchAllTasks(updateStatus)
-    await fetchTaskNoteCounts(updateStatus)
-
-    if (currentSelectedList?.id) {
-      await fetchTasks(currentSelectedList.id, false)
-    }
-
-    if (currentActiveTask?.id && !isEditingNote) {
-      await fetchNotes(currentActiveTask.id, false)
-    }
-  }
-
   async function handleLeaveList(list) {
     if (!list?.id || !session?.user?.id || isOffline) return
 
@@ -437,11 +482,20 @@ function App() {
     setSelectedLists((prev) => prev.filter((id) => id !== list.id))
 
     if (selectedListRef.current?.id === list.id) {
-      clearSelectedListState()
-      clearSelectedTaskState()
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      setTasks([])
+      setActiveTask(null)
+      setTaskNotes([])
+      setSelectedTasks([])
+      setSelectionAnchorId(null)
     }
 
-    void refreshAppData(false)
+    fetchLists(false)
+    fetchAllTasks(false)
+    fetchTaskNoteCounts(false)
   }
 
   function clearEditingNoteIfStillSame(noteId, nextValue = '') {
@@ -887,23 +941,29 @@ function App() {
     })
 
     if (loadedLists.length === 0) {
-      clearSelectedListState()
+      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      setTasks([])
+      setActiveTask(null)
+      setTaskNotes([])
       if (updateStatus) setLoadingLists(false)
       if (updateStatus) markSynced()
       return
     }
 
-    const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
+const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
 
-    const stillExists = selectedListRef.current
-      ? loadedLists.find((l) => l.id === selectedListRef.current.id)
-      : null
+const stillExists = selectedListRef.current
+  ? loadedLists.find((l) => l.id === selectedListRef.current.id)
+  : null
 
-    const savedList = savedListId
-      ? loadedLists.find((l) => String(l.id) === String(savedListId))
-      : null
+const savedList = savedListId
+  ? loadedLists.find((l) => String(l.id) === String(savedListId))
+  : null
 
-    const nextSelected = stillExists || savedList || loadedLists[0]
+const nextSelected = stillExists || savedList || loadedLists[0]
     setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
     setSelectedList(nextSelected)
     setSelectedLists([nextSelected.id])
