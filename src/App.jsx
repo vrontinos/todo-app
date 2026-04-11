@@ -142,11 +142,10 @@ function App() {
   }, [selectedList])
 
   useEffect(() => {
-  if (selectedList?.id) {
-    console.log('SAVING LAST LIST:', selectedList.id)
-    localStorage.setItem(LAST_SELECTED_LIST_KEY, selectedList.id)
-  }
-}, [selectedList])
+    if (selectedList?.id) {
+      localStorage.setItem(LAST_SELECTED_LIST_KEY, selectedList.id)
+    }
+  }, [selectedList])
 
   useEffect(() => {
     localStorage.setItem('listSortSettings', JSON.stringify(listSortSettings))
