@@ -3847,26 +3847,27 @@ async function fetchShareDetails(list) {
               <div className="main-header">
                 {editingListName ? (
                   <input
-                    className="list-title-input"
-                    value={editingListValue}
-                    onChange={(e) => setEditingListValue(e.target.value)}
-                    onBlur={async () => {
-                      await handleRenameList(selectedList, editingListValue)
-                      setEditingListName(false)
-                    }}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        await handleRenameList(selectedList, editingListValue)
-                        setEditingListName(false)
-                      }
-                      if (e.key === 'Escape') {
-                        setEditingListName(false)
-                        setEditingListValue(selectedList.name)
-                      }
-                    }}
-                    autoFocus
-                  />
+  className="list-title-input"
+  value={editingListValue}
+  onChange={(e) => setEditingListValue(e.target.value)}
+  onBlur={async () => {
+    await handleRenameList(selectedList, editingListValue)
+    setEditingListName(false)
+  }}
+  onKeyDown={async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      await handleRenameList(selectedList, editingListValue)
+      setEditingListName(false)
+    }
+    if (e.key === 'Escape') {
+      setEditingListName(false)
+      setEditingListValue(selectedList.name)
+    }
+  }}
+  onFocus={(e) => e.target.select()}
+  autoFocus
+/>
                 ) : (
                   <h1
   className="editable-title"
