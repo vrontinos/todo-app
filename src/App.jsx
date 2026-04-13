@@ -1,6 +1,221 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { DndContext, DragOverlay, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import './App.css'
+
+const LIST_DND_PREFIX = 'list:'
+const TASK_DND_PREFIX = 'task:'
+const TASK_LIST_DROP_PREFIX = 'tasklist:'
+
+function getListDndId(id) {
+  return `${LIST_DND_PREFIX}${id}`
+}
+
+function getTaskDndId(id) {
+  return `${TASK_DND_PREFIX}${id}`
+}
+
+function getTaskListDropId(id) {
+  return `${TASK_LIST_DROP_PREFIX}${id}`
+}
+
+function parseDndId(value) {
+  const id = String(value || '')
+
+  if (id.startsWith(LIST_DND_PREFIX)) {
+    return { type: 'list', rawId: id.slice(LIST_DND_PREFIX.length) }
+  }
+
+  if (id.startsWith(TASK_DND_PREFIX)) {
+    return { type: 'task', rawId: id.slice(TASK_DND_PREFIX.length) }
+  }
+
+  if (id.startsWith(TASK_LIST_DROP_PREFIX)) {
+    return { type: 'task-list-target', rawId: id.slice(TASK_LIST_DROP_PREFIX.length) }
+  }
+
+  return { type: null, rawId: id }
+}
+
+function normalizeId(rawId) {
+  if (/^\d+$/.test(String(rawId))) {
+    return Number(rawId)
+  }
+  return rawId
+}
+
+function autoResizeTextarea(element) {
+  if (!element) return
+  element.style.height = 'auto'
+  element.style.height = `${element.scrollHeight}px`
+}
+
+function TaskListDropZone({ listId, disabled, className = '', children, forceActive = false }) {
+  const { isOver, setNodeRef, active } = useDroppable({
+    id: getTaskListDropId(listId),
+    disabled,
+  })
+
+  const isTaskOver =
+    forceActive || (isOver && String(active?.id || '').startsWith(TASK_DND_PREFIX))
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-task-over={isTaskOver ? 'true' : 'false'}
+      className={`${className} ${isTaskOver ? 'task-drop-active' : ''}`.trim()}
+    >
+      {children}
+    </div>
+  )
+}
+
+function SortableListItem({
+  list,
+  isActive,
+  isDraggingNative,
+  incompleteCount,
+  completedCount,
+  onClick,
+  onContextMenu,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: getListDndId(list.id) })
+
+  const style = {
+    transform: transform ? CSS.Transform.toString({ ...transform, x: 0 }) : undefined,
+    transition,
+  }
+
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      className={`list-button ${isActive ? 'active' : ''} ${isDragging || isDraggingNative ? 'dragging' : ''}`}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      type="button"
+      title="Σύρε λίστα για αλλαγή σειράς ή εργασία για μεταφορά εδώ"
+      {...attributes}
+      {...listeners}
+    >
+      <span className="list-button-left">
+        <span className="list-grip">≡</span>
+        <span className="list-name-text">{list.name}</span>
+      </span>
+
+      <div className="list-count-group">
+        {incompleteCount > 0 && (
+          <span className="list-count-badge incomplete" title="Μη ολοκληρωμένες">
+            {incompleteCount}
+          </span>
+        )}
+
+        {completedCount > 0 && (
+          <span className="list-count-badge completed" title="Ολοκληρωμένες">
+            {completedCount}
+          </span>
+        )}
+      </div>
+    </button>
+  )
+}
+
+function SortableTaskItem({
+  task,
+  isActive,
+  isSelected,
+  isOffline,
+  isSearchMode,
+  onClick,
+  onContextMenu,
+  onToggleCompleted,
+  onToggleWeighing,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({
+      id: getTaskDndId(task.id),
+      disabled: isOffline || isSearchMode,
+    })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    visibility: isDragging ? 'hidden' : 'visible',
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`task-item ${isSelected ? 'task-item-selected' : ''} ${isActive ? 'task-item-active' : ''}`}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      title={
+        isSearchMode
+          ? 'Εμφάνιση αποτελέσματος αναζήτησης'
+          : 'Κλικ για επιλογή • Δεξί κλικ για μενού • Σύρε για αλλαγή σειράς ή σε λίστα για μεταφορά'
+      }
+      {...attributes}
+      {...listeners}
+    >
+      <input
+        className="round-checkbox"
+        type="checkbox"
+        checked={task.completed}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => {
+          e.stopPropagation()
+        }}
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+        onChange={(e) => {
+          e.stopPropagation()
+          onToggleCompleted(task)
+        }}
+        disabled={isOffline}
+      />
+
+      <div className="task-text-block">
+        <span className={`task-title ${task.completed ? 'completed' : ''}`}>{task.title}</span>
+
+        {task.notes_count > 0 && (
+          <span
+            className="task-notes-count"
+            title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
+          >
+            <span className="task-notes-icon">📝</span>
+            <span>{task.notes_count}</span>
+          </span>
+        )}
+
+        {isSearchMode && <span className="task-list-label">Λίστα: {task.list_name || '—'}</span>}
+      </div>
+
+      <button
+        type="button"
+        className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onClick={(e) => onToggleWeighing(task, e)}
+        title="Ογκομέτρηση"
+        disabled={isOffline}
+      >
+        ⚖
+      </button>
+    </div>
+  )
+}
 
 function App() {
   const [session, setSession] = useState(null)
@@ -87,6 +302,8 @@ function App() {
   const [dropIndicator, setDropIndicator] = useState(null)
   const [taskDropListId, setTaskDropListId] = useState(null)
   const [taskReorderIndicator, setTaskReorderIndicator] = useState(null)
+  const [activeDragId, setActiveDragId] = useState(null)
+  const [activeOverId, setActiveOverId] = useState(null)
 
   const appRef = useRef(null)
   const mainRef = useRef(null)
@@ -108,6 +325,54 @@ function App() {
     selectedList && listSortSettings[selectedList.id]?.direction
       ? listSortSettings[selectedList.id].direction
       : 'asc'
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    })
+  )
+
+  const activeDraggedTask = useMemo(() => {
+    const parsed = parseDndId(activeDragId)
+    if (parsed.type !== 'task') return null
+    const id = normalizeId(parsed.rawId)
+    return (allTasks || []).find((task) => String(task.id) === String(id)) || null
+  }, [activeDragId, allTasks])
+
+  const activeDraggedList = useMemo(() => {
+    const parsed = parseDndId(activeDragId)
+    if (parsed.type !== 'list') return null
+    const id = normalizeId(parsed.rawId)
+    return (lists || []).find((list) => String(list.id) === String(id)) || null
+  }, [activeDragId, lists])
+
+  const hoveredTaskListId = useMemo(() => {
+    if (!activeDraggedTask || !activeOverId) return null
+    const overMeta = parseDndId(activeOverId)
+    if (overMeta.type === 'task-list-target' || overMeta.type === 'list') {
+      return normalizeId(overMeta.rawId)
+    }
+    return null
+  }, [activeDraggedTask, activeOverId])
+
+  function collisionDetectionStrategy(args) {
+    const pointerCollisions = pointerWithin(args)
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions
+    }
+    return closestCenter(args)
+  }
+
+  function handleGlobalDragStart(event) {
+    setActiveDragId(String(event.active?.id || ''))
+    setActiveOverId(null)
+  }
+
+  function handleGlobalDragOver(event) {
+    setActiveOverId(String(event.over?.id || ''))
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -609,6 +874,7 @@ function App() {
       top: `${padding}px`,
     }
   }
+
 
   function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
     const factor = direction === 'desc' ? -1 : 1
@@ -2034,14 +2300,19 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  function handleListDragStart(listId) {
+  function handleListDragStart(event, listId) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', `list:${listId}`)
     setDraggedListId(listId)
     setDraggedTaskId(null)
     setDraggedTaskIds([])
   }
 
-  function handleTaskDragStart(taskId) {
+  function handleTaskDragStart(event, taskId) {
     if (taskSearch.trim() || isOffline) return
+
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', `task:${taskId}`)
 
     const dragIds =
       selectedTasks.includes(taskId) && selectedTasks.length > 1
@@ -2193,6 +2464,78 @@ async function fetchShareDetails(list) {
     await saveListPositions(reorderedLists)
   }
 
+  async function handleGlobalDragEnd(event) {
+    const { active, over } = event
+
+    setActiveDragId(null)
+    handleAnyDragEnd()
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const activeMeta = parseDndId(active.id)
+    const overMeta = parseDndId(over.id)
+    const activeId = normalizeId(activeMeta.rawId)
+    const overId = normalizeId(overMeta.rawId)
+
+    if (activeMeta.type === 'list' && overMeta.type === 'list') {
+      const oldIndex = lists.findIndex((list) => String(list.id) === String(activeId))
+      const newIndex = lists.findIndex((list) => String(list.id) === String(overId))
+
+      if (oldIndex === -1 || newIndex === -1) return
+
+      const reorderedLists = arrayMove(lists, oldIndex, newIndex).map((list, index) => ({
+        ...list,
+        position: index + 1,
+      }))
+
+      setLists(reorderedLists)
+      await saveListPositions(reorderedLists)
+      return
+    }
+
+    if (activeMeta.type !== 'task') {
+      return
+    }
+
+    const dragTaskIds =
+      selectedTasks.includes(activeId) && selectedTasks.length > 1 ? [...selectedTasks] : [activeId]
+
+    if (overMeta.type === 'list' || overMeta.type === 'task-list-target') {
+      await handleMoveDraggedTasksToList(dragTaskIds, overId)
+      return
+    }
+
+    if (overMeta.type !== 'task') {
+      return
+    }
+
+    if (taskSearch.trim() || currentSortMode !== 'manual' || dragTaskIds.length > 1) {
+      return
+    }
+
+    const oldIndex = tasks.findIndex((task) => String(task.id) === String(activeId))
+    const newIndex = tasks.findIndex((task) => String(task.id) === String(overId))
+
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reorderedTasks = arrayMove(tasks, oldIndex, newIndex).map((task, index) => ({
+      ...task,
+      position: index + 1,
+    }))
+
+    setTasks(sortTasks(reorderedTasks, 'manual', currentSortDirection))
+    setAllTasks((prev) =>
+      prev.map((task) => {
+        const updated = reorderedTasks.find((t) => String(t.id) === String(task.id))
+        return updated ? { ...task, position: updated.position } : task
+      })
+    )
+
+    await saveTaskPositions(reorderedTasks)
+  }
+
   async function handleMoveTaskByDrag(taskId, targetListId) {
     if (isOffline) return
 
@@ -2326,6 +2669,8 @@ async function fetchShareDetails(list) {
   }
 
   function handleAnyDragEnd() {
+    setActiveDragId(null)
+    setActiveOverId(null)
     setDraggedListId(null)
     setDraggedTaskId(null)
     setDraggedTaskIds([])
@@ -2856,16 +3201,43 @@ async function fetchShareDetails(list) {
       </html>
     `
 
-    const printWindow = window.open('', '_blank', 'width=900,height=700')
-    if (!printWindow) return
+    const printFrame = document.createElement('iframe')
+    printFrame.style.position = 'fixed'
+    printFrame.style.right = '0'
+    printFrame.style.bottom = '0'
+    printFrame.style.width = '0'
+    printFrame.style.height = '0'
+    printFrame.style.border = '0'
+    printFrame.setAttribute('aria-hidden', 'true')
 
-    printWindow.document.open()
-    printWindow.document.write(html)
-    printWindow.document.close()
-    printWindow.focus()
+    document.body.appendChild(printFrame)
 
-    setTimeout(() => {
-      printWindow.print()
+    const frameWindow = printFrame.contentWindow
+    const frameDocument = printFrame.contentDocument || frameWindow?.document
+
+    if (!frameWindow || !frameDocument) {
+      document.body.removeChild(printFrame)
+      return
+    }
+
+    frameDocument.open()
+    frameDocument.write(html)
+    frameDocument.close()
+
+    const cleanup = () => {
+      window.setTimeout(() => {
+        if (document.body.contains(printFrame)) {
+          document.body.removeChild(printFrame)
+        }
+      }, 500)
+    }
+
+    frameWindow.onafterprint = cleanup
+
+    window.setTimeout(() => {
+      frameWindow.focus()
+      frameWindow.print()
+      cleanup()
     }, 250)
   }
 
@@ -3228,6 +3600,14 @@ async function fetchShareDetails(list) {
 
   return (
     <>
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={collisionDetectionStrategy}
+        onDragStart={handleGlobalDragStart}
+        onDragOver={handleGlobalDragOver}
+        onDragEnd={handleGlobalDragEnd}
+        onDragCancel={handleAnyDragEnd}
+      >
       <div
         className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
         ref={appRef}
@@ -3314,63 +3694,58 @@ async function fetchShareDetails(list) {
             ) : lists.length === 0 ? (
               <p>Δεν βρέθηκαν λίστες.</p>
             ) : (
-              <div className="list-container">
-                {lists.map((list) => {
-                  const showTopLine =
-                    dropIndicator &&
-                    dropIndicator.targetListId === list.id &&
-                    dropIndicator.position === 'top'
+              <SortableContext
+                items={lists.map((list) => getListDndId(list.id))}
+                strategy={verticalListSortingStrategy}
+              >
+                  <div className="list-container">
+                    {lists.map((list) => {
+                      const showTopLine =
+                        dropIndicator &&
+                        dropIndicator.targetListId === list.id &&
+                        dropIndicator.position === 'top'
 
-                  const showBottomLine =
-                    dropIndicator &&
-                    dropIndicator.targetListId === list.id &&
-                    dropIndicator.position === 'bottom'
+                      const showBottomLine =
+                        dropIndicator &&
+                        dropIndicator.targetListId === list.id &&
+                        dropIndicator.position === 'bottom'
 
-                  const taskDropActive = taskDropListId === list.id
-                  const incompleteCount = incompleteCountByList[list.id] || 0
-                  const completedCount = completedCountByList[list.id] || 0
+                      const taskDropActive =
+                        taskDropListId === list.id ||
+                        String(hoveredTaskListId) === String(list.id)
+                      const incompleteCount = incompleteCountByList[list.id] || 0
+                      const completedCount = completedCountByList[list.id] || 0
 
-                  return (
-                    <div
-                      key={list.id}
-                      className={`list-drop-wrapper ${showTopLine ? 'drop-top' : ''} ${showBottomLine ? 'drop-bottom' : ''} ${taskDropActive ? 'task-drop-active' : ''}`}
-                    >
-                      <button
-                        className={`list-button ${selectedLists.includes(list.id) ? 'active' : ''} ${
-                          draggedListId === list.id ? 'dragging' : ''
-                        }`}
-                        onClick={(event) => handleListClick(list, event)}
-                        onContextMenu={(event) => handleListRightClick(event, list)}
-                        draggable={!isOffline}
-                        onDragStart={() => handleListDragStart(list.id)}
-                        onDragOver={(event) => handleListDragOver(event, list.id)}
-                        onDrop={() => handleListDrop(list.id)}
-                        onDragEnd={handleAnyDragEnd}
-                        title="Σύρε λίστα για αλλαγή σειράς ή εργασία για μεταφορά εδώ"
-                      >
-                        <span className="list-button-left">
-                          <span className="list-grip">≡</span>
-                          <span className="list-name-text">{list.name}</span>
-                        </span>
-
-                        <div className="list-count-group">
-                          {incompleteCount > 0 && (
-                            <span className="list-count-badge incomplete" title="Μη ολοκληρωμένες">
-                              {incompleteCount}
-                            </span>
-                          )}
-
-                          {completedCount > 0 && (
-                            <span className="list-count-badge completed" title="Ολοκληρωμένες">
-                              {completedCount}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
+                      return (
+                        <TaskListDropZone
+                          key={list.id}
+                          listId={list.id}
+                          disabled={isOffline}
+                          className={`list-drop-wrapper ${showTopLine ? 'drop-top' : ''} ${showBottomLine ? 'drop-bottom' : ''}`}
+                          forceActive={taskDropActive}
+                        >
+                          <div
+                            onDragOver={(event) => handleListDragOver(event, list.id)}
+                            onDrop={(event) => {
+                              event.preventDefault()
+                              handleListDrop(list.id)
+                            }}
+                          >
+                            <SortableListItem
+                              list={list}
+                              isActive={selectedLists.includes(list.id)}
+                              isDraggingNative={draggedListId === list.id}
+                              incompleteCount={incompleteCount}
+                              completedCount={completedCount}
+                              onClick={(event) => handleListClick(list, event)}
+                              onContextMenu={(event) => handleListRightClick(event, list)}
+                            />
+                          </div>
+                        </TaskListDropZone>
+                      )
+                    })}
+                  </div>
+              </SortableContext>
             )}
           </div>
 
@@ -3508,16 +3883,6 @@ async function fetchShareDetails(list) {
   }
 >
   {selectedList.name}
-  <span
-    style={{
-      marginLeft: '10px',
-      fontSize: '12px',
-      fontWeight: 500,
-      color: 'var(--text-soft)',
-    }}
-  >
-    {currentListRole === 'owner' ? '(Ιδιοκτήτης)' : '(Κοινόχρηστη)'}
-  </span>
 </h1>
                 )}
 
@@ -3585,117 +3950,40 @@ async function fetchShareDetails(list) {
                     : 'Δεν υπάρχουν εργασίες σε αυτή τη λίστα.'}
                 </p>
               ) : (
-                <div className="task-container">
-                  {visibleTasks.map((task, index) => {
-                    const showTaskTopLine =
-                      taskReorderIndicator &&
-                      taskReorderIndicator.targetTaskId === task.id &&
-                      taskReorderIndicator.position === 'top'
+                <SortableContext
+                  items={visibleTasks.map((task) => getTaskDndId(task.id))}
+                  strategy={verticalListSortingStrategy}
+                >
+                    <div className="task-container">
+                      {visibleTasks.map((task, index) => {
+                        const previousTask = visibleTasks[index - 1]
+                        const shouldShowCompletedDivider =
+                          index > 0 &&
+                          !previousTask.completed &&
+                          task.completed
 
-                    const showTaskBottomLine =
-                      taskReorderIndicator &&
-                      taskReorderIndicator.targetTaskId === task.id &&
-                      taskReorderIndicator.position === 'bottom'
+                        return (
+                          <div key={task.id}>
+                            {shouldShowCompletedDivider && (
+                              <div className="completed-divider">Ολοκληρωμένες</div>
+                            )}
 
-                    const previousTask = visibleTasks[index - 1]
-                    const shouldShowCompletedDivider =
-                      index > 0 &&
-                      !previousTask.completed &&
-                      task.completed
-
-                    return (
-                      <div key={task.id}>
-                        {shouldShowCompletedDivider && (
-                          <div className="completed-divider">Ολοκληρωμένες</div>
-                        )}
-
-                        <div
-                          className={`task-drop-wrapper ${
-                            showTaskTopLine ? 'task-drop-top' : ''
-                          } ${showTaskBottomLine ? 'task-drop-bottom' : ''}`}
-                        >
-                          <div
-                            className={`task-item ${
-                              selectedTasks.includes(task.id) ? 'task-item-selected' : ''
-                            } ${activeTask?.id === task.id ? 'task-item-active' : ''}`}
-                            onClick={(event) => handleTaskClick(task, event)}
-                            onContextMenu={(event) => handleTaskRightClick(event, task)}
-                            draggable={!taskSearch.trim() && !isOffline}
-                            onDragStart={() => handleTaskDragStart(task.id)}
-                            onDragOver={(event) => handleTaskDragOver(event, task.id)}
-                            onDrop={() => handleTaskDrop(task.id)}
-                            onDragEnd={handleAnyDragEnd}
-                            title={
-                              taskSearch.trim()
-                                ? 'Εμφάνιση αποτελέσματος αναζήτησης'
-                                : currentSortMode === 'manual'
-                                  ? 'Κλικ για επιλογή • Δεξί κλικ για μενού • Σύρε για αλλαγή σειράς ή σε λίστα για μεταφορά'
-                                  : 'Κλικ για επιλογή • Δεξί κλικ για μενού • Σύρε σε λίστα για μεταφορά'
-                            }
-                          >
-                            <input
-                              className="round-checkbox"
-                              type="checkbox"
-                              checked={task.completed}
-                              onMouseDown={(e) => {
-                                e.stopPropagation()
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                              onChange={(e) => {
-                                e.stopPropagation()
-                                handleToggleCompleted(task)
-                              }}
-                              disabled={isOffline}
+                            <SortableTaskItem
+                              task={task}
+                              isActive={activeTask?.id === task.id}
+                              isSelected={selectedTasks.includes(task.id)}
+                              isOffline={isOffline}
+                              isSearchMode={Boolean(taskSearch.trim())}
+                              onClick={(event) => handleTaskClick(task, event)}
+                              onContextMenu={(event) => handleTaskRightClick(event, task)}
+                              onToggleCompleted={handleToggleCompleted}
+                              onToggleWeighing={handleToggleWeighing}
                             />
-
-                            <div className="task-text-block">
-                              <span className={`task-title ${task.completed ? 'completed' : ''}`}>
-                                {task.title}
-                              </span>
-
-                              {task.notes_count > 0 && (
-                                <span
-                                  className="task-notes-count"
-                                  title={
-                                    task.notes_count === 1
-                                      ? '1 σημείωση'
-                                      : `${task.notes_count} σημειώσεις`
-                                  }
-                                >
-                                  <span className="task-notes-icon">📝</span>
-                                  <span>{task.notes_count}</span>
-                                </span>
-                              )}
-
-                              {taskSearch.trim() && (
-                                <span className="task-list-label">
-                                  Λίστα: {task.list_name || '—'}
-                                </span>
-                              )}
-                            </div>
-
-                            <button
-                              type="button"
-                              draggable={false}
-                              className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                              }}
-                              onClick={(e) => handleToggleWeighing(task, e)}
-                              title="Ογκομέτρηση"
-                              disabled={isOffline}
-                            >
-                              ⚖
-                            </button>
                           </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                        )
+                      })}
+                    </div>
+                </SortableContext>
               )}
             </>
           ) : (
@@ -3726,43 +4014,49 @@ async function fetchShareDetails(list) {
           {activeTask && (
             <div className="details-panel">
               <div className="details-panel-header">
-                {editingTaskTitle ? (
-                  <input
-                    className="details-task-title-input"
-                    value={editingTaskValue}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={(e) => e.target.select()}
-                    onChange={(e) => setEditingTaskValue(e.target.value)}
-                    onBlur={async () => {
-                      await handleRenameTask(activeTask, editingTaskValue)
-                    }}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        await handleRenameTask(activeTask, editingTaskValue)
-                      }
-                      if (e.key === 'Escape') {
-                        setEditingTaskTitle(false)
-                        setEditingTaskValue(activeTask.title)
-                      }
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <div
-                    className="details-task-title"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditingTaskTitle(true)
-                      setEditingTaskValue(activeTask.title)
-                    }}
-                    title="Κλικ για μετονομασία"
-                  >
-                    {activeTask.title}
-                  </div>
-                )}
+                <textarea
+  className={editingTaskTitle ? 'details-task-title-input' : 'details-task-title'}
+  value={editingTaskTitle ? editingTaskValue : activeTask.title}
+  readOnly={!editingTaskTitle}
+  rows={1}
+  onMouseDown={(e) => {
+    e.stopPropagation()
+
+    if (!editingTaskTitle) {
+      setEditingTaskTitle(true)
+      setEditingTaskValue(activeTask.title)
+    }
+  }}
+  onClick={(e) => e.stopPropagation()}
+  onFocus={(e) => {
+    autoResizeTextarea(e.target)
+  }}
+  onInput={(e) => {
+    autoResizeTextarea(e.target)
+    setEditingTaskValue(e.target.value)
+  }}
+  onBlur={async (e) => {
+    autoResizeTextarea(e.target)
+
+    if (editingTaskTitle) {
+      await handleRenameTask(activeTask, editingTaskValue)
+    }
+  }}
+  onKeyDown={async (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      await handleRenameTask(activeTask, editingTaskValue)
+    }
+    if (e.key === 'Escape') {
+      setEditingTaskTitle(false)
+      setEditingTaskValue(activeTask.title)
+    }
+  }}
+  ref={(el) => {
+    if (el) autoResizeTextarea(el)
+  }}
+  title="Κλικ για μετονομασία"
+/>
 
                 <div className="details-controls">
                   <button
@@ -3780,20 +4074,27 @@ async function fetchShareDetails(list) {
                 </div>
               </div>
 
-              <input
-                type="text"
-                className="note-input"
-                placeholder="Γράψε σημείωση και πάτα Enter..."
-                value={newNoteText}
-                onChange={(e) => setNewNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleAddNoteFromEnter()
-                  }
-                }}
-                disabled={isOffline}
-              />
+              <textarea
+  className="note-input"
+  placeholder="Γράψε σημείωση και πάτα Enter..."
+  value={newNoteText}
+  rows={1}
+  onChange={(e) => {
+    setNewNoteText(e.target.value)
+    autoResizeTextarea(e.target)
+  }}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleAddNoteFromEnter()
+    }
+  }}
+  onFocus={(e) => autoResizeTextarea(e.target)}
+  ref={(el) => {
+    if (el) autoResizeTextarea(el)
+  }}
+  disabled={isOffline}
+/>
 
               <div className="notes-list">
                 {taskNotes.length === 0 ? (
@@ -3822,13 +4123,21 @@ async function fetchShareDetails(list) {
                       />
 
                       {editingNoteId === note.id ? (
-                        <input
+                        <textarea
                           className="note-inline-input"
                           value={editingNoteValue}
-                          onChange={(e) => setEditingNoteValue(e.target.value)}
+                          rows={1}
+                          onChange={(e) => {
+                            setEditingNoteValue(e.target.value)
+                            autoResizeTextarea(e.target)
+                          }}
                           onBlur={() => handleInlineRenameNote(note.id)}
+                          onFocus={(e) => {
+                            e.target.select()
+                            autoResizeTextarea(e.target)
+                          }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault()
                               handleInlineRenameNote(note.id)
                             }
@@ -3839,6 +4148,9 @@ async function fetchShareDetails(list) {
                           autoFocus
                           onClick={(e) => e.stopPropagation()}
                           disabled={isOffline}
+                          ref={(el) => {
+                            if (el) autoResizeTextarea(el)
+                          }}
                         />
                       ) : (
                         <span className={note.completed ? 'completed' : ''}>
@@ -4318,6 +4630,47 @@ async function fetchShareDetails(list) {
           </div>
         </div>
       )}
+
+      <DragOverlay zIndex={9999}>
+        {activeDraggedTask ? (
+          <div className="task-item" style={{ pointerEvents: 'none', boxShadow: 'var(--shadow)', opacity: 0.98 }}>
+            <div className="task-text-block">
+              <span className={`task-title ${activeDraggedTask.completed ? 'completed' : ''}`}>
+                {activeDraggedTask.title}
+              </span>
+
+              {(noteCountsByTask[activeDraggedTask.id] || 0) > 0 && (
+                <span className="task-notes-count">
+                  <span className="task-notes-icon">📝</span>
+                  <span>{noteCountsByTask[activeDraggedTask.id] || 0}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        ) : activeDraggedList ? (
+          <div className="list-button" style={{ pointerEvents: 'none', boxShadow: 'var(--shadow)', opacity: 0.98 }}>
+            <span className="list-button-left">
+              <span className="list-grip">≡</span>
+              <span className="list-name-text">{activeDraggedList.name}</span>
+            </span>
+
+            <div className="list-count-group">
+              {(incompleteCountByList[activeDraggedList.id] || 0) > 0 && (
+                <span className="list-count-badge incomplete">
+                  {incompleteCountByList[activeDraggedList.id] || 0}
+                </span>
+              )}
+
+              {(completedCountByList[activeDraggedList.id] || 0) > 0 && (
+                <span className="list-count-badge completed">
+                  {completedCountByList[activeDraggedList.id] || 0}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+      </DndContext>
     </>
   )
 }

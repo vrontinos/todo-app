@@ -149,13 +149,18 @@ button,
 .task-search-clear,
 .add-list-button,
 .add-button,
-.list-button,
-.task-item,
 .weight-toggle,
 .context-menu-item,
 .editable-title,
 .details-task-title,
-.note-item {
+.note-item,
+.list-button,
+.task-item {
+  cursor: default;
+}
+
+.list-button,
+.task-item {
   cursor: default;
 }
 
@@ -338,6 +343,11 @@ button,
   width: 100%;
   margin-bottom: 10px;
   padding: 8px;
+  min-height: 60px;      /* Ελαφρώς μεγαλύτερο ύψος */
+  line-height: 1.4;      /* Καλύτερη αναγνωσιμότητα */
+  resize: none;          /* Αφαιρεί το “χερούλι” για manual resize */
+  overflow: hidden;      /* Αποτρέπει την εμφάνιση scrollbars */
+  box-sizing: border-box;
 }
 
 .add-list-button,
@@ -454,6 +464,10 @@ button,
   background: var(--selected);
   border-color: var(--selected-border);
 }
+.task-item.task-item-selected {
+  background: var(--selected);
+  border-color: var(--selected-border);
+}
 
 .list-button.active {
   background: var(--panel-soft);
@@ -562,6 +576,7 @@ button,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .main-actions {
@@ -573,6 +588,11 @@ button,
 .editable-title {
   margin: 0;
   font-size: var(--font-title);
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .list-title-input {
@@ -623,19 +643,10 @@ button,
 
 .task-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
   padding: 8px 9px;
   user-select: none;
-}
-
-.task-item-selected {
-  background: var(--selected);
-  border-color: var(--selected-border);
-}
-
-.task-item-active {
-  outline: 2px solid var(--active-outline);
 }
 
 .task-text-block {
@@ -644,10 +655,16 @@ button,
   min-width: 0;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
 }
 
 .task-title {
+  display: block;
   min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.35;
 }
 
 .task-title.completed {
@@ -767,12 +784,28 @@ button,
 .details-task-title,
 .details-task-title-input {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   padding: 9px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--panel-soft);
   color: var(--text);
   font-weight: 600;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.details-task-title {
+  resize: none;
+  overflow: hidden;
+}
+
+.details-task-title-input {
+  resize: none;
+  overflow: hidden;
 }
 
 .details-controls {
@@ -796,6 +829,14 @@ button,
   background: var(--muted-bg);
 }
 
+/* Απενεργοποίηση επιλογής κειμένου στις σημειώσεις */
+.note-item,
+.note-item span,
+.note-text {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .note-item-completed {
   background: var(--hover-2);
 }
@@ -814,9 +855,23 @@ button,
 
 .note-inline-input {
   flex: 1;
-  padding: 4px 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
   font-size: var(--font-main);
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.details-task-title-input {
+  resize: none;
+  overflow: hidden;
+  min-height: 44px;
 }
 
 .notes-empty {
@@ -907,21 +962,18 @@ button,
   bottom: 8px;
   height: calc(100vh - 16px);
   z-index: 10010;
-
-  /* Πλάτος παρόμοιο με το Microsoft To Do */
   width: min(560px, 70vw);
   min-width: min(560px, 70vw);
   max-width: min(760px, 82vw);
-
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: var(--shadow);
-
   overflow-y: auto;
   overflow-x: hidden;
 }
+
 .submenu-large {
   min-width: min(560px, 70vw);
   max-width: min(760px, 82vw);
@@ -937,18 +989,14 @@ button,
   opacity: 0.9;
   font-size: var(--font-small);
 }
-/* Το submenu εμφανίζεται κολλητά δεξιά από το βασικό menu */
+
 .submenu-right {
   left: auto;
 }
 
-/* Το submenu εμφανίζεται κολλητά αριστερά από το βασικό menu */
 .submenu-left {
   right: auto;
 }
-/* =========================
-   Invitations Banner
-   ========================= */
 
 .invites-banner {
   background: var(--panel);
@@ -990,7 +1038,7 @@ button,
   color: #ffffff;
   padding: 5px 10px;
   font-size: var(--font-small);
-  cursor: pointer;
+  cursor: default;
   transition: background 0.15s ease;
 }
 
@@ -1000,9 +1048,8 @@ button,
 
 .invite-item button:disabled {
   opacity: 0.6;
-  cursor: not-allowed;
+  cursor: default;
 }
-
 
 .invite-actions {
   display: flex;
@@ -1025,7 +1072,6 @@ button,
   color: var(--text);
 }
 
-
 .invite-item-grouped {
   align-items: flex-start;
 }
@@ -1036,4 +1082,36 @@ button,
 
 .invite-list-summary {
   color: var(--text-soft);
+}
+
+/* Highlight λίστας όταν γίνεται drag μια εργασία επάνω της */
+.list-drop-wrapper.task-drop-active,
+.list-drop-wrapper[data-task-over='true'] {
+  border-radius: 8px;
+}
+
+.list-drop-wrapper.task-drop-active .list-button,
+.list-drop-wrapper[data-task-over='true'] .list-button,
+.task-drop-active .list-button {
+  background: rgba(37, 99, 235, 0.18) !important;
+  border-color: #2563eb !important;
+  box-shadow:
+    0 0 0 2px rgba(37, 99, 235, 0.95),
+    0 0 0 6px rgba(37, 99, 235, 0.18) !important;
+  outline: none !important;
+}
+
+.list-drop-wrapper.task-drop-active .list-name-text,
+.list-drop-wrapper[data-task-over='true'] .list-name-text,
+.task-drop-active .list-name-text,
+.list-drop-wrapper.task-drop-active .list-grip,
+.list-drop-wrapper[data-task-over='true'] .list-grip,
+.task-drop-active .list-grip {
+  color: #2563eb !important;
+}
+
+.list-drop-wrapper.task-drop-active .list-button::after,
+.list-drop-wrapper[data-task-over='true'] .list-button::after {
+  content: none !important;
+  display: none !important;
 }
