@@ -8,6 +8,7 @@ import './App.css'
 const LIST_DND_PREFIX = 'list:'
 const TASK_DND_PREFIX = 'task:'
 const TASK_LIST_DROP_PREFIX = 'tasklist:'
+const MOBILE_BREAKPOINT = 1024
 
 function getListDndId(id) {
   return `${LIST_DND_PREFIX}${id}`
@@ -226,6 +227,8 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
+  const [mobileView, setMobileView] = useState('lists')
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
 
@@ -258,7 +261,14 @@ function App() {
   const [lastSyncAt, setLastSyncAt] = useState(null)
 
   const [taskSearch, setTaskSearch] = useState('')
-  const [listSortSettings, setListSortSettings] = useState({})
+  const [listSortSettings, setListSortSettings] = useState(() => {
+  try {
+    const saved = localStorage.getItem('listSortSettings')
+    return saved ? JSON.parse(saved) : {}
+  } catch {
+    return {}
+  }
+})
 
   const [newListName, setNewListName] = useState('')
   const [editingListName, setEditingListName] = useState(false)
@@ -374,6 +384,34 @@ function App() {
     setActiveOverId(String(event.over?.id || ''))
   }
 
+useEffect(() => {
+  function handleResize() {
+    setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT)
+  }
+
+  window.addEventListener('resize', handleResize)
+
+  return () => {
+    window.removeEventListener('resize', handleResize)
+  }
+}, [])
+
+useEffect(() => {
+  if (!isMobile) return
+
+  if (!selectedList) {
+    setMobileView('lists')
+    return
+  }
+
+  if (!activeTask) {
+    setMobileView('tasks')
+    return
+  }
+
+  setMobileView('details')
+}, [isMobile, selectedList, activeTask])
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
@@ -386,17 +424,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem('detailsWidth', String(detailsWidth))
   }, [detailsWidth])
-
-  useEffect(() => {
-    const saved = localStorage.getItem('listSortSettings')
-    if (saved) {
-      try {
-        setListSortSettings(JSON.parse(saved))
-      } catch {
-        setListSortSettings({})
-      }
-    }
-  }, [])
 
   useEffect(() => {
     editingNoteIdRef.current = editingNoteId
@@ -570,8 +597,8 @@ function App() {
   }, [session])
 
   useEffect(() => {
-    setTasks((prev) => sortTasks(prev, currentSortMode, currentSortDirection))
-  }, [selectedList, listSortSettings])
+  setTasks((prev) => sortTasks(prev, currentSortMode, currentSortDirection))
+}, [selectedList?.id, currentSortMode, currentSortDirection])
 
   useEffect(() => {
     if (!session?.user?.id) return
@@ -1783,7 +1810,11 @@ async function fetchShareDetails(list) {
     }
 
     handleSelectList(list)
+    if (isMobile) {
+      setMobileView('tasks')
+    }
   }
+
 
   async function handleSignIn(e) {
     e.preventDefault()
@@ -2849,6 +2880,9 @@ async function fetchShareDetails(list) {
 
     setSelectedTasks([taskId])
     setSelectionAnchorId(taskId)
+    if (isMobile) {
+    setMobileView('details')
+    }
   }
 
   async function handleToggleCompleted(task) {
@@ -3612,61 +3646,82 @@ async function fetchShareDetails(list) {
         className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
         ref={appRef}
       >
-        <div
-          className="sidebar"
-          style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}
+{isMobile && mobileView !== 'lists' && (
+  <button
+  type="button"
+  className="mobile-floating-back"
+  onClick={() => {
+    if (mobileView === 'details') {
+      setMobileView('tasks')
+      return
+    }
+    setMobileView('lists')
+  }}
+  aria-label="Back"
+  title="Back"
+>
+  ‹
+</button>
+)}
+<div
+  className="sidebar"
+  style={
+    isMobile
+      ? {
+          display: mobileView === 'lists' ? 'flex' : 'none',
+          width: '100%',
+          minWidth: '100%',
+        }
+      : { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }
+  }
+>
+  <div className="sidebar-fixed-header">
+    <div className="sidebar-top">
+      <h2>Λίστες</h2>
+
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <button
+          className="theme-toggle"
+          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
         >
-          <div className="sidebar-scroll-area">
-            <div className="sidebar-top">
-              <h2>Λίστες</h2>
+          {theme === 'light' ? 'Dark' : 'Light'}
+        </button>
 
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  className="theme-toggle"
-                  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                >
-                  {theme === 'light' ? 'Dark' : 'Light'}
-                </button>
+        <button className="theme-toggle" onClick={handleSignOut}>
+          Έξοδος
+        </button>
+      </div>
+    </div>
 
-                <button className="theme-toggle" onClick={handleSignOut}>
-                  Έξοδος
-                </button>
-              </div>
-            </div>
+    <div className="sidebar-user-email">
+      {session.user.email}
+    </div>
+  </div>
 
-            <div
-              style={{
-                marginBottom: '8px',
-                fontSize: '11px',
-                color: 'var(--text-soft)',
-                wordBreak: 'break-word',
-              }}
-            >
-              {session.user.email}
-            </div>
+  <div className="sidebar-scroll-area">
+    <div className={`sync-indicator ${syncStatus}`}>
+      <span className="sync-dot" />
+      <span>{syncText}</span>
+    </div>
 
-            <div className={`sync-indicator ${syncStatus}`}>
-              <span className="sync-dot" />
-              <span>{syncText}</span>
-            </div>
+    {isOffline && (
+      <div
+        style={{
+          marginBottom: '8px',
+          padding: '8px',
+          border: '1px solid var(--red)',
+          borderRadius: '8px',
+          background: 'var(--danger-bg)',
+          color: 'var(--text)',
+          fontSize: '11px',
+          lineHeight: 1.4,
+        }}
+      >
+        Δεν υπάρχει σύνδεση στο internet. Οι αλλαγές δεν αποθηκεύονται μέχρι να επανέλθει η σύνδεση.
+      </div>
+    )}
 
-            {isOffline && (
-              <div
-                style={{
-                  marginBottom: '8px',
-                  padding: '8px',
-                  border: '1px solid var(--red)',
-                  borderRadius: '8px',
-                  background: 'var(--danger-bg)',
-                  color: 'var(--text)',
-                  fontSize: '11px',
-                  lineHeight: 1.4,
-                }}
-              >
-                Δεν υπάρχει σύνδεση στο internet. Οι αλλαγές δεν αποθηκεύονται μέχρι να επανέλθει η σύνδεση.
-              </div>
-            )}
-
+    
             <div className="task-search-box">
               <div className="task-search-wrapper">
                 <input
@@ -3764,8 +3819,11 @@ async function fetchShareDetails(list) {
           </form>
         </div>
 
+        
+
         <div
           className="column-resizer left"
+          style={isMobile ? { display: 'none' } : undefined}
           onMouseDown={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -3777,6 +3835,14 @@ async function fetchShareDetails(list) {
         <div
           ref={mainRef}
           className={`main ${activeTask ? 'with-details' : ''}`}
+style={
+    	isMobile
+    	  ? {
+          display: mobileView === 'tasks' ? 'block' : 'none',
+          width: '100%',
+        }
+      : undefined
+  }
           tabIndex={0}
           onMouseDown={(e) => {
             const tagName = e.target?.tagName
@@ -3842,157 +3908,167 @@ async function fetchShareDetails(list) {
             </div>
           ) : null}
 
-          {selectedList ? (
-            <>
-              <div className="main-header">
-                {editingListName ? (
-                  <input
-  className="list-title-input"
-  value={editingListValue}
-  onChange={(e) => setEditingListValue(e.target.value)}
-  onBlur={async () => {
-    await handleRenameList(selectedList, editingListValue)
-    setEditingListName(false)
-  }}
-  onKeyDown={async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      await handleRenameList(selectedList, editingListValue)
-      setEditingListName(false)
+
+{selectedList ? (
+  <>
+    <div className="main-fixed-header">
+      <div className="main-header">
+        {editingListName ? (
+          <input
+            className="list-title-input"
+            value={editingListValue}
+            onChange={(e) => setEditingListValue(e.target.value)}
+            onBlur={async () => {
+              await handleRenameList(selectedList, editingListValue)
+              setEditingListName(false)
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                await handleRenameList(selectedList, editingListValue)
+                setEditingListName(false)
+              }
+              if (e.key === 'Escape') {
+                setEditingListName(false)
+                setEditingListValue(selectedList.name)
+              }
+            }}
+            onFocus={(e) => e.target.select()}
+            autoFocus
+          />
+        ) : (
+          <h1
+            className="editable-title"
+            onClick={() => {
+              if (selectedList.owner_user_id === session?.user?.id) {
+                setEditingListName(true)
+                setEditingListValue(selectedList.name)
+              }
+            }}
+            title={
+              selectedList.owner_user_id === session?.user?.id
+                ? 'Κλικ για μετονομασία'
+                : 'Κοινόχρηστη λίστα'
+            }
+          >
+            {selectedList.name}
+          </h1>
+        )}
+
+        <div className="main-actions">
+          <div className="task-sort-box">
+            <label htmlFor="sortMode">Ταξινόμηση</label>
+
+            {currentSortMode !== 'manual' && (
+  <button
+    className={`sort-direction-button ${
+      currentSortDirection === 'asc' ? 'asc' : 'desc'
+    }`}
+    onClick={() =>
+      updateCurrentListSort({
+        direction: currentSortDirection === 'asc' ? 'desc' : 'asc',
+      })
     }
-    if (e.key === 'Escape') {
-      setEditingListName(false)
-      setEditingListValue(selectedList.name)
+    title={
+      currentSortDirection === 'asc'
+        ? 'Αύξουσα σειρά'
+        : 'Φθίνουσα σειρά'
     }
-  }}
-  onFocus={(e) => e.target.select()}
-  autoFocus
-/>
-                ) : (
-                  <h1
-  className="editable-title"
-  onClick={() => {
-    if (selectedList.owner_user_id === session?.user?.id) {
-      setEditingListName(true)
-      setEditingListValue(selectedList.name)
-    }
-  }}
-  title={
-    selectedList.owner_user_id === session?.user?.id
-      ? 'Κλικ για μετονομασία'
-      : 'Κοινόχρηστη λίστα'
-  }
->
-  {selectedList.name}
-</h1>
-                )}
+    type="button"
+  >
+    {currentSortDirection === 'asc' ? '↑' : '↓'}
+  </button>
+)}
 
-                <div className="main-actions">
-                  <div className="task-sort-box">
-                    <label htmlFor="sortMode">Ταξινόμηση</label>
+            <select
+              id="sortMode"
+              value={currentSortMode}
+              onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
+            >
+              <option value="created">Σειρά καταχώρησης</option>
+              <option value="alpha">Αλφαβητική</option>
+              <option value="manual">Χειροκίνητη</option>
+            </select>
+          </div>
 
-                    <button
-                      className={`sort-direction-button ${
-                        currentSortDirection === 'asc' ? 'asc' : 'desc'
-                      }`}
-                      onClick={() =>
-                        updateCurrentListSort({
-                          direction: currentSortDirection === 'asc' ? 'desc' : 'asc',
-                        })
-                      }
-                      title={
-                        currentSortDirection === 'asc'
-                          ? 'Αύξουσα σειρά'
-                          : 'Φθίνουσα σειρά'
-                      }
-                      type="button"
-                    >
-                      {currentSortDirection === 'asc' ? '↑' : '↓'}
-                    </button>
+          <button className="print-button" onClick={handlePrintTasks}>
+            Εκτύπωση Εργασιών
+          </button>
+        </div>
+      </div>
+    </div>
 
-                    <select
-                      id="sortMode"
-                      value={currentSortMode}
-                      onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
-                    >
-                      <option value="created">Σειρά καταχώρησης</option>
-                      <option value="alpha">Αλφαβητική</option>
-                      <option value="manual">Χειροκίνητη</option>
-                    </select>
-                  </div>
+    <div className="main-scroll-area">
+      {loadingTasks ? (
+        <p>Φόρτωση εργασιών...</p>
+      ) : visibleTasks.length === 0 ? (
+        <p>
+          {taskSearch.trim()
+            ? 'Δεν βρέθηκε αυτό που ψάχνεις'
+            : 'Δεν υπάρχουν εργασίες σε αυτή τη λίστα.'}
+        </p>
+      ) : (
+        <SortableContext
+          items={visibleTasks.map((task) => getTaskDndId(task.id))}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="task-container">
+            {visibleTasks.map((task, index) => {
+              const previousTask = visibleTasks[index - 1]
+              const shouldShowCompletedDivider =
+                index > 0 &&
+                !previousTask.completed &&
+                task.completed
 
-                  <button className="print-button" onClick={handlePrintTasks}>
-                    Εκτύπωση Εργασιών
-                  </button>
+              return (
+                <div key={task.id}>
+                  {shouldShowCompletedDivider && (
+                    <div className="completed-divider">Ολοκληρωμένες</div>
+                  )}
+
+                  <SortableTaskItem
+                    task={task}
+                    isActive={activeTask?.id === task.id}
+                    isSelected={selectedTasks.includes(task.id)}
+                    isOffline={isOffline}
+                    isSearchMode={Boolean(taskSearch.trim())}
+                    onClick={(event) => handleTaskClick(task, event)}
+                    onContextMenu={(event) => handleTaskRightClick(event, task)}
+                    onToggleCompleted={handleToggleCompleted}
+                    onToggleWeighing={handleToggleWeighing}
+                  />
                 </div>
-              </div>
+              )
+            })}
+          </div>
+        </SortableContext>
+      )}
+    </div>
 
-              <form className="add-task-form" onSubmit={handleAddTask}>
-                <input
-                  type="text"
-                  placeholder="Γράψε νέα εργασία..."
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onPaste={handleTaskPaste}
-                  className="task-input"
-                  disabled={isOffline}
-                />
-                <button type="submit" className="add-button" disabled={isOffline}>
-                  Προσθήκη
-                </button>
-              </form>
+    <div className="add-task-form-bottom">
+      <form className="add-task-form" onSubmit={handleAddTask}>
+        <input
+          type="text"
+          placeholder="Γράψε νέα εργασία..."
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          onPaste={handleTaskPaste}
+          className="task-input"
+          disabled={isOffline}
+        />
+        <button type="submit" className="add-button" disabled={isOffline}>
+          Προσθήκη
+        </button>
+      </form>
+    </div>
+  </>
+) : (
+  <p>Διάλεξε ή δημιούργησε μια λίστα.</p>
+)}
 
-              {loadingTasks ? (
-                <p>Φόρτωση εργασιών...</p>
-              ) : visibleTasks.length === 0 ? (
-                <p>
-                  {taskSearch.trim()
-                    ? 'Δεν βρέθηκε αυτό που ψάχνεις'
-                    : 'Δεν υπάρχουν εργασίες σε αυτή τη λίστα.'}
-                </p>
-              ) : (
-                <SortableContext
-                  items={visibleTasks.map((task) => getTaskDndId(task.id))}
-                  strategy={verticalListSortingStrategy}
-                >
-                    <div className="task-container">
-                      {visibleTasks.map((task, index) => {
-                        const previousTask = visibleTasks[index - 1]
-                        const shouldShowCompletedDivider =
-                          index > 0 &&
-                          !previousTask.completed &&
-                          task.completed
-
-                        return (
-                          <div key={task.id}>
-                            {shouldShowCompletedDivider && (
-                              <div className="completed-divider">Ολοκληρωμένες</div>
-                            )}
-
-                            <SortableTaskItem
-                              task={task}
-                              isActive={activeTask?.id === task.id}
-                              isSelected={selectedTasks.includes(task.id)}
-                              isOffline={isOffline}
-                              isSearchMode={Boolean(taskSearch.trim())}
-                              onClick={(event) => handleTaskClick(task, event)}
-                              onContextMenu={(event) => handleTaskRightClick(event, task)}
-                              onToggleCompleted={handleToggleCompleted}
-                              onToggleWeighing={handleToggleWeighing}
-                            />
-                          </div>
-                        )
-                      })}
-                    </div>
-                </SortableContext>
-              )}
-            </>
-          ) : (
-            <p>Διάλεξε ή δημιούργησε μια λίστα.</p>
-          )}
         </div>
 
-        {activeTask && (
+        {activeTask && !isMobile && (
           <div
             className="column-resizer right"
             onMouseDown={(e) => {
@@ -4006,171 +4082,187 @@ async function fetchShareDetails(list) {
 
         <div
           className={`details-drawer ${activeTask ? 'open' : ''}`}
-          style={
-            activeTask
-              ? { width: `${detailsWidth}px`, minWidth: `${detailsWidth}px` }
-              : undefined
-          }
+
+style={
+  activeTask
+    ? isMobile
+      ? {
+          display: mobileView === 'details' ? 'block' : 'none',
+          width: '100%',
+          minWidth: '100%',
+        }
+      : { width: `${detailsWidth}px`, minWidth: `${detailsWidth}px` }
+    : isMobile
+      ? { display: 'none' }
+      : undefined
+}
         >
-          {activeTask && (
-            <div className="details-panel">
-              <div className="details-panel-header">
-                <textarea
-  className={editingTaskTitle ? 'details-task-title-input' : 'details-task-title'}
-  value={editingTaskTitle ? editingTaskValue : activeTask.title}
-  readOnly={!editingTaskTitle}
-  rows={1}
-  onMouseDown={(e) => {
-    e.stopPropagation()
 
-    if (!editingTaskTitle) {
-      setEditingTaskTitle(true)
-      setEditingTaskValue(activeTask.title)
-    }
-  }}
-  onClick={(e) => e.stopPropagation()}
-  onFocus={(e) => {
-    autoResizeTextarea(e.target)
-  }}
-  onInput={(e) => {
-    autoResizeTextarea(e.target)
-    setEditingTaskValue(e.target.value)
-  }}
-  onBlur={async (e) => {
-    autoResizeTextarea(e.target)
+{activeTask && (
+            <>
+              <div className="details-panel">
+                <div className="details-panel-header">
+                  <textarea
+                    className={
+                      editingTaskTitle ? 'details-task-title-input' : 'details-task-title'
+                    }
+                    value={editingTaskTitle ? editingTaskValue : activeTask.title}
+                    readOnly={!editingTaskTitle}
+                    rows={1}
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
 
-    if (editingTaskTitle) {
-      await handleRenameTask(activeTask, editingTaskValue)
-    }
-  }}
-  onKeyDown={async (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      await handleRenameTask(activeTask, editingTaskValue)
-    }
-    if (e.key === 'Escape') {
-      setEditingTaskTitle(false)
-      setEditingTaskValue(activeTask.title)
-    }
-  }}
-  ref={(el) => {
-    if (el) autoResizeTextarea(el)
-  }}
-  title="Κλικ για μετονομασία"
-/>
-
-                <div className="details-controls">
-                  <button
-                    className="details-close"
-                    onClick={() => {
-                      setActiveTask(null)
-                      setTaskNotes([])
-                      setEditingTaskTitle(false)
-                      setEditingNoteId(null)
-                      setEditingNoteValue('')
+                      if (!editingTaskTitle) {
+                        setEditingTaskTitle(true)
+                        setEditingTaskValue(activeTask.title)
+                      }
                     }}
-                  >
-                    ✕
-                  </button>
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => {
+                      autoResizeTextarea(e.target)
+                    }}
+                    onInput={(e) => {
+                      autoResizeTextarea(e.target)
+                      setEditingTaskValue(e.target.value)
+                    }}
+                    onBlur={async (e) => {
+                      autoResizeTextarea(e.target)
+
+                      if (editingTaskTitle) {
+                        await handleRenameTask(activeTask, editingTaskValue)
+                      }
+                    }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        await handleRenameTask(activeTask, editingTaskValue)
+                      }
+                      if (e.key === 'Escape') {
+                        setEditingTaskTitle(false)
+                        setEditingTaskValue(activeTask.title)
+                      }
+                    }}
+                    ref={(el) => {
+                      if (el) autoResizeTextarea(el)
+                    }}
+                    title="Κλικ για μετονομασία"
+                  />
+
+                  <div className="details-controls">
+                    <button
+                      className="details-close"
+                      onClick={() => {
+                        setActiveTask(null)
+                        setTaskNotes([])
+                        setEditingTaskTitle(false)
+                        setEditingNoteId(null)
+                        setEditingNoteValue('')
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <textarea
+                  className="note-input"
+                  placeholder="Γράψε σημείωση και πάτα Enter..."
+                  value={newNoteText}
+                  rows={1}
+                  onChange={(e) => {
+                    setNewNoteText(e.target.value)
+                    autoResizeTextarea(e.target)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleAddNoteFromEnter()
+                    }
+                  }}
+                  onFocus={(e) => autoResizeTextarea(e.target)}
+                  ref={(el) => {
+                    if (el) autoResizeTextarea(el)
+                  }}
+                  disabled={isOffline}
+                />
+
+                <div className="notes-list">
+                  {taskNotes.length === 0 ? (
+                    <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
+                  ) : (
+                    taskNotes.map((note) => (
+                      <div
+                        key={note.id}
+                        className={`note-item ${note.completed ? 'note-item-completed' : ''}`}
+                        onClick={() => {
+                          if (editingNoteId !== note.id) {
+                            setEditingNoteId(note.id)
+                            setEditingNoteValue(note.content)
+                          }
+                        }}
+                        onContextMenu={(event) => handleNoteRightClick(event, note)}
+                        title="Κλικ για επεξεργασία • Δεξί κλικ για μενού"
+                      >
+                        <input
+                          className="round-checkbox"
+                          type="checkbox"
+                          checked={note.completed}
+                          onChange={() => handleToggleNoteCompleted(note)}
+                          onClick={(e) => e.stopPropagation()}
+                          disabled={isOffline}
+                        />
+
+                        {editingNoteId === note.id ? (
+                          <textarea
+                            className="note-inline-input"
+                            value={editingNoteValue}
+                            rows={1}
+                            onChange={(e) => {
+                              setEditingNoteValue(e.target.value)
+                              autoResizeTextarea(e.target)
+                            }}
+                            onBlur={() => handleInlineRenameNote(note.id)}
+                            onFocus={(e) => {
+                              e.target.select()
+                              autoResizeTextarea(e.target)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault()
+                                handleInlineRenameNote(note.id)
+                              }
+                              if (e.key === 'Escape') {
+                                clearEditingNoteIfStillSame(note.id, '')
+                              }
+                            }}
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={isOffline}
+                            ref={(el) => {
+                              if (el) autoResizeTextarea(el)
+                            }}
+                          />
+                        ) : (
+                          <span className={note.completed ? 'completed' : ''}>
+                            {note.content}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              <textarea
-  className="note-input"
-  placeholder="Γράψε σημείωση και πάτα Enter..."
-  value={newNoteText}
-  rows={1}
-  onChange={(e) => {
-    setNewNoteText(e.target.value)
-    autoResizeTextarea(e.target)
-  }}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleAddNoteFromEnter()
-    }
-  }}
-  onFocus={(e) => autoResizeTextarea(e.target)}
-  ref={(el) => {
-    if (el) autoResizeTextarea(el)
-  }}
-  disabled={isOffline}
-/>
-
-              <div className="notes-list">
-                {taskNotes.length === 0 ? (
-                  <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
-                ) : (
-                  taskNotes.map((note) => (
-                    <div
-                      key={note.id}
-                      className={`note-item ${note.completed ? 'note-item-completed' : ''}`}
-                      onClick={() => {
-                        if (editingNoteId !== note.id) {
-                          setEditingNoteId(note.id)
-                          setEditingNoteValue(note.content)
-                        }
-                      }}
-                      onContextMenu={(event) => handleNoteRightClick(event, note)}
-                      title="Κλικ για επεξεργασία • Δεξί κλικ για μενού"
-                    >
-                      <input
-                        className="round-checkbox"
-                        type="checkbox"
-                        checked={note.completed}
-                        onChange={() => handleToggleNoteCompleted(note)}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={isOffline}
-                      />
-
-                      {editingNoteId === note.id ? (
-                        <textarea
-                          className="note-inline-input"
-                          value={editingNoteValue}
-                          rows={1}
-                          onChange={(e) => {
-                            setEditingNoteValue(e.target.value)
-                            autoResizeTextarea(e.target)
-                          }}
-                          onBlur={() => handleInlineRenameNote(note.id)}
-                          onFocus={(e) => {
-                            e.target.select()
-                            autoResizeTextarea(e.target)
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault()
-                              handleInlineRenameNote(note.id)
-                            }
-                            if (e.key === 'Escape') {
-                              clearEditingNoteIfStillSame(note.id, '')
-                            }
-                          }}
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()}
-                          disabled={isOffline}
-                          ref={(el) => {
-                            if (el) autoResizeTextarea(el)
-                          }}
-                        />
-                      ) : (
-                        <span className={note.completed ? 'completed' : ''}>
-                          {note.content}
-                        </span>
-                      )}
-                    </div>
-                  ))
-                )}
+              <div className="details-bottom-area">
+                <div className="task-updated-box">
+                  <span className="task-updated-label">Τελευταία αλλαγή</span>
+                  <span className="task-updated-value">
+                    {formatDateTime(activeTask.updated_at)}
+                    {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
+                  </span>
+                </div>
               </div>
-
-              <div className="task-updated-box">
-                <span className="task-updated-label">Τελευταία αλλαγή</span>
-                <span className="task-updated-value">
-                  {formatDateTime(activeTask.updated_at)}
-                  {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
-                </span>
-              </div>
-            </div>
+            </>
           )}
         </div>
 
