@@ -324,6 +324,8 @@ function App() {
   const contextMenuRef = useRef(null)
   const latestTasksFetchIdRef = useRef(0)
   const suppressOwnTaskRealtimeUntilRef = useRef(0)
+  const currentSortModeRef = useRef('created')
+  const currentSortDirectionRef = useRef('asc')
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
   const INVITE_BATCH_PREFIX = '[[BATCH:'
@@ -442,6 +444,14 @@ useEffect(() => {
   useEffect(() => {
     selectedListsRef.current = selectedLists
   }, [selectedLists])
+
+  useEffect(() => {
+  currentSortModeRef.current = currentSortMode
+  }, [currentSortMode])
+
+  useEffect(() => {
+  currentSortDirectionRef.current = currentSortDirection
+  }, [currentSortDirection])
 
   useEffect(() => {
   if (!session?.user?.id) return
@@ -607,7 +617,7 @@ useEffect(() => {
 
     const channel = supabase
       .channel(`live-sync-all-${session.user.id}`)
-      .on(
+  .on(
   'postgres_changes',
   { event: '*', schema: 'public', table: 'tasks' },
   async (payload) => {
@@ -628,17 +638,31 @@ useEffect(() => {
 
     setSyncStatus('syncing')
 
-    await fetchLists(false)
-    await fetchAllTasks(false)
-    await fetchTaskNoteCounts(false)
+    const affectedListIds = [payload?.new?.list_id, payload?.old?.list_id]
+      .filter(Boolean)
+      .map(String)
 
-    if (currentSelectedList?.id) {
+    await fetchLists(false)
+
+    if (
+      currentSelectedList?.id &&
+      affectedListIds.includes(String(currentSelectedList.id))
+    ) {
       await fetchTasks(currentSelectedList.id, false)
     }
 
-    if (currentActiveTask?.id && !isEditingNote) {
+    if (
+      currentActiveTask?.id &&
+      !isEditingNote &&
+      (
+        String(payload?.new?.id || '') === String(currentActiveTask.id) ||
+        String(payload?.old?.id || '') === String(currentActiveTask.id)
+      )
+    ) {
       await fetchNotes(currentActiveTask.id, false)
     }
+
+    await fetchTaskNoteCounts(false)
 
     setSyncStatus('synced')
   }
@@ -1319,7 +1343,11 @@ const nextSelected = stillExists || savedList || loadedLists[0]
     return
   }
 
-  const loadedTasks = sortTasks(data || [], currentSortMode, currentSortDirection)
+  const loadedTasks = sortTasks(
+  data || [],
+  currentSortModeRef.current,
+  currentSortDirectionRef.current
+  )
   setTasks(loadedTasks)
 
   const currentActiveTask = activeTaskRef.current
@@ -4057,7 +4085,7 @@ style={
           disabled={isOffline}
         />
         <button type="submit" className="add-button" disabled={isOffline}>
-          Προσθήκη
+           +
         </button>
       </form>
     </div>
