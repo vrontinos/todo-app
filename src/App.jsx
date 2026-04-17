@@ -643,31 +643,7 @@ useEffect(() => {
     setSyncStatus('synced')
   }
 )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks' },
-        async () => {
-          const currentSelectedList = selectedListRef.current
-          const currentActiveTask = activeTaskRef.current
-          const isEditingNote = editingNoteIdRef.current !== null
-
-          setSyncStatus('syncing')
-
-          await fetchLists(false)
-          await fetchAllTasks(false)
-          await fetchTaskNoteCounts(false)
-
-          if (currentSelectedList?.id) {
-            await fetchTasks(currentSelectedList.id, false)
-          }
-
-          if (currentActiveTask?.id && !isEditingNote) {
-            await fetchNotes(currentActiveTask.id, false)
-          }
-
-          setSyncStatus('synced')
-        }
-      )
+      
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'task_notes' },
