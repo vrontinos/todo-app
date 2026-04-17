@@ -617,6 +617,15 @@ useEffect(() => {
 
     const channel = supabase
       .channel(`live-sync-all-${session.user.id}`)
+.on(
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'lists' },
+  async () => {
+    setSyncStatus('syncing')
+    await fetchLists(false)
+    setSyncStatus('synced')
+  }
+)
   .on(
   'postgres_changes',
   { event: '*', schema: 'public', table: 'tasks' },
@@ -638,16 +647,9 @@ useEffect(() => {
 
     setSyncStatus('syncing')
 
-    const affectedListIds = [payload?.new?.list_id, payload?.old?.list_id]
-      .filter(Boolean)
-      .map(String)
-
     await fetchLists(false)
 
-    if (
-      currentSelectedList?.id &&
-      affectedListIds.includes(String(currentSelectedList.id))
-    ) {
+    if (currentSelectedList?.id) {
       await fetchTasks(currentSelectedList.id, false)
     }
 
@@ -1262,18 +1264,27 @@ useEffect(() => {
 const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
 
 const stillExists = selectedListRef.current
-  ? loadedLists.find((l) => l.id === selectedListRef.current.id)
+  ? loadedLists.find((l) => String(l.id) === String(selectedListRef.current.id))
   : null
 
-const savedList = savedListId
-  ? loadedLists.find((l) => String(l.id) === String(savedListId))
-  : null
+if (stillExists) {
+  setCurrentListRole(
+    stillExists.owner_user_id === session?.user?.id ? 'owner' : 'editor'
+  )
+} else {
+  const savedList = savedListId
+    ? loadedLists.find((l) => String(l.id) === String(savedListId))
+    : null
 
-const nextSelected = stillExists || savedList || loadedLists[0]
-    setCurrentListRole(nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor')
-    setSelectedList(nextSelected)
-    setSelectedLists([nextSelected.id])
-    setListSelectionAnchorId(nextSelected.id)
+  const nextSelected = savedList || loadedLists[0]
+
+  setCurrentListRole(
+    nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor'
+  )
+  setSelectedList(nextSelected)
+  setSelectedLists([nextSelected.id])
+  setListSelectionAnchorId(nextSelected.id)
+}
 
     if (updateStatus) {
       setLoadingLists(false)
