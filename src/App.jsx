@@ -322,6 +322,8 @@ function App() {
   const selectedListRef = useRef(null)
   const selectedListsRef = useRef([])
   const contextMenuRef = useRef(null)
+  const latestTasksFetchIdRef = useRef(0)
+  const suppressOwnTaskRealtimeUntilRef = useRef(0)
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
   const INVITE_BATCH_PREFIX = '[[BATCH:'
@@ -606,30 +608,41 @@ useEffect(() => {
     const channel = supabase
       .channel(`live-sync-all-${session.user.id}`)
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'lists' },
-        async () => {
-          const currentSelectedList = selectedListRef.current
-          const currentActiveTask = activeTaskRef.current
-          const isEditingNote = editingNoteIdRef.current !== null
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'tasks' },
+  async (payload) => {
+    const currentSelectedList = selectedListRef.current
+    const currentActiveTask = activeTaskRef.current
+    const isEditingNote = editingNoteIdRef.current !== null
 
-          setSyncStatus('syncing')
+    const changedByCurrentUser =
+      payload?.new?.updated_by === session.user.id ||
+      payload?.old?.updated_by === session.user.id
 
-          await fetchLists(false)
-          await fetchAllTasks(false)
-          await fetchTaskNoteCounts(false)
+    const shouldIgnoreOwnReorderBurst =
+      changedByCurrentUser && Date.now() < suppressOwnTaskRealtimeUntilRef.current
 
-          if (currentSelectedList?.id) {
-            await fetchTasks(currentSelectedList.id, false)
-          }
+    if (shouldIgnoreOwnReorderBurst) {
+      return
+    }
 
-          if (currentActiveTask?.id && !isEditingNote) {
-            await fetchNotes(currentActiveTask.id, false)
-          }
+    setSyncStatus('syncing')
 
-          setSyncStatus('synced')
-        }
-      )
+    await fetchLists(false)
+    await fetchAllTasks(false)
+    await fetchTaskNoteCounts(false)
+
+    if (currentSelectedList?.id) {
+      await fetchTasks(currentSelectedList.id, false)
+    }
+
+    if (currentActiveTask?.id && !isEditingNote) {
+      await fetchNotes(currentActiveTask.id, false)
+    }
+
+    setSyncStatus('synced')
+  }
+)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
@@ -1304,55 +1317,63 @@ const nextSelected = stillExists || savedList || loadedLists[0]
     setNoteCountsByTask(counts)
     if (updateStatus) markSynced()
   }
+
   async function fetchTasks(listId, updateStatus = true) {
-    if (!session?.user?.id) return
-    if (!listId) return
-    if (updateStatus) setLoadingTasks(true)
+  if (!session?.user?.id) return
+  if (!listId) return
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('list_id', listId)
+  const fetchId = ++latestTasksFetchIdRef.current
 
-    if (error) {
-      console.error('Σφάλμα φόρτωσης εργασιών:', error)
-      setTasks([])
-      setSyncStatus('error')
-      if (updateStatus) setLoadingTasks(false)
-      return
-    }
+  if (updateStatus) setLoadingTasks(true)
 
-    const loadedTasks = sortTasks(data || [], currentSortMode, currentSortDirection)
-    setTasks(loadedTasks)
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('list_id', listId)
 
-    const currentActiveTask = activeTaskRef.current
+  if (fetchId !== latestTasksFetchIdRef.current) {
+    return
+  }
 
-    if (currentActiveTask) {
-      const refreshedActiveTask = loadedTasks.find((t) => t.id === currentActiveTask.id)
-      if (refreshedActiveTask) {
-        setActiveTask(refreshedActiveTask)
-        if (!editingTaskTitle) {
-          setEditingTaskValue(refreshedActiveTask.title)
-        }
-      } else {
-        const globalActive = (allTasks || []).find((t) => t.id === currentActiveTask.id)
-        if (!globalActive || globalActive.list_id !== listId) {
-          setActiveTask(null)
-          setTaskNotes([])
-          setEditingTaskTitle(false)
-          setEditingNoteId(null)
-          setEditingNoteValue('')
-        }
+  if (error) {
+    console.error('Σφάλμα φόρτωσης εργασιών:', error)
+    setTasks([])
+    setSyncStatus('error')
+    if (updateStatus) setLoadingTasks(false)
+    return
+  }
+
+  const loadedTasks = sortTasks(data || [], currentSortMode, currentSortDirection)
+  setTasks(loadedTasks)
+
+  const currentActiveTask = activeTaskRef.current
+
+  if (currentActiveTask) {
+    const refreshedActiveTask = loadedTasks.find((t) => t.id === currentActiveTask.id)
+    if (refreshedActiveTask) {
+      setActiveTask(refreshedActiveTask)
+      if (!editingTaskTitle) {
+        setEditingTaskValue(refreshedActiveTask.title)
+      }
+    } else {
+      const globalActive = (allTasks || []).find((t) => t.id === currentActiveTask.id)
+      if (!globalActive || globalActive.list_id !== listId) {
+        setActiveTask(null)
+        setTaskNotes([])
+        setEditingTaskTitle(false)
+        setEditingNoteId(null)
+        setEditingNoteValue('')
       }
     }
-
-    if (updateStatus) {
-      setLoadingTasks(false)
-      markSynced()
-    } else {
-      setLoadingTasks(false)
-    }
   }
+
+  if (updateStatus) {
+    setLoadingTasks(false)
+    markSynced()
+  } else {
+    setLoadingTasks(false)
+  }
+}
 
   async function fetchNotes(taskId, updateStatus = true) {
     if (!session?.user?.id) return
@@ -2301,35 +2322,38 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  async function saveTaskPositions(updatedTasks) {
-    if (isOffline) return
-    markSaving()
+ async function saveTaskPositions(updatedTasks) {
+  if (isOffline) return
 
-    const now = new Date().toISOString()
+  suppressOwnTaskRealtimeUntilRef.current = Date.now() + 1500
+  markSaving()
 
-    const results = await Promise.all(
-      updatedTasks.map((task, index) =>
-        supabase
-          .from('tasks')
-          .update({
-            position: index + 1,
-            updated_at: now,
-            updated_by: session?.user?.id || null,
-          })
-          .eq('id', task.id)
-      )
+  const now = new Date().toISOString()
+
+  const results = await Promise.all(
+    updatedTasks.map((task, index) =>
+      supabase
+        .from('tasks')
+        .update({
+          position: index + 1,
+          updated_at: now,
+          updated_by: session?.user?.id || null,
+        })
+        .eq('id', task.id)
     )
+  )
 
-    const hasError = results.some((result) => result.error)
-    if (hasError) {
-      console.error('Σφάλμα αποθήκευσης σειράς εργασιών:', results)
-      setSyncStatus('error')
-      fetchTasks(selectedList?.id, false)
-      return
-    }
-
-    markSynced()
+  const hasError = results.some((result) => result.error)
+  if (hasError) {
+    suppressOwnTaskRealtimeUntilRef.current = 0
+    console.error('Σφάλμα αποθήκευσης σειράς εργασιών:', results)
+    setSyncStatus('error')
+    fetchTasks(selectedList?.id, false)
+    return
   }
+
+  markSynced()
+}
 
   function handleListDragStart(event, listId) {
     event.dataTransfer.effectAllowed = 'move'
