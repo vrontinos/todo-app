@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DndContext, DragOverlay, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
@@ -49,7 +49,14 @@ function normalizeId(rawId) {
 
 function autoResizeTextarea(element) {
   if (!element) return
-  element.style.height = 'auto'
+
+  // 🔥 reset τελείως το height
+  element.style.height = '0px'
+
+  // 🔥 force reflow (πολύ σημαντικό για mobile)
+  element.offsetHeight
+
+  // 🔥 βάλε σωστό ύψος
   element.style.height = `${element.scrollHeight}px`
 }
 
@@ -134,91 +141,498 @@ function SortableTaskItem({
   onContextMenu,
   onToggleCompleted,
   onToggleWeighing,
+  onDeleteSwipe,
+  onMobileLongPress,
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: getTaskDndId(task.id),
-      disabled: isOffline || isSearchMode,
-    })
 
-  const style = {
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
+  const [swipePassedThreshold, setSwipePassedThreshold] = useState(false)
+
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const swipeOffsetRef = useRef(0)
+  const swipeLockedRef = useRef(false)
+  const swipeStartedRef = useRef(false)
+
+ const isMobileViewport =
+  typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT
+
+const swipeEnabled = isMobileViewport && !isSearchMode && !isOffline
+const mobileDragEnabled = isMobileViewport && !isOffline && !isSearchMode && isSelected
+
+const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  useSortable({
+    id: getTaskDndId(task.id),
+    disabled: isOffline || isSearchMode || isSwiping,
+  })
+
+const safeListeners = listeners || {}
+const dndOnTouchStart = safeListeners.onTouchStart
+const { onTouchStart: _ignoredDndTouchStart, ...restListeners } = safeListeners
+const showMobileSelectionDot = isMobileViewport && isSelected
+
+  const MAX_SWIPE = 96
+  const DELETE_THRESHOLD = 72
+  const longPressTimerRef = useRef(null)
+  const longPressTriggeredRef = useRef(false)
+
+  function resetSwipeState() {
+    swipeOffsetRef.current = 0
+    swipeLockedRef.current = false
+    swipeStartedRef.current = false
+    setSwipeOffset(0)
+    setIsSwiping(false)
+    setSwipePassedThreshold(false)
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+    function startLongPressTimer() {
+    if (!isMobileViewport || isOffline || isSearchMode) return
+
+    clearLongPressTimer()
+    longPressTriggeredRef.current = false
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true
+      if (typeof onMobileLongPress === 'function') {
+        onMobileLongPress(task)
+      }
+    }, 330)
+  }
+
+  async function commitSwipeDelete() {
+    resetSwipeState()
+    if (typeof onDeleteSwipe === 'function') {
+      await onDeleteSwipe(task.id)
+    }
+  }
+
+    function handleTouchStart(event) {
+    if (event.touches.length !== 1) return
+
+    startLongPressTimer()
+
+    if (!swipeEnabled) return
+
+    const touch = event.touches[0]
+    touchStartXRef.current = touch.clientX
+    touchStartYRef.current = touch.clientY
+    swipeLockedRef.current = false
+    swipeStartedRef.current = false
+  }
+
+      function handleTouchMove(event) {
+    if (event.touches.length !== 1) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - touchStartXRef.current
+    const deltaY = touch.clientY - touchStartYRef.current
+    const absX = Math.abs(deltaX)
+    const absY = Math.abs(deltaY)
+
+    if (absX >= 8 || absY >= 8) {
+      clearLongPressTimer()
+    }
+
+    if (!swipeEnabled) return
+
+    if (!swipeLockedRef.current) {
+      if (absX < 8 && absY < 8) return
+
+      if (absX > absY && deltaX < 0) {
+        swipeLockedRef.current = true
+        swipeStartedRef.current = true
+        setIsSwiping(true)
+      } else {
+        swipeLockedRef.current = true
+        swipeStartedRef.current = false
+        return
+      }
+    }
+
+    if (!swipeStartedRef.current) return
+
+    event.preventDefault()
+
+    const nextOffset = Math.max(-MAX_SWIPE, Math.min(0, deltaX))
+    swipeOffsetRef.current = nextOffset
+    setSwipeOffset(nextOffset)
+    setSwipePassedThreshold(Math.abs(nextOffset) >= DELETE_THRESHOLD)
+  }
+
+  function handleTouchEnd() {
+    clearLongPressTimer()
+
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false
+      resetSwipeState()
+      return
+    }
+
+    if (!swipeEnabled) return
+
+    if (!swipeStartedRef.current) {
+      resetSwipeState()
+      return
+    }
+
+    if (Math.abs(swipeOffsetRef.current) >= DELETE_THRESHOLD) {
+      void commitSwipeDelete()
+      return
+    }
+
+    resetSwipeState()
+  }
+
+  function handleTouchCancel() {
+    clearLongPressTimer()
+    longPressTriggeredRef.current = false
+
+    if (!swipeEnabled) return
+    resetSwipeState()
+  }
+
+   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    visibility: isDragging ? 'hidden' : 'visible',
+    opacity: isDragging ? 0 : 1,
   }
+
+    const contentStyle = swipeEnabled
+    ? {
+        transform: `translateX(${swipeOffset}px)`,
+        opacity: isDragging ? 0 : 1 - Math.min(Math.abs(swipeOffset) / DELETE_THRESHOLD, 1) * 0.45,
+        transition: isSwiping ? 'none' : 'transform 180ms ease, opacity 180ms ease',
+      }
+    : isDragging
+      ? { opacity: 0 }
+      : undefined
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`task-item ${isSelected ? 'task-item-selected' : ''} ${isActive ? 'task-item-active' : ''}`}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      title={
-        isSearchMode
-          ? 'Εμφάνιση αποτελέσματος αναζήτησης'
-          : 'Κλικ για επιλογή • Δεξί κλικ για μενού • Σύρε για αλλαγή σειράς ή σε λίστα για μεταφορά'
-      }
-      {...attributes}
-      {...listeners}
+      className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
     >
-      <input
-        className="round-checkbox"
-        type="checkbox"
-        checked={task.completed}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-        }}
-        onMouseDown={(e) => {
-          e.stopPropagation()
-        }}
-        onClick={(e) => {
-          e.stopPropagation()
-        }}
-        onChange={(e) => {
-          e.stopPropagation()
-          onToggleCompleted(task)
-        }}
-        disabled={isOffline}
-      />
+      {swipeEnabled && (
+        <div className="task-swipe-delete-bg" aria-hidden="true">
+          <span className="task-swipe-delete-icon">🗑</span>
+        </div>
+      )}
 
-      <div className="task-text-block">
-        <span className={`task-title ${task.completed ? 'completed' : ''}`}>{task.title}</span>
+            <div
+        className={`task-item task-swipe-content ${isSelected ? 'task-item-selected' : ''} ${isActive ? 'task-item-active' : ''} ${isSwiping ? 'task-item-swiping' : ''}`}
+        style={contentStyle}
+                onClick={(event) => {
+          if (longPressTriggeredRef.current) {
+            longPressTriggeredRef.current = false
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          onClick(event)
+        }}
+        onContextMenu={(event) => {
+          if (isMobileViewport) {
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          onContextMenu(event)
+        }}
+        onTouchStart={(event) => {
+          handleTouchStart(event)
+          dndOnTouchStart?.(event)
+        }}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        title={
+          isSearchMode
+            ? 'Εμφάνιση αποτελέσματος αναζήτησης'
+            : 'Κλικ για επιλογή • Δεξί κλικ για μενού • Σύρε για αλλαγή σειράς ή σε λίστα για μεταφορά'
+        }
+        {...attributes}
+        {...restListeners}
+      >
+                <span
+          className={`round-checkbox task-select-indicator ${task.completed ? 'is-completed' : ''} ${showMobileSelectionDot ? 'is-selected' : ''}`}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+          }}
+          onClick={(e) => {
+            e.stopPropagation()
 
-        {task.notes_count > 0 && (
-          <span
-            className="task-notes-count"
-            title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
-          >
-            <span className="task-notes-icon">📝</span>
-            <span>{task.notes_count}</span>
+            if (isMobileViewport && isSelected) {
+              onClick(e)
+              return
+            }
+
+            onToggleCompleted(task)
+          }}
+          role="checkbox"
+          aria-checked={task.completed}
+          tabIndex={-1}
+        />
+
+        <div className="task-text-block">
+          <span className={`task-title ${task.completed ? 'completed' : ''}`}>
+            {task.title}
+          </span>
+
+          {task.notes_count > 0 && (
+            <span
+              className="task-notes-count"
+              title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
+            >
+              <span className="task-notes-icon">📝</span>
+              <span>{task.notes_count}</span>
+            </span>
+          )}
+
+          {isSearchMode && (
+            <span className="task-list-label">Λίστα: {task.list_name || '—'}</span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onClick={(e) => onToggleWeighing(task, e)}
+          title="Ογκομέτρηση"
+          disabled={isOffline}
+        >
+          ⚖
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SwipeableNoteItem({
+  note,
+  isOffline,
+  isMobile,
+  isEditing,
+  editingValue,
+  onStartEdit,
+  onContextMenu,
+  onToggleCompleted,
+  onChangeEditingValue,
+  onCommitInlineEdit,
+  onCancelInlineEdit,
+  onDeleteSwipe,
+}) {
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [isSwiping, setIsSwiping] = useState(false)
+  const [swipePassedThreshold, setSwipePassedThreshold] = useState(false)
+
+  const touchStartXRef = useRef(0)
+  const touchStartYRef = useRef(0)
+  const swipeOffsetRef = useRef(0)
+  const swipeLockedRef = useRef(false)
+  const swipeStartedRef = useRef(false)
+  const suppressClickRef = useRef(false)
+
+  const MAX_SWIPE = 96
+  const DELETE_THRESHOLD = 72
+  const swipeEnabled = isMobile && !isOffline && !isEditing
+
+  function resetSwipeState() {
+    swipeOffsetRef.current = 0
+    swipeLockedRef.current = false
+    swipeStartedRef.current = false
+    setSwipeOffset(0)
+    setIsSwiping(false)
+    setSwipePassedThreshold(false)
+  }
+
+  async function commitSwipeDelete() {
+    resetSwipeState()
+    if (typeof onDeleteSwipe === 'function') {
+      await onDeleteSwipe(note.id)
+    }
+  }
+
+  function handleTouchStart(event) {
+    if (!swipeEnabled || event.touches.length !== 1) return
+
+    const touch = event.touches[0]
+    touchStartXRef.current = touch.clientX
+    touchStartYRef.current = touch.clientY
+    swipeLockedRef.current = false
+    swipeStartedRef.current = false
+  }
+
+  function handleTouchMove(event) {
+    if (!swipeEnabled || event.touches.length !== 1) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - touchStartXRef.current
+    const deltaY = touch.clientY - touchStartYRef.current
+    const absX = Math.abs(deltaX)
+    const absY = Math.abs(deltaY)
+
+    if (!swipeLockedRef.current) {
+      if (absX < 8 && absY < 8) return
+
+      if (absX > absY && deltaX < 0) {
+        swipeLockedRef.current = true
+        swipeStartedRef.current = true
+        setIsSwiping(true)
+      } else {
+        swipeLockedRef.current = true
+        swipeStartedRef.current = false
+        return
+      }
+    }
+
+    if (!swipeStartedRef.current) return
+
+    event.preventDefault()
+
+    const nextOffset = Math.max(-MAX_SWIPE, Math.min(0, deltaX))
+    swipeOffsetRef.current = nextOffset
+    setSwipeOffset(nextOffset)
+    setSwipePassedThreshold(Math.abs(nextOffset) >= DELETE_THRESHOLD)
+  }
+
+  function handleTouchEnd() {
+    if (!swipeEnabled) return
+
+    if (!swipeStartedRef.current) {
+      resetSwipeState()
+      return
+    }
+
+    suppressClickRef.current = true
+
+    if (Math.abs(swipeOffsetRef.current) >= DELETE_THRESHOLD) {
+      void commitSwipeDelete()
+      return
+    }
+
+    resetSwipeState()
+  }
+
+  function handleTouchCancel() {
+    if (!swipeEnabled) return
+    resetSwipeState()
+  }
+
+  const contentStyle = swipeEnabled
+    ? {
+        transform: `translateX(${swipeOffset}px)`,
+        opacity: 1 - Math.min(Math.abs(swipeOffset) / DELETE_THRESHOLD, 1) * 0.45,
+        transition: isSwiping ? 'none' : 'transform 180ms ease, opacity 180ms ease',
+      }
+    : undefined
+
+  return (
+    <div
+      className={`note-swipe-shell ${swipeEnabled ? 'note-swipe-enabled' : ''} ${swipePassedThreshold ? 'note-swipe-threshold' : ''}`}
+    >
+      {swipeEnabled && (
+        <div className="note-swipe-delete-bg" aria-hidden="true">
+          <span className="note-swipe-delete-icon">🗑</span>
+        </div>
+      )}
+
+      <div
+        className={`note-item note-swipe-content ${note.completed ? 'note-item-completed' : ''} ${isSwiping ? 'note-item-swiping' : ''}`}
+        style={contentStyle}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            return
+          }
+
+          if (!isSwiping && !isEditing) {
+            onStartEdit(note)
+          }
+        }}
+        onContextMenu={(event) => {
+          if (isMobile) {
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          onContextMenu(event, note)
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        title={isMobile ? 'Swipe αριστερά για διαγραφή • Κλικ για επεξεργασία' : 'Κλικ για επεξεργασία • Δεξί κλικ για μενού'}
+      >
+        <input
+          className="round-checkbox"
+          type="checkbox"
+          checked={note.completed}
+          onChange={() => onToggleCompleted(note)}
+          onClick={(e) => e.stopPropagation()}
+          disabled={isOffline}
+        />
+
+        {isEditing ? (
+          <textarea
+            className="note-inline-input"
+            value={editingValue}
+            rows={1}
+            onChange={(e) => {
+              onChangeEditingValue(e.target.value)
+              autoResizeTextarea(e.target)
+            }}
+            onBlur={() => onCommitInlineEdit(note.id)}
+            onFocus={(e) => {
+              e.target.select()
+              autoResizeTextarea(e.target)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                onCommitInlineEdit(note.id)
+              }
+              if (e.key === 'Escape') {
+                onCancelInlineEdit(note.id, '')
+              }
+            }}
+            autoFocus
+            onClick={(e) => e.stopPropagation()}
+            disabled={isOffline}
+            ref={(el) => {
+              if (el) autoResizeTextarea(el)
+            }}
+          />
+        ) : (
+          <span className={note.completed ? 'completed' : ''}>
+            {note.content}
           </span>
         )}
-
-        {isSearchMode && <span className="task-list-label">Λίστα: {task.list_name || '—'}</span>}
       </div>
-
-      <button
-        type="button"
-        className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-        }}
-        onMouseDown={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-        }}
-        onClick={(e) => onToggleWeighing(task, e)}
-        title="Ογκομέτρηση"
-        disabled={isOffline}
-      >
-        ⚖
-      </button>
     </div>
   )
 }
 
 function App() {
+
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authMode, setAuthMode] = useState('signin')
@@ -226,9 +640,16 @@ function App() {
   const [authPassword, setAuthPassword] = useState('')
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
+  const [isTaskActionsMenuOpen, setIsTaskActionsMenuOpen] = useState(false)
+const [isMobileSortMenuOpen, setIsMobileSortMenuOpen] = useState(false)
+const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
-  const [mobileView, setMobileView] = useState('lists')
+  const mobileSelectionClearedDuringDragRef = useRef(false)
+  const [mobileView, setMobileView] = useState(() => {
+  return localStorage.getItem('lastMobileView') || 'lists'
+})
+const [mobileDirection, setMobileDirection] = useState('forward')
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
 
@@ -288,10 +709,11 @@ function App() {
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
   const [lastEditorEmail, setLastEditorEmail] = useState('')
-
+  
   const [contextMenu, setContextMenu] = useState(null)
   const [moveMenuOpen, setMoveMenuOpen] = useState(false)
   const [multiMoveMenuOpen, setMultiMoveMenuOpen] = useState(false)
+  const [isMobileListNameModalOpen, setIsMobileListNameModalOpen] = useState(false)
 
   const [shareModalList, setShareModalList] = useState(null)
   const [pendingInvites, setPendingInvites] = useState([])
@@ -326,8 +748,10 @@ function App() {
   const suppressOwnTaskRealtimeUntilRef = useRef(0)
   const currentSortModeRef = useRef('created')
   const currentSortDirectionRef = useRef('asc')
+  const skipNextMobileHistoryPushRef = useRef(false)
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
+  const LAST_MOBILE_VIEW_KEY = 'lastMobileView'
   const INVITE_BATCH_PREFIX = '[[BATCH:'
 
   const currentSortMode =
@@ -341,12 +765,18 @@ function App() {
       : 'asc'
 
   const dndSensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 6,
-      },
-    })
-  )
+  useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: 6,
+    },
+  }),
+  useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 390,
+      tolerance: 16,
+    },
+  })
+)
 
   const activeDraggedTask = useMemo(() => {
     const parsed = parseDndId(activeDragId)
@@ -371,22 +801,158 @@ function App() {
     return null
   }, [activeDraggedTask, activeOverId])
 
-  function collisionDetectionStrategy(args) {
-    const pointerCollisions = pointerWithin(args)
+function collisionDetectionStrategy(args) {
+  const activeMeta = parseDndId(args.active?.id)
+
+  if (activeMeta.type === 'list') {
+    const listOnlyContainers = args.droppableContainers.filter((container) => {
+      return parseDndId(container.id).type === 'list'
+    })
+
+    const filteredArgs = {
+      ...args,
+      droppableContainers: listOnlyContainers,
+    }
+
+    const pointerCollisions = pointerWithin(filteredArgs)
     if (pointerCollisions.length > 0) {
       return pointerCollisions
     }
-    return closestCenter(args)
+
+    return closestCenter(filteredArgs)
   }
+
+  if (activeMeta.type === 'task' && isMobile) {
+  const activeTaskId = normalizeId(activeMeta.rawId)
+  const activeTask = tasks.find((task) => String(task.id) === String(activeTaskId))
+
+  const taskOnlyContainers = args.droppableContainers.filter((container) => {
+    const meta = parseDndId(container.id)
+    if (meta.type !== 'task') return false
+
+    const overTaskId = normalizeId(meta.rawId)
+    const overTask = tasks.find((task) => String(task.id) === String(overTaskId))
+
+    if (!activeTask || !overTask) return false
+
+    return activeTask.completed === overTask.completed
+  })
+
+  if (taskOnlyContainers.length > 0) {
+    return closestCenter({
+      ...args,
+      droppableContainers: taskOnlyContainers,
+    })
+  }
+}
+
+    if (activeMeta.type === 'task' && !isMobile) {
+    const activeTaskId = normalizeId(activeMeta.rawId)
+    const activeTask = tasks.find((task) => String(task.id) === String(activeTaskId))
+    const pointerX = args.pointerCoordinates?.x ?? 0
+
+    if (pointerX <= sidebarWidth + 6) {
+      const listTargetContainers = args.droppableContainers.filter((container) => {
+        const type = parseDndId(container.id).type
+        return type === 'list' || type === 'task-list-target'
+      })
+
+      const filteredArgs = {
+        ...args,
+        droppableContainers: listTargetContainers,
+      }
+
+      const pointerCollisions = pointerWithin(filteredArgs)
+      if (pointerCollisions.length > 0) {
+        return pointerCollisions
+      }
+
+      return closestCenter(filteredArgs)
+    }
+
+    const taskOnlyContainers = args.droppableContainers.filter((container) => {
+      const meta = parseDndId(container.id)
+      if (meta.type !== 'task') return false
+
+      const overTaskId = normalizeId(meta.rawId)
+      const overTask = tasks.find((task) => String(task.id) === String(overTaskId))
+
+      if (!activeTask || !overTask) return false
+
+      return activeTask.completed === overTask.completed
+    })
+
+    if (taskOnlyContainers.length > 0) {
+      return closestCenter({
+        ...args,
+        droppableContainers: taskOnlyContainers,
+      })
+    }
+  }
+
+  const pointerCollisions = pointerWithin(args)
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions
+  }
+
+  return closestCenter(args)
+}
+  
+function navigateMobile(nextView) {
+  const order = {
+    lists: 0,
+    tasks: 1,
+    details: 2,
+    search: 3,
+  }
+
+  const current = order[mobileView] ?? 0
+  const next = order[nextView] ?? 0
+
+  setMobileDirection(next > current ? 'forward' : 'back')
+  setMobileView(nextView)
+}
 
   function handleGlobalDragStart(event) {
-    setActiveDragId(String(event.active?.id || ''))
-    setActiveOverId(null)
+  setActiveDragId(String(event.active?.id || ''))
+  setActiveOverId(null)
+  mobileSelectionClearedDuringDragRef.current = false
+
+  const activeMeta = parseDndId(event.active?.id)
+  if (isMobile && activeMeta.type === 'task') {
+    const taskId = normalizeId(activeMeta.rawId)
+    setSelectedTasks([taskId])
+    setSelectionAnchorId(taskId)
   }
 
-  function handleGlobalDragOver(event) {
-    setActiveOverId(String(event.over?.id || ''))
+  if (isMobile && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    navigator.vibrate(12)
   }
+}
+
+function handleGlobalDragOver(event) {
+  const activeId = event.active?.id ? String(event.active.id) : ''
+  const overId = event.over?.id ? String(event.over.id) : ''
+
+  setActiveOverId(overId)
+
+  if (!isMobile || !activeId || !overId) return
+  if (mobileSelectionClearedDuringDragRef.current) return
+
+  const activeMeta = parseDndId(activeId)
+  const overMeta = parseDndId(overId)
+
+  if (activeMeta.type !== 'task' || overMeta.type !== 'task') return
+
+  const activeTaskId = normalizeId(activeMeta.rawId)
+  const overTaskId = normalizeId(overMeta.rawId)
+
+  if (overTaskId !== activeTaskId) {
+    mobileSelectionClearedDuringDragRef.current = true
+    setSelectedTasks([])
+    setSelectionAnchorId(null)
+  }
+}
 
 useEffect(() => {
   function handleResize() {
@@ -403,18 +969,71 @@ useEffect(() => {
 useEffect(() => {
   if (!isMobile) return
 
+  if (mobileView === 'search') return
+
   if (!selectedList) {
+    setMobileDirection('back')
     setMobileView('lists')
     return
   }
 
-  if (!activeTask) {
+  if (!activeTask && mobileView === 'details') {
+    setMobileDirection('back')
     setMobileView('tasks')
+  }
+}, [isMobile, selectedList, activeTask, mobileView])
+
+useEffect(() => {
+  if (!isMobile) return
+
+  if (skipNextMobileHistoryPushRef.current) {
+    skipNextMobileHistoryPushRef.current = false
     return
   }
 
-  setMobileView('details')
-}, [isMobile, selectedList, activeTask])
+  if (mobileView === 'lists') {
+    window.history.replaceState({ mobileView: 'lists' }, '')
+    return
+  }
+
+  window.history.pushState({ mobileView }, '')
+}, [isMobile, mobileView])
+
+useEffect(() => {
+  if (!isMobile) return
+
+  const onPopState = () => {
+    skipNextMobileHistoryPushRef.current = true
+
+    if (mobileView === 'details') {
+      setSelectedTasks([])
+      setSelectionAnchorId(null)
+      navigateMobile('tasks')
+      return
+    }
+
+    if (mobileView === 'search') {
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      navigateMobile('lists')
+      return
+    }
+
+    if (mobileView === 'tasks') {
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      navigateMobile('lists')
+    }
+  }
+
+  window.addEventListener('popstate', onPopState)
+
+  return () => {
+    window.removeEventListener('popstate', onPopState)
+  }
+}, [isMobile, mobileView])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -468,6 +1087,11 @@ useEffect(() => {
       localStorage.setItem(LAST_SELECTED_LIST_KEY, selectedList.id)
     }
   }, [selectedList])
+
+useEffect(() => {
+  if (!isMobile) return
+  localStorage.setItem(LAST_MOBILE_VIEW_KEY, mobileView)
+}, [isMobile, mobileView])
 
   useEffect(() => {
     localStorage.setItem('listSortSettings', JSON.stringify(listSortSettings))
@@ -709,6 +1333,23 @@ useEffect(() => {
     }
   }, [session])
 
+useEffect(() => {
+  if (!isMobile) return
+  if (!editingTaskTitle) return
+
+  const el = document.querySelector('.mobile-task-title-editor')
+  if (!el) return
+
+  const resize = () => {
+    el.style.height = '0px'
+    el.style.height = `${el.scrollHeight}px`
+  }
+
+  // 🔥 το κρίσιμο timing
+  setTimeout(resize, 0)
+  setTimeout(resize, 50)
+}, [editingTaskTitle])
+
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible' && session?.user?.id) {
@@ -749,16 +1390,35 @@ useEffect(() => {
   }
 
   function updateCurrentListSort(nextPartial) {
-    if (!selectedList) return
-    setListSortSettings((prev) => ({
+  if (!selectedList) return
+
+  setListSortSettings((prev) => {
+    const previous = prev[selectedList.id] || {
+      mode: 'created',
+      direction: 'asc',
+    }
+
+    const nextMode = nextPartial.mode || previous.mode
+
+    let nextDirection = previous.direction || 'asc'
+
+    if (isMobile && nextMode === 'manual') {
+      nextDirection = 'asc'
+    } else if (nextPartial.direction) {
+      nextDirection = nextPartial.direction
+    }
+
+    return {
       ...prev,
       [selectedList.id]: {
-        mode: prev[selectedList.id]?.mode || 'created',
-        direction: prev[selectedList.id]?.direction || 'asc',
+        ...previous,
         ...nextPartial,
+        mode: nextMode,
+        direction: nextDirection,
       },
-    }))
-  }
+    }
+  })
+}
 
   function closeContextMenu() {
     setContextMenu(null)
@@ -916,44 +1576,95 @@ useEffect(() => {
       top: `${padding}px`,
     }
   }
+function playTaskCompleteSound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextClass) return
 
+    const ctx = new AudioContextClass()
+    const now = ctx.currentTime
 
+    // βασική νότα
+    const osc1 = ctx.createOscillator()
+    const gain1 = ctx.createGain()
+
+    osc1.type = 'sine'
+    osc1.frequency.setValueAtTime(1200, now)
+
+    gain1.gain.setValueAtTime(0.09, now)
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
+
+    osc1.connect(gain1)
+    gain1.connect(ctx.destination)
+
+    osc1.start(now)
+    osc1.stop(now + 0.35)
+
+    // μεταλλικό overtone
+    const osc2 = ctx.createOscillator()
+    const gain2 = ctx.createGain()
+
+    osc2.type = 'triangle'
+    osc2.frequency.setValueAtTime(2400, now)
+
+    gain2.gain.setValueAtTime(0.05, now)
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.25)
+
+    osc2.connect(gain2)
+    gain2.connect(ctx.destination)
+
+    osc2.start(now)
+    osc2.stop(now + 0.25)
+
+  } catch {}
+}
   function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
-    const factor = direction === 'desc' ? -1 : 1
+  const factor = direction === 'desc' ? -1 : 1
 
-    return [...taskArray].sort((a, b) => {
-      if (a.completed !== b.completed) {
-        return a.completed - b.completed
-      }
-
-      if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
-        return a.needs_weighing ? 1 : -1
-      }
-
-      if (mode === 'alpha') {
-        return (
-          (a.title || '').localeCompare(b.title || '', 'el', {
-            sensitivity: 'base',
-          }) * factor
-        )
-      }
-
-      if (mode === 'created') {
-        const aTime = new Date(a.created_at || 0).getTime()
-        const bTime = new Date(b.created_at || 0).getTime()
-        return (aTime - bTime) * factor
-      }
-
-      return ((a.position || 0) - (b.position || 0)) * factor
-    })
+  return [...taskArray].sort((a, b) => {
+    if (mode === 'manual') {
+  if (a.completed !== b.completed) {
+    return a.completed ? 1 : -1
   }
+
+  if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
+    return a.needs_weighing ? 1 : -1
+  }
+
+  return (Number(a.position) || 0) - (Number(b.position) || 0)
+}
+
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1
+    }
+
+    if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
+      return a.needs_weighing ? 1 : -1
+    }
+
+    if (mode === 'alpha') {
+      return (
+        (a.title || '').localeCompare(b.title || '', 'el', {
+          sensitivity: 'base',
+        }) * factor
+      )
+    }
+
+    if (mode === 'created') {
+      const aTime = new Date(a.created_at || 0).getTime()
+      const bTime = new Date(b.created_at || 0).getTime()
+      return (aTime - bTime) * factor
+    }
+
+    return ((Number(a.position) || 0) - (Number(b.position) || 0)) * factor
+  })
+}
 
   function sortNotes(noteArray) {
-    return [...noteArray].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed - b.completed
-      return new Date(a.created_at) - new Date(b.created_at)
-    })
-  }
+  return [...noteArray].sort((a, b) => {
+    return new Date(a.created_at) - new Date(b.created_at)
+  })
+}
 
   function formatDateTime(value) {
     if (!value) return '—'
@@ -1023,47 +1734,52 @@ useEffect(() => {
 
   useEffect(() => {
     function handleWindowClick(event) {
-      const rawTarget = event.target
-      const target =
-        rawTarget && rawTarget.nodeType === 3 ? rawTarget.parentElement : rawTarget
+  const rawTarget = event.target
+  const target =
+    rawTarget && rawTarget.nodeType === 3 ? rawTarget.parentElement : rawTarget
 
-      const clickedContext = target?.closest?.('.context-menu')
-      if (!clickedContext) {
-        closeContextMenu()
-      }
+  const clickedContext = target?.closest?.('.context-menu')
+  if (!clickedContext) {
+    closeContextMenu()
+  }
 
-      const clickedTask = target?.closest?.('.task-item')
-      const clickedList = target?.closest?.('.list-button')
-      const clickedMain = target?.closest?.('.main')
-      const clickedDetails = target?.closest?.('.details-panel')
-      const clickedMainHeader = target?.closest?.('.main-header')
-      const clickedAddTaskForm = target?.closest?.('.add-task-form')
-      const clickedInput = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(
-        target?.tagName
-      )
+  const clickedTaskActionsMenu = target?.closest?.('.task-actions-menu-wrap')
+  if (!clickedTaskActionsMenu) {
+    setIsTaskActionsMenuOpen(false)
+  }
 
-      if (!clickedTask && !clickedContext && !clickedList && !clickedInput && !clickedDetails) {
-        setSelectedTasks([])
-        setSelectionAnchorId(null)
-        setSelectedLists([])
-        setListSelectionAnchorId(null)
-      }
+  const clickedTask = target?.closest?.('.task-item')
+  const clickedList = target?.closest?.('.list-button')
+  const clickedMain = target?.closest?.('.main')
+  const clickedDetails = target?.closest?.('.details-panel')
+  const clickedMainHeader = target?.closest?.('.main-header')
+  const clickedAddTaskForm = target?.closest?.('.add-task-form')
+  const clickedInput = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(
+    target?.tagName
+  )
 
-      const clickedEmptyMainArea =
-        clickedMain &&
-        !clickedTask &&
-        !clickedMainHeader &&
-        !clickedAddTaskForm &&
-        !clickedInput
+  if (!clickedTask && !clickedContext && !clickedList && !clickedInput && !clickedDetails) {
+    setSelectedTasks([])
+    setSelectionAnchorId(null)
+    setSelectedLists([])
+    setListSelectionAnchorId(null)
+  }
 
-      if (clickedEmptyMainArea) {
-        setActiveTask(null)
-        setTaskNotes([])
-        setEditingTaskTitle(false)
-        setEditingNoteId(null)
-        setEditingNoteValue('')
-      }
-    }
+  const clickedEmptyMainArea =
+    clickedMain &&
+    !clickedTask &&
+    !clickedMainHeader &&
+    !clickedAddTaskForm &&
+    !clickedInput
+
+  if (clickedEmptyMainArea) {
+    setActiveTask(null)
+    setTaskNotes([])
+    setEditingTaskTitle(false)
+    setEditingNoteId(null)
+    setEditingNoteValue('')
+  }
+}
 
     function handleWindowKeyDown(event) {
       const tag = document.activeElement?.tagName?.toLowerCase()
@@ -1799,13 +2515,16 @@ async function fetchShareDetails(list) {
 
       if (anchorIndex !== -1 && clickedIndex !== -1) {
         const start = Math.min(anchorIndex, clickedIndex)
-        const end = Math.max(anchorIndex, clickedIndex)
-        const rangeIds = lists.slice(start, end + 1).map((item) => item.id)
+const end = Math.max(anchorIndex, clickedIndex)
+const rangeIds = lists.slice(start, end + 1).map((item) => item.id)
+const mergedIds = Array.from(
+  new Set([...selectedListsRef.current, ...rangeIds])
+)
 
-        setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
-        setSelectedList(list)
-        setSelectedLists(rangeIds)
-        setListSelectionAnchorId(anchorId)
+setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
+setSelectedList(list)
+setSelectedLists(mergedIds)
+setListSelectionAnchorId(anchorId)
         setActiveTask(null)
         setTaskNotes([])
         setSelectedTasks([])
@@ -1845,10 +2564,10 @@ async function fetchShareDetails(list) {
       return
     }
 
-    handleSelectList(list)
-    if (isMobile) {
-      setMobileView('tasks')
-    }
+  handleSelectList(list)
+if (isMobile) {
+  navigateMobile('tasks')
+}
   }
 
 
@@ -2379,20 +3098,25 @@ async function fetchShareDetails(list) {
   }
 
   function handleTaskDragStart(event, taskId) {
-    if (taskSearch.trim() || isOffline) return
+  if (taskSearch.trim() || isOffline) return
 
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', `task:${taskId}`)
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', `task:${taskId}`)
 
-    const dragIds =
-      selectedTasks.includes(taskId) && selectedTasks.length > 1
-        ? [...selectedTasks]
-        : [taskId]
+  const dragIds =
+    selectedTasks.includes(taskId) && selectedTasks.length > 1
+      ? [...selectedTasks]
+      : [taskId]
 
-    setDraggedTaskIds(dragIds)
-    setDraggedTaskId(dragIds.length === 1 ? taskId : null)
-    setDraggedListId(null)
+  setDraggedTaskIds(dragIds)
+  setDraggedTaskId(taskId)
+  setDraggedListId(null)
+
+  if (isMobile) {
+    setSelectedTasks([taskId])
+    setSelectionAnchorId(taskId)
   }
+}
 
   function handleListDragOver(event, targetListId) {
     event.preventDefault()
@@ -2417,7 +3141,8 @@ async function fetchShareDetails(list) {
 
     setDropIndicator({ targetListId, position })
   }
-  function handleTaskDragOver(event, targetTaskId) {
+  
+function handleTaskDragOver(event, targetTaskId) {
     if (currentSortMode !== 'manual') return
     if (!draggedTaskId || draggedTaskId === targetTaskId) return
     if (draggedTaskIds.length > 1) return
@@ -2477,11 +3202,16 @@ async function fetchShareDetails(list) {
       })
     )
 
-    setDraggedTaskId(null)
+        setDraggedTaskId(null)
     setDraggedTaskIds([])
     setTaskReorderIndicator(null)
 
     await saveTaskPositions(reorderedTasks)
+
+    if (isMobile) {
+      setSelectedTasks([])
+      setSelectionAnchorId(null)
+    }
   }
 
   async function handleListDrop(targetListId) {
@@ -2535,6 +3265,7 @@ async function fetchShareDetails(list) {
   }
 
   async function handleGlobalDragEnd(event) {
+    mobileSelectionClearedDuringDragRef.current = false
     const { active, over } = event
 
     setActiveDragId(null)
@@ -2586,24 +3317,31 @@ async function fetchShareDetails(list) {
     }
 
     const oldIndex = tasks.findIndex((task) => String(task.id) === String(activeId))
-    const newIndex = tasks.findIndex((task) => String(task.id) === String(overId))
+const newIndex = tasks.findIndex((task) => String(task.id) === String(overId))
 
-    if (oldIndex === -1 || newIndex === -1) return
+if (oldIndex === -1 || newIndex === -1) return
 
-    const reorderedTasks = arrayMove(tasks, oldIndex, newIndex).map((task, index) => ({
-      ...task,
-      position: index + 1,
-    }))
+const activeTaskItem = tasks[oldIndex]
+const overTaskItem = tasks[newIndex]
 
-    setTasks(sortTasks(reorderedTasks, 'manual', currentSortDirection))
-    setAllTasks((prev) =>
-      prev.map((task) => {
-        const updated = reorderedTasks.find((t) => String(t.id) === String(task.id))
-        return updated ? { ...task, position: updated.position } : task
-      })
-    )
+if (isMobile && activeTaskItem?.completed !== overTaskItem?.completed) {
+  return
+}
 
-    await saveTaskPositions(reorderedTasks)
+const reorderedTasks = arrayMove(tasks, oldIndex, newIndex).map((task, index) => ({
+  ...task,
+  position: index + 1,
+}))
+
+setTasks(sortTasks(reorderedTasks, 'manual', currentSortDirection))
+setAllTasks((prev) =>
+  prev.map((task) => {
+    const updated = reorderedTasks.find((t) => String(t.id) === String(task.id))
+    return updated ? { ...task, position: updated.position } : task
+  })
+)
+
+await saveTaskPositions(reorderedTasks)
   }
 
   async function handleMoveTaskByDrag(taskId, targetListId) {
@@ -2658,6 +3396,10 @@ async function fetchShareDetails(list) {
       return
     }
 
+  if (isMobile) {
+    setSelectedTasks([])
+    setSelectionAnchorId(null)
+  }
     markSynced()
   }
 
@@ -2725,20 +3467,25 @@ async function fetchShareDetails(list) {
       )
     )
 
-    const hasError = results.some((result) => result.error)
-
-    if (hasError) {
-      console.error('Σφάλμα μετακίνησης εργασιών με drag and drop:', results)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    closeContextMenu()
-    markSynced()
+      const hasError = results.some((result) => result.error)
+  if (hasError) {
+    suppressOwnTaskRealtimeUntilRef.current = 0
+    console.error('Σφάλμα αποθήκευσης σειράς εργασιών:', results)
+    setSyncStatus('error')
+    fetchTasks(selectedList?.id, false)
+    return
   }
 
+  if (isMobile) {
+    setSelectedTasks([])
+    setSelectionAnchorId(null)
+  }
+
+  markSynced()
+}
+
   function handleAnyDragEnd() {
+    mobileSelectionClearedDuringDragRef.current = false
     setActiveDragId(null)
     setActiveOverId(null)
     setDraggedListId(null)
@@ -2885,7 +3632,22 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  function handleTaskClick(task, event) {
+  function handleTaskLongPress(task) {
+  if (!isMobile) return
+
+  setActiveTask(task)
+  setEditingTaskValue(task.title)
+  setEditingNoteId(null)
+  setEditingNoteValue('')
+  fetchNotes(task.id, false)
+
+  setSelectedTasks((prev) =>
+    prev.includes(task.id) ? prev : [...prev, task.id]
+  )
+  setSelectionAnchorId(task.id)
+}
+
+    function handleTaskClick(task, event) {
     setActiveTask(task)
     setEditingTaskValue(task.title)
     setEditingNoteId(null)
@@ -2902,7 +3664,8 @@ async function fetchShareDetails(list) {
         const start = Math.min(currentIndex, anchorIndex)
         const end = Math.max(currentIndex, anchorIndex)
         const rangeIds = visibleTasks.slice(start, end + 1).map((t) => t.id)
-        setSelectedTasks(rangeIds)
+        const mergedIds = Array.from(new Set([...selectedTasks, ...rangeIds]))
+        setSelectedTasks(mergedIds)
         return
       }
     }
@@ -2917,10 +3680,45 @@ async function fetchShareDetails(list) {
       return
     }
 
+        if (isMobile && selectedTasks.length > 0) {
+      setSelectedTasks((prev) => {
+        if (prev.includes(taskId)) {
+          const nextSelected = prev.filter((id) => id !== taskId)
+
+          if (activeTask?.id === taskId) {
+            if (nextSelected.length > 0) {
+              const nextActiveTask =
+                visibleTasks.find((t) => t.id === nextSelected[nextSelected.length - 1]) || null
+              setActiveTask(nextActiveTask)
+              if (nextActiveTask) {
+                setEditingTaskValue(nextActiveTask.title)
+                fetchNotes(nextActiveTask.id, false)
+              }
+            } else {
+              setActiveTask(null)
+              setTaskNotes([])
+              setEditingTaskValue('')
+              setEditingTaskTitle(false)
+              setEditingNoteId(null)
+              setEditingNoteValue('')
+            }
+          }
+
+          return nextSelected
+        }
+
+        return [...prev, taskId]
+      })
+
+      setSelectionAnchorId(taskId)
+      return
+    }
+
     setSelectedTasks([taskId])
     setSelectionAnchorId(taskId)
+
     if (isMobile) {
-    setMobileView('details')
+      navigateMobile('details')
     }
   }
 
@@ -2929,6 +3727,14 @@ async function fetchShareDetails(list) {
 
     const oldTasks = [...tasks]
     const newCompleted = !task.completed
+
+if (newCompleted) {
+  playTaskCompleteSound()
+  if (navigator.vibrate) navigator.vibrate(10)
+}
+    if (newCompleted) {
+    playTaskCompleteSound()
+    }
     const now = new Date().toISOString()
 
     updateTaskEverywhere(task.id, {
@@ -3067,40 +3873,48 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  async function handleDeleteOneTask(taskId) {
-    if (isOffline) return
+    async function handleDeleteOneTask(taskId, options = {}) {
+  if (isOffline) return
 
-    const task = allTasks.find((t) => t.id === taskId)
+  const { skipConfirm = false } = options
+  const task = allTasks.find((t) => t.id === taskId)
+
+  if (!skipConfirm) {
     if (!window.confirm(`Να διαγραφεί η εργασία "${task?.title || ''}";`)) return
-
-    const oldTasks = [...tasks]
-
-    setTasks((prev) => prev.filter((taskItem) => taskItem.id !== taskId))
-    setAllTasks((prev) => prev.filter((taskItem) => taskItem.id !== taskId))
-    setSelectedTasks((prev) => prev.filter((id) => id !== taskId))
-
-    if (activeTask?.id === taskId) {
-      setActiveTask(null)
-      setTaskNotes([])
-      setEditingTaskTitle(false)
-      setEditingNoteId(null)
-      setEditingNoteValue('')
-    }
-
-    markSaving()
-
-    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
-
-    if (error) {
-      console.error('Σφάλμα διαγραφής εργασίας:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    closeContextMenu()
-    markSynced()
   }
+
+  const oldTasks = [...tasks]
+  const oldAllTasks = [...allTasks]
+  const oldSelectedTasks = [...selectedTasks]
+
+  setTasks((prev) => prev.filter((taskItem) => taskItem.id !== taskId))
+  setAllTasks((prev) => prev.filter((taskItem) => taskItem.id !== taskId))
+  setSelectedTasks((prev) => prev.filter((id) => id !== taskId))
+
+  if (activeTask?.id === taskId) {
+    setActiveTask(null)
+    setTaskNotes([])
+    setEditingTaskTitle(false)
+    setEditingNoteId(null)
+    setEditingNoteValue('')
+  }
+
+  markSaving()
+
+  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+
+  if (error) {
+    console.error('Σφάλμα διαγραφής εργασίας:', error)
+    setTasks(oldTasks)
+    setAllTasks(oldAllTasks)
+    setSelectedTasks(oldSelectedTasks)
+    setSyncStatus('error')
+    return
+  }
+
+  closeContextMenu()
+  markSynced()
+}
 
   async function handleMoveTaskToList(task, targetList) {
     if (!task || !targetList || isOffline) return
@@ -3415,7 +4229,7 @@ async function fetchShareDetails(list) {
     const now = new Date().toISOString()
 
     setTaskNotes((prev) => prev.filter((note) => note.id !== noteId))
-
+    
     if (activeTask?.id) {
       updateTaskEverywhere(activeTask.id, {
         updated_at: now,
@@ -3469,7 +4283,13 @@ async function fetchShareDetails(list) {
     markSynced()
   }
 
-  function handleTaskRightClick(event, task) {
+    function handleTaskRightClick(event, task) {
+    if (isMobile) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+
     event.preventDefault()
     event.stopPropagation()
 
@@ -3495,40 +4315,44 @@ async function fetchShareDetails(list) {
   }
 
   function handleListRightClick(event, list) {
-    event.preventDefault()
-    event.stopPropagation()
-
-    const currentIds = selectedListsRef.current
-    const included = currentIds.includes(list.id)
-    const effectiveIds = included ? currentIds : [list.id]
-    const effectiveLists = lists.filter((item) => effectiveIds.includes(item.id))
-
-    if (!included) {
-      setSelectedList(list)
-      setSelectedLists([list.id])
-      setListSelectionAnchorId(list.id)
-    }
-
-    const canBulkManage =
-      effectiveLists.length > 0 &&
-      effectiveLists.every((item) => item.owner_user_id === session?.user?.id)
-
-    const canBulkLeave =
-      effectiveLists.length > 0 &&
-      effectiveLists.every((item) => item.owner_user_id !== session?.user?.id)
-
-    setContextMenu({
-      type: effectiveLists.length > 1 ? 'list_multi' : 'list',
-      x: event.clientX,
-      y: event.clientY,
-      list,
-      lists: effectiveLists,
-      canBulkManage,
-      canBulkLeave,
-    })
-    setMoveMenuOpen(false)
-    setMultiMoveMenuOpen(false)
+  if (isMobile) {
+    return
   }
+
+  event.preventDefault()
+  event.stopPropagation()
+
+  const currentIds = selectedListsRef.current
+  const included = currentIds.includes(list.id)
+  const effectiveIds = included ? currentIds : [list.id]
+  const effectiveLists = lists.filter((item) => effectiveIds.includes(item.id))
+
+  if (!included) {
+    setSelectedList(list)
+    setSelectedLists([list.id])
+    setListSelectionAnchorId(list.id)
+  }
+
+  const canBulkManage =
+    effectiveLists.length > 0 &&
+    effectiveLists.every((item) => item.owner_user_id === session?.user?.id)
+
+  const canBulkLeave =
+    effectiveLists.length > 0 &&
+    effectiveLists.every((item) => item.owner_user_id !== session?.user?.id)
+
+  setContextMenu({
+    type: effectiveLists.length > 1 ? 'list_multi' : 'list',
+    x: event.clientX,
+    y: event.clientY,
+    list,
+    lists: effectiveLists,
+    canBulkManage,
+    canBulkLeave,
+  })
+  setMoveMenuOpen(false)
+  setMultiMoveMenuOpen(false)
+}
 
   function handleNoteRightClick(event, note) {
     event.preventDefault()
@@ -3690,12 +4514,26 @@ async function fetchShareDetails(list) {
   type="button"
   className="mobile-floating-back"
   onClick={() => {
-    if (mobileView === 'details') {
-      setMobileView('tasks')
-      return
-    }
-    setMobileView('lists')
-  }}
+   if (mobileView === 'details') {
+    setSelectedTasks([])
+    setSelectionAnchorId(null)
+    navigateMobile('tasks')
+    return
+  }
+
+  if (mobileView === 'search') {
+    setSelectedList(null)
+    setSelectedLists([])
+    setListSelectionAnchorId(null)
+    navigateMobile('lists')
+    return
+  }
+
+  setSelectedList(null)
+  setSelectedLists([])
+  setListSelectionAnchorId(null)
+  navigateMobile('lists')
+}}
   aria-label="Back"
   title="Back"
 >
@@ -3703,7 +4541,13 @@ async function fetchShareDetails(list) {
 </button>
 )}
 <div
-  className="sidebar"
+  className={`sidebar ${
+  isMobile
+    ? `mobile-screen ${
+        mobileDirection === 'forward' ? 'mobile-slide-forward' : 'mobile-slide-back'
+      }`
+    : ''
+}`}
   style={
     isMobile
       ? {
@@ -3718,24 +4562,41 @@ async function fetchShareDetails(list) {
     <div className="sidebar-top">
       <h2>Λίστες</h2>
 
-      <div style={{ display: 'flex', gap: '6px' }}>
-        <button
-          className="theme-toggle"
-          onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-        >
-          {theme === 'light' ? 'Dark' : 'Light'}
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+  <div style={{ display: 'flex', gap: '6px' }}>
+    <button
+      className="theme-toggle"
+      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+    >
+      {theme === 'light' ? 'Dark' : 'Light'}
+    </button>
 
-        <button className="theme-toggle" onClick={handleSignOut}>
-          Έξοδος
-        </button>
-      </div>
-    </div>
-
-    <div className="sidebar-user-email">
-      {session.user.email}
-    </div>
+    <button className="theme-toggle" onClick={handleSignOut}>
+      Έξοδος
+    </button>
   </div>
+
+</div>
+
+</div>
+
+<div className="sidebar-user-row">
+  <div className="sidebar-user-email">
+    {session.user.email}
+  </div>
+
+  {isMobile && (
+    <button
+      type="button"
+      className="mobile-search-trigger"
+      onClick={() => navigateMobile('search')}
+    >
+      ⌕
+    </button>
+  )}
+</div>  
+
+</div>
 
   <div className="sidebar-scroll-area">
     <div className={`sync-indicator ${syncStatus}`}>
@@ -3761,27 +4622,29 @@ async function fetchShareDetails(list) {
     )}
 
     
-            <div className="task-search-box">
-              <div className="task-search-wrapper">
-                <input
-                  type="text"
-                  className="task-search-input"
-                  placeholder="Αναζήτηση εργασίας σε όλες τις λίστες..."
-                  value={taskSearch}
-                  onChange={(e) => setTaskSearch(e.target.value)}
-                />
-                {taskSearch.trim() !== '' && (
-                  <button
-                    className="task-search-clear"
-                    type="button"
-                    onClick={() => setTaskSearch('')}
-                    title="Καθαρισμός αναζήτησης"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
+           {!isMobile && (
+  <div className="task-search-box">
+    <div className="task-search-wrapper">
+      <input
+        type="text"
+        className="task-search-input"
+        placeholder="Αναζήτηση εργασίας σε όλες τις λίστες..."
+        value={taskSearch}
+        onChange={(e) => setTaskSearch(e.target.value)}
+      />
+      {taskSearch.trim() !== '' && (
+        <button
+          className="task-search-clear"
+          type="button"
+          onClick={() => setTaskSearch('')}
+          title="Καθαρισμός αναζήτησης"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  </div>
+)}
 
             {loadingLists ? (
               <p>Φόρτωση...</p>
@@ -3804,9 +4667,15 @@ async function fetchShareDetails(list) {
                         dropIndicator.targetListId === list.id &&
                         dropIndicator.position === 'bottom'
 
-                      const taskDropActive =
-                        taskDropListId === list.id ||
-                        String(hoveredTaskListId) === String(list.id)
+                      const isSameList =
+  String(activeDraggedTask?.list_id) === String(list.id)
+
+const taskDropActive =
+  !isSameList &&
+  (
+    taskDropListId === list.id ||
+    String(hoveredTaskListId) === String(list.id)
+  )
                       const incompleteCount = incompleteCountByList[list.id] || 0
                       const completedCount = completedCountByList[list.id] || 0
 
@@ -3872,16 +4741,22 @@ async function fetchShareDetails(list) {
         />
 
         <div
-          ref={mainRef}
-          className={`main ${activeTask ? 'with-details' : ''}`}
+  ref={mainRef}
+  className={`main ${activeTask ? 'with-details' : ''} ${
+  isMobile
+    ? `mobile-screen ${
+        mobileDirection === 'forward' ? 'mobile-slide-forward' : 'mobile-slide-back'
+      }`
+    : ''
+}`}
 style={
-    	isMobile
-    	  ? {
-          display: mobileView === 'tasks' ? 'block' : 'none',
-          width: '100%',
-        }
-      : undefined
-  }
+  isMobile
+    ? {
+        display: mobileView === 'tasks' || mobileView === 'search' ? 'flex' : 'none',
+        width: '100%',
+      }
+    : undefined
+}
           tabIndex={0}
           onMouseDown={(e) => {
             const tagName = e.target?.tagName
@@ -3948,8 +4823,69 @@ style={
           ) : null}
 
 
-{selectedList ? (
+{isMobile && mobileView === 'search' ? (
   <>
+    <div className="main-fixed-header mobile-search-fixed-header">
+      <div className="mobile-search-screen">
+        <div className="task-search-box mobile-search-box">
+          <div className="task-search-wrapper">
+            <input
+              type="text"
+              className="task-search-input mobile-search-input"
+              placeholder="Αναζήτηση"
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
+              autoFocus
+            />
+            {taskSearch.trim() !== '' && (
+              <button
+                className="task-search-clear"
+                type="button"
+                onClick={() => setTaskSearch('')}
+                title="Καθαρισμός αναζήτησης"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mobile-search-header-text">
+          Πληκτρολογήστε για αναζήτηση στις Εργασίες.
+        </div>
+      </div>
+    </div>
+
+    <div className="main-scroll-area mobile-search-results">
+  {taskSearch.trim() === '' ? null : visibleTasks.length === 0 ? (
+    <div className="mobile-search-empty-state">
+      Δεν βρέθηκαν εργασίες.
+    </div>
+  ) : (
+    <div className="task-container">
+      {visibleTasks.map((task) => (
+        <SortableTaskItem
+          key={task.id}
+          task={task}
+          isActive={activeTask?.id === task.id}
+          isSelected={selectedTasks.includes(task.id)}
+          isOffline={isOffline}
+          isSearchMode={true}
+          onClick={(event) => handleTaskClick(task, event)}
+          onContextMenu={(event) => handleTaskRightClick(event, task)}
+          onToggleCompleted={handleToggleCompleted}
+          onToggleWeighing={handleToggleWeighing}
+          onDeleteSwipe={handleDeleteOneTask}
+          onMobileLongPress={handleTaskLongPress}
+        />
+      ))}
+    </div>
+  )}
+</div>
+  </>
+) : selectedList ? (
+  <>
+
     <div className="main-fixed-header">
       <div className="main-header">
         {editingListName ? (
@@ -3975,65 +4911,252 @@ style={
             onFocus={(e) => e.target.select()}
             autoFocus
           />
-        ) : (
-          <h1
-            className="editable-title"
-            onClick={() => {
-              if (selectedList.owner_user_id === session?.user?.id) {
-                setEditingListName(true)
-                setEditingListValue(selectedList.name)
-              }
-            }}
-            title={
-              selectedList.owner_user_id === session?.user?.id
-                ? 'Κλικ για μετονομασία'
-                : 'Κοινόχρηστη λίστα'
-            }
-          >
-            {selectedList.name}
-          </h1>
+                ) : (
+          <div className="main-title-row">
+  <div className="main-title-text-block">
+  <h1
+  className="editable-title"
+  onClick={() => {
+    if (selectedList.owner_user_id !== session?.user?.id) return
+
+    setEditingListValue(selectedList.name)
+
+    if (isMobile) {
+      setIsMobileListNameModalOpen(true)
+      return
+    }
+
+    setEditingListName(true)
+  }}
+  title={
+    selectedList.owner_user_id === session?.user?.id
+      ? 'Κλικ για μετονομασία'
+      : 'Κοινόχρηστη λίστα'
+  }
+>
+  {selectedList.name}
+</h1>
+
+  {currentSortMode !== 'manual' && (
+    <button
+      type="button"
+      className="list-sort-summary"
+      onClick={() =>
+        updateCurrentListSort({
+          direction: currentSortDirection === 'asc' ? 'desc' : 'asc',
+        })
+      }
+    >
+      {currentSortMode === 'created' &&
+        `Ταξινόμηση με σειρά καταχώρησης ${currentSortDirection === 'asc' ? '↑' : '↓'}`}
+
+      {currentSortMode === 'alpha' &&
+        `Ταξινόμηση αλφαβητικά ${currentSortDirection === 'asc' ? '↑' : '↓'}`}
+    </button>
+  )}
+
+</div>
+
+{isMobile && (
+  <div className="task-actions-menu-wrap">
+    <button
+      type="button"
+      className="task-actions-trigger"
+      onClick={() => {
+        setIsTaskActionsMenuOpen((prev) => {
+          const next = !prev
+          if (!next) {
+            setIsMobileTaskMoveMenuOpen(false)
+          }
+          return next
+        })
+      }}
+      aria-label="Ενέργειες εργασιών"
+      aria-expanded={isTaskActionsMenuOpen}
+    >
+      ⋮
+    </button>
+
+    {isTaskActionsMenuOpen && (
+  <div className="task-actions-dropdown">
+    {isMobileTaskMoveMenuOpen ? (
+      <div className="task-actions-section">
+        <button
+          type="button"
+          className="task-actions-menu-button"
+          onClick={() => {
+            setIsMobileTaskMoveMenuOpen(false)
+          }}
+        >
+          ← Πίσω
+        </button>
+
+        <div className="task-actions-submenu">
+          {lists
+            .filter((list) => String(list.id) !== String(selectedList?.id))
+            .map((list) => (
+              <button
+                key={list.id}
+                type="button"
+                className="task-actions-menu-button"
+                onClick={async () => {
+                  await handleMoveSelectedTasksToList(list)
+                  setIsMobileTaskMoveMenuOpen(false)
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                {list.name}
+              </button>
+            ))}
+        </div>
+      </div>
+    ) : (
+      <>
+        {selectedTasks.length > 0 && (
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button"
+              onClick={() => {
+                setIsMobileTaskMoveMenuOpen(true)
+              }}
+            >
+              Μετακίνηση σε Λίστα
+            </button>
+          </div>
         )}
 
-        <div className="main-actions">
-          <div className="task-sort-box">
-            <label htmlFor="sortMode">Ταξινόμηση</label>
-
-            {currentSortMode !== 'manual' && (
-  <button
-    className={`sort-direction-button ${
-      currentSortDirection === 'asc' ? 'asc' : 'desc'
-    }`}
-    onClick={() =>
-      updateCurrentListSort({
-        direction: currentSortDirection === 'asc' ? 'desc' : 'asc',
-      })
-    }
-    title={
-      currentSortDirection === 'asc'
-        ? 'Αύξουσα σειρά'
-        : 'Φθίνουσα σειρά'
-    }
-    type="button"
-  >
-    {currentSortDirection === 'asc' ? '↑' : '↓'}
-  </button>
-)}
-
-            <select
-              id="sortMode"
-              value={currentSortMode}
-              onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
-            >
-              <option value="created">Σειρά καταχώρησης</option>
-              <option value="alpha">Αλφαβητική</option>
-              <option value="manual">Χειροκίνητη</option>
-            </select>
-          </div>
-
-          <button className="print-button" onClick={handlePrintTasks}>
-            Εκτύπωση Εργασιών
+        <div className="task-actions-section">
+          <button
+            type="button"
+            className="task-actions-menu-button"
+            onClick={() => {
+              setIsTaskActionsMenuOpen(false)
+              setIsMobileSortMenuOpen(true)
+            }}
+          >
+            Ταξινόμηση
           </button>
         </div>
+
+        <div className="task-actions-section">
+          <button
+            type="button"
+            className="task-actions-menu-button"
+            onClick={() => {
+              setIsTaskActionsMenuOpen(false)
+              handlePrintTasks()
+            }}
+          >
+            Εκτύπωση
+          </button>
+        </div>
+
+        {selectedTasks.length > 0 && (
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button danger"
+              onClick={async () => {
+                await handleDeleteSelected()
+                setIsMobileTaskMoveMenuOpen(false)
+                setIsTaskActionsMenuOpen(false)
+              }}
+            >
+              {selectedTasks.length === 1 ? 'Διαγραφή εργασίας' : 'Διαγραφή εργασιών'}
+            </button>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
+  </div>
+)}
+
+{isMobileSortMenuOpen && (
+  <div
+    className="mobile-sort-popup-backdrop"
+    onClick={() => setIsMobileSortMenuOpen(false)}
+  >
+    <div
+      className="mobile-sort-popup"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mobile-sort-popup-title">Ταξινόμηση</div>
+
+      <button
+        type="button"
+        className="task-actions-menu-button mobile-sort-option"
+        onClick={() => {
+          updateCurrentListSort({ mode: 'created' })
+          setIsMobileSortMenuOpen(false)
+        }}
+      >
+        <span>Σειρά καταχώρησης</span>
+        <span className="mobile-sort-check">
+          {currentSortMode === 'created' ? '✓' : ''}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="task-actions-menu-button mobile-sort-option"
+        onClick={() => {
+          updateCurrentListSort({ mode: 'alpha' })
+          setIsMobileSortMenuOpen(false)
+        }}
+      >
+        <span>Αλφαβητική</span>
+        <span className="mobile-sort-check">
+          {currentSortMode === 'alpha' ? '✓' : ''}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="task-actions-menu-button mobile-sort-option"
+        onClick={() => {
+          updateCurrentListSort({ mode: 'manual' })
+          setIsMobileSortMenuOpen(false)
+        }}
+      >
+        <span>Χειροκίνητη</span>
+        <span className="mobile-sort-check">
+          {currentSortMode === 'manual' ? '✓' : ''}
+        </span>
+      </button>
+    </div>
+  </div>
+)}        
+</div>
+      )}
+
+        <div className="main-actions">
+  {!isMobile && (
+    <div className="task-sort-box">
+      <label htmlFor="sortMode">Ταξινόμηση</label>
+
+      <select
+        id="sortMode"
+        value={currentSortMode}
+        onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
+      >
+        <option value="created">Σειρά καταχώρησης</option>
+        <option value="alpha">Αλφαβητική</option>
+        <option value="manual">Χειροκίνητη</option>
+      </select>
+    </div>
+  )}
+
+
+
+{!isMobile && (
+  <button className="print-button" onClick={handlePrintTasks}>
+    Εκτύπωση
+  </button>
+)}
+</div>
       </div>
     </div>
 
@@ -4065,7 +5188,7 @@ style={
                     <div className="completed-divider">Ολοκληρωμένες</div>
                   )}
 
-                  <SortableTaskItem
+                                    <SortableTaskItem
                     task={task}
                     isActive={activeTask?.id === task.id}
                     isSelected={selectedTasks.includes(task.id)}
@@ -4075,6 +5198,8 @@ style={
                     onContextMenu={(event) => handleTaskRightClick(event, task)}
                     onToggleCompleted={handleToggleCompleted}
                     onToggleWeighing={handleToggleWeighing}
+                    onDeleteSwipe={(taskId) => handleDeleteOneTask(taskId, { skipConfirm: true })}
+		    onMobileLongPress={handleTaskLongPress}
                   />
                 </div>
               )
@@ -4120,13 +5245,19 @@ style={
         )}
 
         <div
-          className={`details-drawer ${activeTask ? 'open' : ''}`}
+  className={`details-drawer ${activeTask ? 'open' : ''} ${
+  isMobile
+    ? `mobile-screen ${
+        mobileDirection === 'forward' ? 'mobile-slide-forward' : 'mobile-slide-back'
+      }`
+    : ''
+}`}
 
 style={
   activeTask
     ? isMobile
       ? {
-          display: mobileView === 'details' ? 'block' : 'none',
+          display: mobileView === 'details' ? 'flex' : 'none',
           width: '100%',
           minWidth: '100%',
         }
@@ -4138,171 +5269,206 @@ style={
         >
 
 {activeTask && (
-            <>
-              <div className="details-panel">
-                <div className="details-panel-header">
-                  <textarea
-                    className={
-                      editingTaskTitle ? 'details-task-title-input' : 'details-task-title'
-                    }
-                    value={editingTaskTitle ? editingTaskValue : activeTask.title}
-                    readOnly={!editingTaskTitle}
-                    rows={1}
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
+  <>
+    <div className="details-panel">
+      <div className="details-panel-header">
+{!editingTaskTitle ? (
+  isMobile ? (
+    <div
+      className="mobile-task-title-readonly"
+      onMouseDown={(e) => {
+        e.stopPropagation()
+      }}
+      onTouchStart={(e) => {
+        e.stopPropagation()
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+        setEditingTaskTitle(true)
+        setEditingTaskValue(activeTask.title)
+      }}
+      title="Κλικ για μετονομασία"
+    >
+      {activeTask.title}
+    </div>
+  ) : (
+    <div
+      className="details-task-title-readonly-web"
+      onMouseDown={(e) => {
+        e.stopPropagation()
+        setEditingTaskTitle(true)
+        setEditingTaskValue(activeTask.title)
+      }}
+      onClick={(e) => e.stopPropagation()}
+      title="Κλικ για μετονομασία"
+    >
+      {activeTask.title}
+    </div>
+  )
+) : isMobile ? (
+  <div
+    className="mobile-task-title-editor"
+    contentEditable
+    suppressContentEditableWarning
+    onMouseDown={(e) => {
+      e.stopPropagation()
+    }}
+    onClick={(e) => e.stopPropagation()}
+    onInput={(e) => {
+      setEditingTaskValue(e.currentTarget.textContent || '')
+    }}
+    onBlur={async (e) => {
+      const nextValue = e.currentTarget.textContent || ''
+      setEditingTaskValue(nextValue)
+      await handleRenameTask(activeTask, nextValue)
+    }}
+    onKeyDown={async (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const nextValue = e.currentTarget.textContent || ''
+        setEditingTaskValue(nextValue)
+        await handleRenameTask(activeTask, nextValue)
+      }
 
-                      if (!editingTaskTitle) {
-                        setEditingTaskTitle(true)
-                        setEditingTaskValue(activeTask.title)
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={(e) => {
-                      autoResizeTextarea(e.target)
-                    }}
-                    onInput={(e) => {
-                      autoResizeTextarea(e.target)
-                      setEditingTaskValue(e.target.value)
-                    }}
-                    onBlur={async (e) => {
-                      autoResizeTextarea(e.target)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setEditingTaskTitle(false)
+        setEditingTaskValue(activeTask.title)
+      }
+    }}
+    ref={(el) => {
+      if (!el) return
+      if (el.textContent !== editingTaskValue) {
+        el.textContent = editingTaskValue
+      }
 
-                      if (editingTaskTitle) {
-                        await handleRenameTask(activeTask, editingTaskValue)
-                      }
-                    }}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        await handleRenameTask(activeTask, editingTaskValue)
-                      }
-                      if (e.key === 'Escape') {
-                        setEditingTaskTitle(false)
-                        setEditingTaskValue(activeTask.title)
-                      }
-                    }}
-                    ref={(el) => {
-                      if (el) autoResizeTextarea(el)
-                    }}
-                    title="Κλικ για μετονομασία"
-                  />
+      requestAnimationFrame(() => {
+        const selection = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        range.collapse(false)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      })
+    }}
+    title="Κλικ για μετονομασία"
+  />
+) : (
+  <textarea
+    className="details-task-title-input"
+    value={editingTaskValue}
+    readOnly={false}
+    rows={1}
+    onMouseDown={(e) => {
+      e.stopPropagation()
+    }}
+    onClick={(e) => e.stopPropagation()}
+    onFocus={(e) => {
+      autoResizeTextarea(e.target)
+    }}
+    onInput={(e) => {
+      setEditingTaskValue(e.target.value)
+      autoResizeTextarea(e.target)
+    }}
+    onBlur={async (e) => {
+      autoResizeTextarea(e.target)
+      await handleRenameTask(activeTask, editingTaskValue)
+    }}
+    onKeyDown={async (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        await handleRenameTask(activeTask, editingTaskValue)
+      }
+      if (e.key === 'Escape') {
+        setEditingTaskTitle(false)
+        setEditingTaskValue(activeTask.title)
+      }
+    }}
+    ref={(el) => {
+      if (el) autoResizeTextarea(el)
+    }}
+    title="Κλικ για μετονομασία"
+  />
+)}
+        <div className="details-controls">
+          <button
+            className="details-close"
+            onClick={() => {
+              setActiveTask(null)
+              setTaskNotes([])
+              setEditingTaskTitle(false)
+              setEditingNoteId(null)
+              setEditingNoteValue('')
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
 
-                  <div className="details-controls">
-                    <button
-                      className="details-close"
-                      onClick={() => {
-                        setActiveTask(null)
-                        setTaskNotes([])
-                        setEditingTaskTitle(false)
-                        setEditingNoteId(null)
-                        setEditingNoteValue('')
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
+      <textarea
+        className="note-input"
+        placeholder="Γράψε σημείωση και πάτα Enter..."
+        value={newNoteText}
+        rows={1}
+        onChange={(e) => {
+          setNewNoteText(e.target.value)
+          autoResizeTextarea(e.target)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleAddNoteFromEnter()
+          }
+        }}
+        onFocus={(e) => autoResizeTextarea(e.target)}
+        ref={(el) => {
+          if (el) autoResizeTextarea(el)
+        }}
+        disabled={isOffline}
+      />
 
-                <textarea
-                  className="note-input"
-                  placeholder="Γράψε σημείωση και πάτα Enter..."
-                  value={newNoteText}
-                  rows={1}
-                  onChange={(e) => {
-                    setNewNoteText(e.target.value)
-                    autoResizeTextarea(e.target)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleAddNoteFromEnter()
-                    }
-                  }}
-                  onFocus={(e) => autoResizeTextarea(e.target)}
-                  ref={(el) => {
-                    if (el) autoResizeTextarea(el)
-                  }}
-                  disabled={isOffline}
-                />
+      <div className="notes-list">
+  {taskNotes.length === 0 ? (
+    <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
+  ) : (
+    taskNotes.map((note) => (
+      <SwipeableNoteItem
+        key={note.id}
+        note={note}
+        isOffline={isOffline}
+        isMobile={isMobile}
+        isEditing={editingNoteId === note.id}
+        editingValue={editingNoteValue}
+        onStartEdit={(selectedNote) => {
+          if (editingNoteId !== selectedNote.id) {
+            setEditingNoteId(selectedNote.id)
+            setEditingNoteValue(selectedNote.content)
+          }
+        }}
+        onContextMenu={handleNoteRightClick}
+        onToggleCompleted={handleToggleNoteCompleted}
+        onChangeEditingValue={setEditingNoteValue}
+        onCommitInlineEdit={handleInlineRenameNote}
+        onCancelInlineEdit={clearEditingNoteIfStillSame}
+        onDeleteSwipe={handleDeleteNote}
+      />
+    ))
+  )}
+</div>
+    </div>
 
-                <div className="notes-list">
-                  {taskNotes.length === 0 ? (
-                    <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
-                  ) : (
-                    taskNotes.map((note) => (
-                      <div
-                        key={note.id}
-                        className={`note-item ${note.completed ? 'note-item-completed' : ''}`}
-                        onClick={() => {
-                          if (editingNoteId !== note.id) {
-                            setEditingNoteId(note.id)
-                            setEditingNoteValue(note.content)
-                          }
-                        }}
-                        onContextMenu={(event) => handleNoteRightClick(event, note)}
-                        title="Κλικ για επεξεργασία • Δεξί κλικ για μενού"
-                      >
-                        <input
-                          className="round-checkbox"
-                          type="checkbox"
-                          checked={note.completed}
-                          onChange={() => handleToggleNoteCompleted(note)}
-                          onClick={(e) => e.stopPropagation()}
-                          disabled={isOffline}
-                        />
-
-                        {editingNoteId === note.id ? (
-                          <textarea
-                            className="note-inline-input"
-                            value={editingNoteValue}
-                            rows={1}
-                            onChange={(e) => {
-                              setEditingNoteValue(e.target.value)
-                              autoResizeTextarea(e.target)
-                            }}
-                            onBlur={() => handleInlineRenameNote(note.id)}
-                            onFocus={(e) => {
-                              e.target.select()
-                              autoResizeTextarea(e.target)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                handleInlineRenameNote(note.id)
-                              }
-                              if (e.key === 'Escape') {
-                                clearEditingNoteIfStillSame(note.id, '')
-                              }
-                            }}
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                            disabled={isOffline}
-                            ref={(el) => {
-                              if (el) autoResizeTextarea(el)
-                            }}
-                          />
-                        ) : (
-                          <span className={note.completed ? 'completed' : ''}>
-                            {note.content}
-                          </span>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="details-bottom-area">
-                <div className="task-updated-box">
-                  <span className="task-updated-label">Τελευταία αλλαγή</span>
-                  <span className="task-updated-value">
-                    {formatDateTime(activeTask.updated_at)}
-                    {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
+    <div className="details-bottom-area">
+      <div className="task-updated-box">
+        <span className="task-updated-label">Τελευταία αλλαγή</span>
+        <span className="task-updated-value">
+          {formatDateTime(activeTask.updated_at)}
+          {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
+        </span>
+      </div>
+    </div>
+  </>
+)}
         </div>
 
         {contextMenu && contextMenu.type === 'task' && (
@@ -4763,9 +5929,26 @@ style={
         </div>
       )}
 
-      <DragOverlay zIndex={9999}>
+            <DragOverlay zIndex={9999}>
         {activeDraggedTask ? (
-          <div className="task-item" style={{ pointerEvents: 'none', boxShadow: 'var(--shadow)', opacity: 0.98 }}>
+          <div
+            className={`task-item ${isMobile ? 'mobile-drag-overlay' : ''}`}
+            style={{
+              pointerEvents: 'none',
+              boxShadow: 'var(--shadow)',
+              opacity: 0.98,
+              transform: isMobile ? 'scale(1.03)' : 'scale(1)',
+            }}
+          >
+                                    <span
+              className={`round-checkbox task-select-indicator ${activeDraggedTask.completed ? 'is-completed' : ''} ${
+                isMobile && selectedTasks.some((id) => String(id) === String(activeDraggedTask.id))
+                  ? 'is-selected'
+                  : ''
+              }`}
+              aria-hidden="true"
+            />
+
             <div className="task-text-block">
               <span className={`task-title ${activeDraggedTask.completed ? 'completed' : ''}`}>
                 {activeDraggedTask.title}
@@ -4778,9 +5961,26 @@ style={
                 </span>
               )}
             </div>
+
+            <button
+              type="button"
+              className={`weight-toggle ${activeDraggedTask.needs_weighing ? 'on' : ''}`}
+              aria-hidden="true"
+              tabIndex={-1}
+            >
+              ⚖
+            </button>
           </div>
         ) : activeDraggedList ? (
-          <div className="list-button" style={{ pointerEvents: 'none', boxShadow: 'var(--shadow)', opacity: 0.98 }}>
+          <div
+  className={`list-button ${isMobile ? 'mobile-drag-overlay' : ''}`}
+  style={{
+    pointerEvents: 'none',
+    boxShadow: 'var(--shadow)',
+    opacity: 0.98,
+    transform: isMobile ? 'scale(1.03)' : 'scale(1)',
+  }}
+>
             <span className="list-button-left">
               <span className="list-grip">≡</span>
               <span className="list-name-text">{activeDraggedList.name}</span>
