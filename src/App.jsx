@@ -1,3 +1,8 @@
+window.onerror = function (message, source, lineno, colno, error) {
+  console.log('GLOBAL ERROR:', message, error)
+}
+console.log('APP STARTED')
+import taskCompleteSoundFile from './assets/sounds/task-complete.mp3'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -151,6 +156,7 @@ function SortableTaskItem({
 
   const touchStartXRef = useRef(0)
   const touchStartYRef = useRef(0)
+
   const swipeOffsetRef = useRef(0)
   const swipeLockedRef = useRef(false)
   const swipeStartedRef = useRef(false)
@@ -582,14 +588,7 @@ function SwipeableNoteItem({
         onTouchCancel={handleTouchCancel}
         title={isMobile ? 'Swipe αριστερά για διαγραφή • Κλικ για επεξεργασία' : 'Κλικ για επεξεργασία • Δεξί κλικ για μενού'}
       >
-        <input
-          className="round-checkbox"
-          type="checkbox"
-          checked={note.completed}
-          onChange={() => onToggleCompleted(note)}
-          onClick={(e) => e.stopPropagation()}
-          disabled={isOffline}
-        />
+        <span className="note-dash" aria-hidden="true">🔹</span>
 
         {isEditing ? (
           <textarea
@@ -636,6 +635,7 @@ function App() {
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authMode, setAuthMode] = useState('signin')
+  const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authError, setAuthError] = useState('')
@@ -1578,44 +1578,10 @@ useEffect(() => {
   }
 function playTaskCompleteSound() {
   try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    if (!AudioContextClass) return
-
-    const ctx = new AudioContextClass()
-    const now = ctx.currentTime
-
-    // βασική νότα
-    const osc1 = ctx.createOscillator()
-    const gain1 = ctx.createGain()
-
-    osc1.type = 'sine'
-    osc1.frequency.setValueAtTime(1200, now)
-
-    gain1.gain.setValueAtTime(0.09, now)
-    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.35)
-
-    osc1.connect(gain1)
-    gain1.connect(ctx.destination)
-
-    osc1.start(now)
-    osc1.stop(now + 0.35)
-
-    // μεταλλικό overtone
-    const osc2 = ctx.createOscillator()
-    const gain2 = ctx.createGain()
-
-    osc2.type = 'triangle'
-    osc2.frequency.setValueAtTime(2400, now)
-
-    gain2.gain.setValueAtTime(0.05, now)
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.25)
-
-    osc2.connect(gain2)
-    gain2.connect(ctx.destination)
-
-    osc2.start(now)
-    osc2.stop(now + 0.25)
-
+    const audio = new Audio(taskCompleteSoundFile)
+    audio.volume = 0.6
+    audio.currentTime = 0
+    void audio.play()
   } catch {}
 }
   function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
@@ -3723,45 +3689,52 @@ await saveTaskPositions(reorderedTasks)
   }
 
   async function handleToggleCompleted(task) {
-    if (isOffline) return
+  if (isOffline) return
 
-    const oldTasks = [...tasks]
-    const newCompleted = !task.completed
+  const oldTasks = [...tasks]
+  const newCompleted = !task.completed
 
-if (newCompleted) {
-  playTaskCompleteSound()
-  if (navigator.vibrate) navigator.vibrate(10)
-}
-    if (newCompleted) {
+  // 🔊 Sound + vibration μόνο όταν γίνεται completed
+  if (newCompleted) {
     playTaskCompleteSound()
-    }
-    const now = new Date().toISOString()
+    if (navigator.vibrate) navigator.vibrate(10)
+  }
 
-    updateTaskEverywhere(task.id, {
+  const now = new Date().toISOString()
+
+  // 🔥 ΣΗΜΑΝΤΙΚΟ: ακυρώνει παλιά fetch responses (fix για flicker)
+  latestTasksFetchIdRef.current += 1
+
+  // ⚡ Optimistic update (άμεσο UI update)
+  updateTaskEverywhere(task.id, {
+    completed: newCompleted,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  })
+
+  markSaving()
+
+  // ☁️ Update στο Supabase
+  const { error } = await supabase
+    .from('tasks')
+    .update({
       completed: newCompleted,
       updated_at: now,
       updated_by: session?.user?.id || null,
     })
-    markSaving()
+    .eq('id', task.id)
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({
-        completed: newCompleted,
-        updated_at: now,
-        updated_by: session?.user?.id || null,
-      })
-      .eq('id', task.id)
-
-    if (error) {
-      console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    markSynced()
+  // ❌ Αν αποτύχει → rollback
+  if (error) {
+    console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
+    setTasks(oldTasks)
+    setSyncStatus('error')
+    return
   }
+
+  // ✅ Sync OK
+  markSynced()
+}
 
   async function handleToggleWeighing(task, event) {
     event.preventDefault()
@@ -4511,36 +4484,49 @@ if (newCompleted) {
       >
 {isMobile && mobileView !== 'lists' && (
   <button
-  type="button"
-  className="mobile-floating-back"
-  onClick={() => {
-   if (mobileView === 'details') {
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
-    navigateMobile('tasks')
-    return
-  }
+    type="button"
+    className="mobile-floating-back"
+    onClick={() => {
+      if (mobileView === 'tasks' && selectedTasks.length > 0) {
+        setSelectedTasks([])
+        setSelectionAnchorId(null)
+        return
+      }
 
-  if (mobileView === 'search') {
-    setSelectedList(null)
-    setSelectedLists([])
-    setListSelectionAnchorId(null)
-    navigateMobile('lists')
-    return
-  }
+      if (mobileView === 'details') {
+        setSelectedTasks([])
+        setSelectionAnchorId(null)
+        navigateMobile('tasks')
+        return
+      }
 
-  setSelectedList(null)
-  setSelectedLists([])
-  setListSelectionAnchorId(null)
-  navigateMobile('lists')
-}}
-  aria-label="Back"
-  title="Back"
->
-  ‹
-</button>
-)}
-<div
+      if (mobileView === 'search') {
+        setSelectedList(null)
+        setSelectedLists([])
+        setListSelectionAnchorId(null)
+        navigateMobile('lists')
+        return
+      }
+
+      setSelectedList(null)
+      setSelectedLists([])
+      setListSelectionAnchorId(null)
+      navigateMobile('lists')
+    }}
+    aria-label={
+      mobileView === 'tasks' && selectedTasks.length > 0
+        ? 'Αποεπιλογή εργασιών'
+        : 'Back'
+    }
+    title={
+      mobileView === 'tasks' && selectedTasks.length > 0
+        ? 'Αποεπιλογή εργασιών'
+        : 'Back'
+    }
+  >
+    {mobileView === 'tasks' && selectedTasks.length > 0 ? '×' : '‹'}
+  </button>
+)}<div
   className={`sidebar ${
   isMobile
     ? `mobile-screen ${
@@ -5176,34 +5162,57 @@ style={
         >
           <div className="task-container">
             {visibleTasks.map((task, index) => {
-              const previousTask = visibleTasks[index - 1]
-              const shouldShowCompletedDivider =
-                index > 0 &&
-                !previousTask.completed &&
-                task.completed
+  const previousTask = visibleTasks[index - 1]
+  const shouldShowCompletedDivider =
+    task.completed &&
+    (index === 0 || !previousTask?.completed)
 
-              return (
-                <div key={task.id}>
-                  {shouldShowCompletedDivider && (
-                    <div className="completed-divider">Ολοκληρωμένες</div>
-                  )}
+  return (
+    <div key={task.id}>
+      {shouldShowCompletedDivider && (
+        <button
+          type="button"
+          className="completed-divider completed-divider-button"
+          onClick={() => setShowCompletedTasks((prev) => !prev)}
+        >
+          <>
+  <span className={`arrow ${showCompletedTasks ? 'open' : ''}`}>
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="M9 6l6 6-6 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
+  Ολοκληρωμένες
+</>
+        </button>
+      )}
 
-                                    <SortableTaskItem
-                    task={task}
-                    isActive={activeTask?.id === task.id}
-                    isSelected={selectedTasks.includes(task.id)}
-                    isOffline={isOffline}
-                    isSearchMode={Boolean(taskSearch.trim())}
-                    onClick={(event) => handleTaskClick(task, event)}
-                    onContextMenu={(event) => handleTaskRightClick(event, task)}
-                    onToggleCompleted={handleToggleCompleted}
-                    onToggleWeighing={handleToggleWeighing}
-                    onDeleteSwipe={(taskId) => handleDeleteOneTask(taskId, { skipConfirm: true })}
-		    onMobileLongPress={handleTaskLongPress}
-                  />
-                </div>
-              )
-            })}
+      {(!task.completed || showCompletedTasks) && (
+        <SortableTaskItem
+          task={task}
+          isActive={activeTask?.id === task.id}
+          isSelected={selectedTasks.includes(task.id)}
+          isOffline={isOffline}
+          isSearchMode={Boolean(taskSearch.trim())}
+          onClick={(event) => handleTaskClick(task, event)}
+          onContextMenu={(event) => handleTaskRightClick(event, task)}
+          onToggleCompleted={handleToggleCompleted}
+          onToggleWeighing={handleToggleWeighing}
+          onDeleteSwipe={(taskId) =>
+            handleDeleteOneTask(taskId, { skipConfirm: true })
+          }
+          onMobileLongPress={handleTaskLongPress}
+        />
+      )}
+    </div>
+  )
+})}
           </div>
         </SortableContext>
       )}
