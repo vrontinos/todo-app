@@ -2213,7 +2213,10 @@ function playTaskCompleteSound() {
 
   const fetchId = ++latestAllTasksFetchIdRef.current
 
-  const { data, error } = await supabase.from('tasks').select('*')
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .is('deleted_at', null)
 
   if (fetchId !== latestAllTasksFetchIdRef.current) {
     return
@@ -2224,6 +2227,10 @@ function playTaskCompleteSound() {
     setSyncStatus('error')
     return
   }
+
+  setAllTasks(data || [])
+  if (updateStatus) markSynced()
+}
 
   setAllTasks(data || [])
   if (updateStatus) markSynced()
@@ -2267,6 +2274,7 @@ function playTaskCompleteSound() {
     .from('tasks')
     .select('*')
     .eq('list_id', listId)
+    .is('deleted_at', null)
 
   if (fetchId !== latestTasksFetchIdRef.current) {
     return
@@ -2281,9 +2289,9 @@ function playTaskCompleteSound() {
   }
 
   const loadedTasks = sortTasks(
-  data || [],
-  currentSortModeRef.current,
-  currentSortDirectionRef.current
+    data || [],
+    currentSortModeRef.current,
+    currentSortDirectionRef.current
   )
   setTasks(loadedTasks)
 
@@ -2788,6 +2796,24 @@ function applyTaskRealtimePayload(payload) {
   const changedListId = newRow?.list_id ?? oldRow?.list_id
   const currentSelectedListId = selectedListRef.current?.id ?? null
   const activeEditingNoteId = editingNoteIdRef.current
+  const isSoftDeleted = !!newRow?.deleted_at
+
+  if (eventType === 'UPDATE' && isSoftDeleted) {
+    setTasks((prev) => sortTasks(
+      prev.filter((t) => t.id !== changedTaskId),
+      currentSortModeRef.current,
+      currentSortDirectionRef.current
+    ))
+
+    setAllTasks((prev) => prev.filter((t) => t.id !== changedTaskId))
+    setActiveTask((prev) => (prev?.id === changedTaskId ? null : prev))
+
+    if (activeTaskRef.current?.id === changedTaskId && !activeEditingNoteId) {
+      setTaskNotes([])
+    }
+
+    return
+  }
 
   if (eventType === 'DELETE') {
     setTasks((prev) => sortTasks(
@@ -4241,49 +4267,54 @@ async function handleToggleWeighing(task, event) {
 }
 
   async function handleDeleteSelected() {
-    if (isOffline) return
-    if (selectedTasks.length === 0) return
+  if (isOffline) return
+  if (selectedTasks.length === 0) return
 
-    const label =
-      selectedTasks.length === 1
-        ? 'Να διαγραφεί η επιλεγμένη εργασία;'
-        : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
+  const label =
+    selectedTasks.length === 1
+      ? 'Να διαγραφεί η επιλεγμένη εργασία;'
+      : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
 
-    if (!window.confirm(label)) return
+  if (!window.confirm(label)) return
 
-    const oldTasks = [...tasks]
-    const idsToDelete = [...selectedTasks]
+  const oldTasks = [...tasks]
+  const idsToDelete = [...selectedTasks]
 
-    setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
+  setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+  setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
 
-    if (activeTask && idsToDelete.includes(activeTask.id)) {
-      setActiveTask(null)
-      setTaskNotes([])
-      setEditingTaskTitle(false)
-      setEditingNoteId(null)
-      setEditingNoteValue('')
-    }
-
-    markSaving()
-
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .in('id', idsToDelete)
-
-    if (error) {
-      console.error('Σφάλμα διαγραφής:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    closeContextMenu()
-    markSynced()
+  if (activeTask && idsToDelete.includes(activeTask.id)) {
+    setActiveTask(null)
+    setTaskNotes([])
+    setEditingTaskTitle(false)
+    setEditingNoteId(null)
+    setEditingNoteValue('')
   }
+
+  const now = new Date().toISOString()
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      deleted_at: now,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', idsToDelete)
+
+  if (error) {
+    console.error('Σφάλμα διαγραφής:', error)
+    setTasks(oldTasks)
+    setSyncStatus('error')
+    return
+  }
+
+  closeContextMenu()
+  markSynced()
+}
 
     async function handleDeleteOneTask(taskId, options = {}) {
   if (isOffline) return
@@ -4311,9 +4342,17 @@ async function handleToggleWeighing(task, event) {
     setEditingNoteValue('')
   }
 
+  const now = new Date().toISOString()
   markSaving()
 
-  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      deleted_at: now,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', taskId)
 
   if (error) {
     console.error('Σφάλμα διαγραφής εργασίας:', error)
