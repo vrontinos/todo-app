@@ -4538,6 +4538,10 @@ async function handleToggleWeighing(task, event) {
 
   const now = new Date().toISOString()
   setTaskNotes((prev) => sortNotes([...prev, data]))
+  setNoteCountsByTask((prev) => ({
+    ...prev,
+    [data.task_id]: (prev[data.task_id] || 0) + 1,
+  }))
   setNewNoteText('')
 
   updateTaskEverywhere(activeTask.id, {
@@ -4599,15 +4603,23 @@ async function handleToggleWeighing(task, event) {
     markSynced()
   }
 
-  async function handleDeleteNote(noteId, skipConfirm = false) {
+async function handleDeleteNote(noteId, skipConfirm = false) {
   if (isOffline) return
   if (!skipConfirm && !window.confirm('Να διαγραφεί η σημείωση;')) return
 
   const oldNotes = [...taskNotes]
+  const oldNoteCounts = { ...noteCountsByTask }
   const noteToDelete = taskNotes.find((n) => n.id === noteId)
   const now = new Date().toISOString()
 
   setTaskNotes((prev) => prev.filter((note) => note.id !== noteId))
+
+  if (noteToDelete?.task_id) {
+    setNoteCountsByTask((prev) => ({
+      ...prev,
+      [noteToDelete.task_id]: Math.max(0, (prev[noteToDelete.task_id] || 0) - 1),
+    }))
+  }
 
   if (activeTask?.id) {
     updateTaskEverywhere(activeTask.id, {
@@ -4630,6 +4642,7 @@ async function handleToggleWeighing(task, event) {
     console.error('Σφάλμα διαγραφής σημείωσης:', noteResult.error)
     clearNoteMutation(noteId)
     setTaskNotes(oldNotes)
+    setNoteCountsByTask(oldNoteCounts)
     setSyncStatus('error')
     return
   }
