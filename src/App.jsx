@@ -4229,7 +4229,7 @@ async function handleToggleWeighing(task, event) {
     markSynced()
   }
 
-    async function handleDeleteOneTask(taskId, options = {}) {
+async function handleDeleteOneTask(taskId, options = {}) {
   if (isOffline) return
 
   const { skipConfirm = false } = options
