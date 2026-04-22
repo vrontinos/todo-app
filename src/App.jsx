@@ -1344,45 +1344,69 @@ useEffect(() => {
   'postgres_changes',
   { event: '*', schema: 'public', table: 'tasks' },
   async (payload) => {
-    const currentSelectedList = selectedListRef.current
-    const currentActiveTask = activeTaskRef.current
-    const isEditingNote = editingNoteIdRef.current !== null
+  const currentSelectedList = selectedListRef.current
+  const currentActiveTask = activeTaskRef.current
+  const isEditingNote = editingNoteIdRef.current !== null
 
-    const changedByCurrentUser =
-      payload?.new?.updated_by === session.user.id ||
-      payload?.old?.updated_by === session.user.id
+  const changedByCurrentUser =
+    payload?.new?.updated_by === session.user.id ||
+    payload?.old?.updated_by === session.user.id
 
-    const shouldIgnoreOwnReorderBurst =
-      changedByCurrentUser &&
-      Date.now() < suppressOwnTaskRealtimeUntilRef.current
+  const shouldIgnoreOwnReorderBurst =
+    changedByCurrentUser &&
+    Date.now() < suppressOwnTaskRealtimeUntilRef.current
 
-    if (shouldIgnoreOwnReorderBurst) {
-  return
-}
-
-const incomingTask = payload?.new || payload?.old
-
-if (
-  incomingTask &&
-  isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
-) {
-  clearTaskMutation(incomingTask.id)
-  return
-}
-
-applyTaskRealtimePayload(payload)
-
-if (
-  currentActiveTask?.id &&
-  !isEditingNote &&
-  (
-    String(payload?.new?.id || '') === String(currentActiveTask.id) ||
-    String(payload?.old?.id || '') === String(currentActiveTask.id)
-  )
-) {
-  await fetchNotes(currentActiveTask.id, false)
-}
+  if (shouldIgnoreOwnReorderBurst) {
+    return
   }
+
+  const incomingTask = payload?.new || payload?.old
+
+  if (
+    incomingTask &&
+    isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
+  ) {
+    clearTaskMutation(incomingTask.id)
+    return
+  }
+
+  if (payload?.eventType === 'DELETE') {
+    scheduleRealtimeRefresh('tasks', async () => {
+      await fetchAllTasks(false)
+
+      if (currentSelectedList?.id) {
+        await fetchTasks(currentSelectedList.id, false)
+      }
+
+      if (
+        currentActiveTask?.id &&
+        !isEditingNote &&
+        String(payload?.old?.id || payload?.new?.id || '') === String(currentActiveTask.id)
+      ) {
+        setActiveTask(null)
+        setTaskNotes([])
+        setEditingTaskTitle(false)
+        setEditingNoteId(null)
+        setEditingNoteValue('')
+      }
+    }, 0)
+
+    return
+  }
+
+  applyTaskRealtimePayload(payload)
+
+  if (
+    currentActiveTask?.id &&
+    !isEditingNote &&
+    (
+      String(payload?.new?.id || '') === String(currentActiveTask.id) ||
+      String(payload?.old?.id || '') === String(currentActiveTask.id)
+    )
+  ) {
+    await fetchNotes(currentActiveTask.id, false)
+  }
+}
 )
 .on(
   'postgres_changes',
@@ -4229,7 +4253,7 @@ async function handleToggleWeighing(task, event) {
     markSynced()
   }
 
-async function handleDeleteOneTask(taskId, options = {}) {
+    async function handleDeleteOneTask(taskId, options = {}) {
   if (isOffline) return
 
   const { skipConfirm = false } = options
