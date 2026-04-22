@@ -1385,13 +1385,19 @@ useEffect(() => {
 }
 
 const incomingTask = payload?.new || payload?.old
+const isDeleteEvent = payload?.eventType === 'DELETE'
 
 if (
+  !isDeleteEvent &&
   incomingTask &&
   isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
 ) {
   clearTaskMutation(incomingTask.id)
   return
+}
+
+if (isDeleteEvent && incomingTask) {
+  clearTaskMutation(incomingTask.id)
 }
 
 applyTaskRealtimePayload(payload)
