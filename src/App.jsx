@@ -1368,21 +1368,23 @@ useEffect(() => {
   'postgres_changes',
   { event: '*', schema: 'public', table: 'tasks' },
   async (payload) => {
-    const currentSelectedList = selectedListRef.current
-    const currentActiveTask = activeTaskRef.current
-    const isEditingNote = editingNoteIdRef.current !== null
+  console.log('REALTIME TASK EVENT:', payload)
 
-    const changedByCurrentUser =
-      payload?.new?.updated_by === session.user.id ||
-      payload?.old?.updated_by === session.user.id
+  const currentSelectedList = selectedListRef.current
+  const currentActiveTask = activeTaskRef.current
+  const isEditingNote = editingNoteIdRef.current !== null
 
-    const shouldIgnoreOwnReorderBurst =
-      changedByCurrentUser &&
-      Date.now() < suppressOwnTaskRealtimeUntilRef.current
+  const changedByCurrentUser =
+    payload?.new?.updated_by === session.user.id ||
+    payload?.old?.updated_by === session.user.id
 
-    if (shouldIgnoreOwnReorderBurst) {
-  return
-}
+  const shouldIgnoreOwnReorderBurst =
+    changedByCurrentUser &&
+    Date.now() < suppressOwnTaskRealtimeUntilRef.current
+
+  if (shouldIgnoreOwnReorderBurst) {
+    return
+  }
 
 const incomingTask = payload?.new || payload?.old
 const isDeleteEvent = payload?.eventType === 'DELETE'
@@ -2213,7 +2215,10 @@ function playTaskCompleteSound() {
 
   const fetchId = ++latestAllTasksFetchIdRef.current
 
-  const { data, error } = await supabase.from('tasks').select('*')
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .is('deleted_at', null)
 
   if (fetchId !== latestAllTasksFetchIdRef.current) {
     return
@@ -2267,6 +2272,7 @@ function playTaskCompleteSound() {
     .from('tasks')
     .select('*')
     .eq('list_id', listId)
+    .is('deleted_at', null)
 
   if (fetchId !== latestTasksFetchIdRef.current) {
     return
@@ -2281,9 +2287,9 @@ function playTaskCompleteSound() {
   }
 
   const loadedTasks = sortTasks(
-  data || [],
-  currentSortModeRef.current,
-  currentSortDirectionRef.current
+    data || [],
+    currentSortModeRef.current,
+    currentSortDirectionRef.current
   )
   setTasks(loadedTasks)
 
@@ -2788,6 +2794,24 @@ function applyTaskRealtimePayload(payload) {
   const changedListId = newRow?.list_id ?? oldRow?.list_id
   const currentSelectedListId = selectedListRef.current?.id ?? null
   const activeEditingNoteId = editingNoteIdRef.current
+  const isSoftDeleted = !!newRow?.deleted_at
+
+  if (eventType === 'UPDATE' && isSoftDeleted) {
+    setTasks((prev) => sortTasks(
+      prev.filter((t) => t.id !== changedTaskId),
+      currentSortModeRef.current,
+      currentSortDirectionRef.current
+    ))
+
+    setAllTasks((prev) => prev.filter((t) => t.id !== changedTaskId))
+    setActiveTask((prev) => (prev?.id === changedTaskId ? null : prev))
+
+    if (activeTaskRef.current?.id === changedTaskId && !activeEditingNoteId) {
+      setTaskNotes([])
+    }
+
+    return
+  }
 
   if (eventType === 'DELETE') {
     setTasks((prev) => sortTasks(
@@ -2805,63 +2829,6 @@ function applyTaskRealtimePayload(payload) {
 
     return
   }
-
-  setAllTasks((prev) => {
-    const exists = prev.some((t) => t.id === changedTaskId)
-    if (exists) {
-      return prev.map((t) => {
-        if (t.id !== changedTaskId) return t
-        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
-          return { ...t, ...task }
-        }
-        return t
-      })
-    }
-    return [...prev, task]
-  })
-
-  if (String(currentSelectedListId) === String(changedListId)) {
-    setTasks((prev) => {
-      let found = false
-
-      const next = prev.map((t) => {
-        if (t.id !== changedTaskId) return t
-        found = true
-
-        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
-          return { ...t, ...task }
-        }
-        return t
-      })
-
-      if (!found) {
-        next.push(task)
-      }
-
-      return sortTasks(
-        next,
-        currentSortModeRef.current,
-        currentSortDirectionRef.current
-      )
-    })
-  } else {
-    setTasks((prev) =>
-      sortTasks(
-        prev.filter((t) => t.id !== changedTaskId),
-        currentSortModeRef.current,
-        currentSortDirectionRef.current
-      )
-    )
-  }
-
-  setActiveTask((prev) => {
-    if (!prev || prev.id !== changedTaskId) return prev
-    if (new Date(task.updated_at) >= new Date(prev.updated_at || 0)) {
-      return { ...prev, ...task }
-    }
-    return prev
-  })
-}
 
   function handleSelectList(list) {
     setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
@@ -4241,51 +4208,56 @@ async function handleToggleWeighing(task, event) {
 }
 
   async function handleDeleteSelected() {
-    if (isOffline) return
-    if (selectedTasks.length === 0) return
+  if (isOffline) return
+  if (selectedTasks.length === 0) return
 
-    const label =
-      selectedTasks.length === 1
-        ? 'Να διαγραφεί η επιλεγμένη εργασία;'
-        : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
+  const label =
+    selectedTasks.length === 1
+      ? 'Να διαγραφεί η επιλεγμένη εργασία;'
+      : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
 
-    if (!window.confirm(label)) return
+  if (!window.confirm(label)) return
 
-    const oldTasks = [...tasks]
-    const idsToDelete = [...selectedTasks]
+  const oldTasks = [...tasks]
+  const idsToDelete = [...selectedTasks]
 
-    setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
+  setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+  setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
 
-    if (activeTask && idsToDelete.includes(activeTask.id)) {
-      setActiveTask(null)
-      setTaskNotes([])
-      setEditingTaskTitle(false)
-      setEditingNoteId(null)
-      setEditingNoteValue('')
-    }
-
-    markSaving()
-
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .in('id', idsToDelete)
-
-    if (error) {
-      console.error('Σφάλμα διαγραφής:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    closeContextMenu()
-    markSynced()
+  if (activeTask && idsToDelete.includes(activeTask.id)) {
+    setActiveTask(null)
+    setTaskNotes([])
+    setEditingTaskTitle(false)
+    setEditingNoteId(null)
+    setEditingNoteValue('')
   }
 
-    async function handleDeleteOneTask(taskId, options = {}) {
+  const now = new Date().toISOString()
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      deleted_at: now,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', idsToDelete)
+
+  if (error) {
+    console.error('Σφάλμα διαγραφής:', error)
+    setTasks(oldTasks)
+    setSyncStatus('error')
+    return
+  }
+
+  closeContextMenu()
+  markSynced()
+}
+
+async function handleDeleteOneTask(taskId, options = {}) {
   if (isOffline) return
 
   const { skipConfirm = false } = options
@@ -4311,9 +4283,17 @@ async function handleToggleWeighing(task, event) {
     setEditingNoteValue('')
   }
 
+  const now = new Date().toISOString()
   markSaving()
 
-  const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      deleted_at: now,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', taskId)
 
   if (error) {
     console.error('Σφάλμα διαγραφής εργασίας:', error)
