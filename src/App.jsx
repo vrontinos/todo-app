@@ -15,6 +15,16 @@ const TASK_DND_PREFIX = 'task:'
 const TASK_LIST_DROP_PREFIX = 'tasklist:'
 const MOBILE_BREAKPOINT = 1024
 
+function getIsTouchDevice() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+
+  return (
+    'ontouchstart' in window ||
+    navigator.maxTouchPoints > 0 ||
+    navigator.msMaxTouchPoints > 0
+  )
+}
+
 function getListDndId(id) {
   return `${LIST_DND_PREFIX}${id}`
 }
@@ -142,6 +152,8 @@ function SortableTaskItem({
   isSelected,
   isOffline,
   isSearchMode,
+  isTouchDevice,
+  isSaving,
   onClick,
   onContextMenu,
   onToggleCompleted,
@@ -161,11 +173,10 @@ function SortableTaskItem({
   const swipeLockedRef = useRef(false)
   const swipeStartedRef = useRef(false)
 
- const isMobileViewport =
-  typeof window !== 'undefined' && window.innerWidth <= MOBILE_BREAKPOINT
+  const isTouchInput = isTouchDevice
 
-const swipeEnabled = isMobileViewport && !isSearchMode && !isOffline
-const mobileDragEnabled = isMobileViewport && !isOffline && !isSearchMode && isSelected
+  const swipeEnabled = isTouchInput && !isSearchMode && !isOffline
+  const mobileDragEnabled = isTouchInput && !isOffline && !isSearchMode && isSelected
 
 const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
   useSortable({
@@ -176,7 +187,7 @@ const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
 const safeListeners = listeners || {}
 const dndOnTouchStart = safeListeners.onTouchStart
 const { onTouchStart: _ignoredDndTouchStart, ...restListeners } = safeListeners
-const showMobileSelectionDot = isMobileViewport && isSelected
+const showMobileSelectionDot = isTouchInput && isSelected
 
   const MAX_SWIPE = 96
   const DELETE_THRESHOLD = 72
@@ -199,8 +210,8 @@ const showMobileSelectionDot = isMobileViewport && isSelected
     }
   }
 
-    function startLongPressTimer() {
-    if (!isMobileViewport || isOffline || isSearchMode) return
+  function startLongPressTimer() {
+    if (!isTouchInput || isOffline || isSearchMode) return
 
     clearLongPressTimer()
     longPressTriggeredRef.current = false
@@ -311,22 +322,30 @@ const showMobileSelectionDot = isMobileViewport && isSelected
     opacity: isDragging ? 0 : 1,
   }
 
-    const contentStyle = swipeEnabled
-    ? {
-        transform: `translateX(${swipeOffset}px)`,
-        opacity: isDragging ? 0 : 1 - Math.min(Math.abs(swipeOffset) / DELETE_THRESHOLD, 1) * 0.45,
-        transition: isSwiping ? 'none' : 'transform 180ms ease, opacity 180ms ease',
-      }
-    : isDragging
-      ? { opacity: 0 }
-      : undefined
+    const baseOpacity = isSaving ? 0.55 : 1
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
-    >
+const contentStyle = swipeEnabled
+  ? {
+      transform: `translateX(${swipeOffset}px)`,
+      opacity:
+        (isDragging ? 0 : 1 - Math.min(Math.abs(swipeOffset) / DELETE_THRESHOLD, 1) * 0.45) *
+        baseOpacity,
+      transition: isSwiping ? 'none' : 'transform 180ms ease, opacity 180ms ease',
+    }
+  : isDragging
+    ? { opacity: 0 }
+    : {
+        opacity: baseOpacity,
+        transition: 'opacity 180ms ease',
+      }
+
+ return (
+  <div
+    ref={setNodeRef}
+    data-task-id={String(task.id)}
+    style={style}
+    className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
+  >
       {swipeEnabled && (
         <div className="task-swipe-delete-bg" aria-hidden="true">
           <span className="task-swipe-delete-icon">🗑</span>
@@ -346,13 +365,13 @@ const showMobileSelectionDot = isMobileViewport && isSelected
           onClick(event)
         }}
         onContextMenu={(event) => {
-          if (isMobileViewport) {
-            event.preventDefault()
-            event.stopPropagation()
-            return
-          }
-          onContextMenu(event)
-        }}
+  if (isTouchInput) {
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+  onContextMenu(event)
+}}
         onTouchStart={(event) => {
           handleTouchStart(event)
           dndOnTouchStart?.(event)
@@ -379,7 +398,7 @@ const showMobileSelectionDot = isMobileViewport && isSelected
           onClick={(e) => {
             e.stopPropagation()
 
-            if (isMobileViewport && isSelected) {
+            if (isTouchInput && isSelected) {
               onClick(e)
               return
             }
@@ -436,6 +455,7 @@ function SwipeableNoteItem({
   note,
   isOffline,
   isMobile,
+  isTouchDevice,
   isEditing,
   editingValue,
   onStartEdit,
@@ -459,7 +479,7 @@ function SwipeableNoteItem({
 
   const MAX_SWIPE = 96
   const DELETE_THRESHOLD = 72
-  const swipeEnabled = isMobile && !isOffline && !isEditing
+  const swipeEnabled = isTouchDevice && !isOffline && !isEditing
 
   function resetSwipeState() {
     swipeOffsetRef.current = 0
@@ -575,7 +595,7 @@ function SwipeableNoteItem({
           }
         }}
         onContextMenu={(event) => {
-          if (isMobile) {
+          if (isTouchDevice) {
             event.preventDefault()
             event.stopPropagation()
             return
@@ -645,6 +665,8 @@ const [isMobileSortMenuOpen, setIsMobileSortMenuOpen] = useState(false)
 const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
+  const [isTouchDevice, setIsTouchDevice] = useState(() => getIsTouchDevice())
+
   const mobileSelectionClearedDuringDragRef = useRef(false)
   const [mobileView, setMobileView] = useState(() => {
   return localStorage.getItem('lastMobileView') || 'lists'
@@ -674,6 +696,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [tasks, setTasks] = useState([])
   const [allTasks, setAllTasks] = useState([])
   const [noteCountsByTask, setNoteCountsByTask] = useState({})
+  const [savingTaskIds, setSavingTaskIds] = useState(() => new Set())
 
   const [loadingLists, setLoadingLists] = useState(true)
   const [loadingTasks, setLoadingTasks] = useState(false)
@@ -739,12 +762,110 @@ const [mobileDirection, setMobileDirection] = useState('forward')
 
   const appRef = useRef(null)
   const mainRef = useRef(null)
+function markTaskSaving(taskId) {
+  setSavingTaskIds((prev) => {
+    const next = new Set(prev)
+    next.add(taskId)
+    return next
+  })
+}
+
+function markTaskSaved(taskId) {
+  setSavingTaskIds((prev) => {
+    const next = new Set(prev)
+    next.delete(taskId)
+    return next
+  })
+}
+function getTaskScrollSnapshot(excludeTaskId = null) {
+  if (isMobile) return null
+
+  const root = mainRef.current
+  if (!root) return null
+
+  const scrollArea = root.querySelector('.main-scroll-area')
+  if (!scrollArea) return null
+
+  const rows = Array.from(root.querySelectorAll('[data-task-id]'))
+  const scrollRect = scrollArea.getBoundingClientRect()
+  const excluded = excludeTaskId == null ? null : String(excludeTaskId)
+
+  const visibleRows = rows.filter((el) => {
+    const id = String(el.dataset.taskId || '')
+    if (excluded !== null && id === excluded) return false
+
+    const rect = el.getBoundingClientRect()
+    return rect.bottom > scrollRect.top + 8 && rect.top < scrollRect.bottom - 8
+  })
+
+  const anchorEl = visibleRows[0] || null
+
+  if (!anchorEl) {
+    return {
+      scrollTop: scrollArea.scrollTop,
+      anchorId: null,
+      anchorOffset: 0,
+    }
+  }
+
+  return {
+    scrollTop: scrollArea.scrollTop,
+    anchorId: String(anchorEl.dataset.taskId),
+    anchorOffset: anchorEl.getBoundingClientRect().top - scrollRect.top,
+  }
+}
+
+function restoreTaskScrollSnapshot(snapshot) {
+  if (!snapshot || isMobile) return
+
+  const root = mainRef.current
+  if (!root) return
+
+  const scrollArea = root.querySelector('.main-scroll-area')
+  if (!scrollArea) return
+
+  const apply = () => {
+    if (snapshot.anchorId) {
+      const rows = Array.from(root.querySelectorAll('[data-task-id]'))
+      const anchorEl = rows.find(
+        (el) => String(el.dataset.taskId) === String(snapshot.anchorId)
+      )
+
+      if (anchorEl) {
+        const scrollRect = scrollArea.getBoundingClientRect()
+        const nextOffset = anchorEl.getBoundingClientRect().top - scrollRect.top
+        scrollArea.scrollTop += nextOffset - snapshot.anchorOffset
+        return
+      }
+    }
+
+    scrollArea.scrollTop = snapshot.scrollTop
+  }
+
+  requestAnimationFrame(() => {
+    apply()
+
+    requestAnimationFrame(() => {
+      apply()
+    })
+  })
+}
+
   const editingNoteIdRef = useRef(null)
   const activeTaskRef = useRef(null)
   const selectedListRef = useRef(null)
   const selectedListsRef = useRef([])
   const contextMenuRef = useRef(null)
   const latestTasksFetchIdRef = useRef(0)
+  const tasksRealtimeTimerRef = useRef(null)
+  const notesRealtimeTimerRef = useRef(null)
+  const listsRealtimeTimerRef = useRef(null)
+  const latestListsFetchIdRef = useRef(0)
+  const latestAllTasksFetchIdRef = useRef(0)
+  const latestTaskNoteCountsFetchIdRef = useRef(0)
+  const latestNotesFetchTokenRef = useRef(new Map())
+  const pendingTaskMutationsRef = useRef(new Map())
+  const pendingNoteMutationsRef = useRef(new Map())
   const suppressOwnTaskRealtimeUntilRef = useRef(0)
   const currentSortModeRef = useRef('created')
   const currentSortDirectionRef = useRef('asc')
@@ -957,8 +1078,10 @@ function handleGlobalDragOver(event) {
 useEffect(() => {
   function handleResize() {
     setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT)
+    setIsTouchDevice(getIsTouchDevice())
   }
 
+  handleResize()
   window.addEventListener('resize', handleResize)
 
   return () => {
@@ -1237,20 +1360,11 @@ useEffect(() => {
 }, [selectedList?.id, currentSortMode, currentSortDirection])
 
   useEffect(() => {
-    if (!session?.user?.id) return
+  if (!session?.user?.id) return
 
-    const channel = supabase
-      .channel(`live-sync-all-${session.user.id}`)
-.on(
-  'postgres_changes',
-  { event: '*', schema: 'public', table: 'lists' },
-  async () => {
-    setSyncStatus('syncing')
-    await fetchLists(false)
-    setSyncStatus('synced')
-  }
-)
-  .on(
+  const channel = supabase
+    .channel(`live-sync-all-${session.user.id}`)
+    .on(
   'postgres_changes',
   { event: '*', schema: 'public', table: 'tasks' },
   async (payload) => {
@@ -1263,75 +1377,118 @@ useEffect(() => {
       payload?.old?.updated_by === session.user.id
 
     const shouldIgnoreOwnReorderBurst =
-      changedByCurrentUser && Date.now() < suppressOwnTaskRealtimeUntilRef.current
+      changedByCurrentUser &&
+      Date.now() < suppressOwnTaskRealtimeUntilRef.current
 
     if (shouldIgnoreOwnReorderBurst) {
+  return
+}
+
+const incomingTask = payload?.new || payload?.old
+
+if (
+  incomingTask &&
+  isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
+) {
+  clearTaskMutation(incomingTask.id)
+  return
+}
+
+applyTaskRealtimePayload(payload)
+
+if (
+  currentActiveTask?.id &&
+  !isEditingNote &&
+  (
+    String(payload?.new?.id || '') === String(currentActiveTask.id) ||
+    String(payload?.old?.id || '') === String(currentActiveTask.id)
+  )
+) {
+  await fetchNotes(currentActiveTask.id, false)
+}
+  }
+)
+.on(
+  'postgres_changes',
+  { event: '*', schema: 'public', table: 'task_notes' },
+  async (payload) => {
+    const currentActiveTask = activeTaskRef.current
+    const isEditingNote = editingNoteIdRef.current !== null
+
+    const incomingNote = payload.new || payload.old
+
+    if (
+      incomingNote &&
+      isOwnRecentNoteMutation(incomingNote.id, incomingNote.updated_at)
+    ) {
+      clearNoteMutation(incomingNote.id)
       return
     }
 
-    setSyncStatus('syncing')
+    const eventType = payload.eventType
+const note = payload.new || payload.old
+const changedTaskId = payload.new?.task_id || payload.old?.task_id
 
-    await fetchLists(false)
+if (eventType === 'INSERT' && changedTaskId) {
+  setNoteCountsByTask((prev) => ({
+    ...prev,
+    [changedTaskId]: (prev[changedTaskId] || 0) + 1,
+  }))
+}
 
-    if (currentSelectedList?.id) {
-      await fetchTasks(currentSelectedList.id, false)
+if (eventType === 'DELETE' && changedTaskId) {
+  // αν είναι ανοιχτό το ίδιο task, το fetchNotes θα διορθώσει τον counter
+  if (currentActiveTask?.id === changedTaskId) return
+
+  setNoteCountsByTask((prev) => {
+    const currentCount = prev[changedTaskId] || 0
+    const nextCount = Math.max(0, currentCount - 1)
+
+    if (nextCount === 0) {
+      const next = { ...prev }
+      delete next[changedTaskId]
+      return next
     }
 
-    if (
-      currentActiveTask?.id &&
-      !isEditingNote &&
-      (
-        String(payload?.new?.id || '') === String(currentActiveTask.id) ||
-        String(payload?.old?.id || '') === String(currentActiveTask.id)
-      )
-    ) {
-      await fetchNotes(currentActiveTask.id, false)
+    return {
+      ...prev,
+      [changedTaskId]: nextCount,
     }
+  })
+}
 
-    await fetchTaskNoteCounts(false)
+if (currentActiveTask?.id === changedTaskId && !isEditingNote) {
+  applyNoteRealtimePayload(payload)
+}
 
-    setSyncStatus('synced')
+if (eventType === 'DELETE' && currentActiveTask?.id && !isEditingNote) {
+  await fetchNotes(currentActiveTask.id, false)
+}
   }
 )
-      
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'task_notes' },
-        async () => {
-          const currentSelectedList = selectedListRef.current
-          const currentActiveTask = activeTaskRef.current
-          const isEditingNote = editingNoteIdRef.current !== null
 
-          setSyncStatus('syncing')
-
-          await fetchLists(false)
-          await fetchAllTasks(false)
-          await fetchTaskNoteCounts(false)
-
-          if (currentSelectedList?.id) {
-            await fetchTasks(currentSelectedList.id, false)
-          }
-
-          if (currentActiveTask?.id && !isEditingNote) {
-            await fetchNotes(currentActiveTask.id, false)
-          }
-
-          setSyncStatus('synced')
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setSyncStatus('synced')
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setSyncStatus('error')
-        }
+  .on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'lists' },
+    async () => {
+      scheduleRealtimeRefresh('lists', async () => {
+        setSyncStatus('syncing')
+        await fetchLists(false)
+        setSyncStatus('synced')
       })
-
-    return () => {
-      supabase.removeChannel(channel)
     }
-  }, [session])
+  )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') setSyncStatus('synced')
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        setSyncStatus('error')
+      }
+    })
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [session])
 
 useEffect(() => {
   if (!isMobile) return
@@ -1388,6 +1545,61 @@ useEffect(() => {
     setSyncStatus('synced')
     setLastSyncAt(new Date())
   }
+
+function markTaskMutation(taskId) {
+  pendingTaskMutationsRef.current.set(String(taskId), Date.now())
+}
+
+function clearTaskMutation(taskId) {
+  pendingTaskMutationsRef.current.delete(String(taskId))
+}
+
+function markNoteMutation(noteId) {
+  pendingNoteMutationsRef.current.set(String(noteId), Date.now())
+}
+
+function clearNoteMutation(noteId) {
+  pendingNoteMutationsRef.current.delete(String(noteId))
+}
+
+function isOwnRecentNoteMutation(noteId, updatedAt) {
+  const key = String(noteId)
+  const ts = pendingNoteMutationsRef.current.get(key)
+  if (!ts) return false
+
+  const age = Date.now() - ts
+
+  if (age > 4000) {
+    pendingNoteMutationsRef.current.delete(key)
+    return false
+  }
+
+  if (!updatedAt) return true
+
+  const incomingTime = new Date(updatedAt).getTime()
+  if (Number.isNaN(incomingTime)) return true
+
+  return Math.abs(incomingTime - ts) < 5000
+}
+
+function isOwnRecentTaskMutation(taskId, updatedAt) {
+  const key = String(taskId)
+  const ts = pendingTaskMutationsRef.current.get(key)
+  if (!ts) return false
+
+  const age = Date.now() - ts
+  if (age > 4000) {
+    pendingTaskMutationsRef.current.delete(key)
+    return false
+  }
+
+  if (!updatedAt) return true
+
+  const incomingTime = new Date(updatedAt).getTime()
+  if (Number.isNaN(incomingTime)) return true
+
+  return Math.abs(incomingTime - ts) < 5000
+}
 
   function updateCurrentListSort(nextPartial) {
   if (!selectedList) return
@@ -1553,29 +1765,35 @@ useEffect(() => {
   }
 
   function getFullscreenSubmenuPosition() {
-    const submenuWidth = Math.min(560, Math.floor(window.innerWidth * 0.7))
-    const padding = 8
-    const overlap = 10
+  const submenuWidth = Math.min(420, Math.floor(window.innerWidth * 0.52))
+  const padding = 8
+  const overlap = 10
 
-    const menuRect = contextMenuRef.current?.getBoundingClientRect()
+  const menuRect = contextMenuRef.current?.getBoundingClientRect()
 
-    if (!menuRect) {
-      return {
-        left: `${padding}px`,
-        top: `${padding}px`,
-      }
-    }
-
-    const openRightLeft = menuRect.right - overlap
-    const openLeftLeft = menuRect.left - submenuWidth + overlap
-
-    const fitsRight = openRightLeft + submenuWidth <= window.innerWidth - padding
-
+  if (!menuRect) {
     return {
-      left: `${fitsRight ? openRightLeft : Math.max(padding, openLeftLeft)}px`,
+      left: `${padding}px`,
       top: `${padding}px`,
+      width: `${submenuWidth}px`,
+      minWidth: `${submenuWidth}px`,
+      maxWidth: `${submenuWidth}px`,
     }
   }
+
+  const openRightLeft = menuRect.right - overlap
+  const openLeftLeft = menuRect.left - submenuWidth + overlap
+
+  const fitsRight = openRightLeft + submenuWidth <= window.innerWidth - padding
+
+  return {
+    left: `${fitsRight ? openRightLeft : Math.max(padding, openLeftLeft)}px`,
+    top: `${padding}px`,
+    width: `${submenuWidth}px`,
+    minWidth: `${submenuWidth}px`,
+    maxWidth: `${submenuWidth}px`,
+  }
+}
 function playTaskCompleteSound() {
   try {
     const audio = new Audio(taskCompleteSoundFile)
@@ -1902,114 +2120,134 @@ function playTaskCompleteSound() {
   ])
 
   async function fetchLists(updateStatus = true) {
-    if (!session?.user?.id) return
-    if (updateStatus) setLoadingLists(true)
+  if (!session?.user?.id) return
 
-    const { data, error } = await supabase
-      .from('lists')
-      .select('*')
-      .order('position', { ascending: true })
+  const fetchId = ++latestListsFetchIdRef.current
+  if (updateStatus) setLoadingLists(true)
 
-    if (error) {
-      console.error('Σφάλμα φόρτωσης λιστών:', error)
-      setSyncStatus('error')
-      if (updateStatus) setLoadingLists(false)
-      return
-    }
+  const { data, error } = await supabase
+    .from('lists')
+    .select('*')
+    .order('position', { ascending: true })
 
-    const loadedLists = data || []
-    setLists(loadedLists)
+  if (fetchId !== latestListsFetchIdRef.current) {
+    if (updateStatus) setLoadingLists(false)
+    return
+  }
 
-    setListSortSettings((prev) => {
-      const next = { ...prev }
-      for (const list of loadedLists) {
-        if (!next[list.id]) {
-          next[list.id] = { mode: 'created', direction: 'asc' }
-        }
+  if (error) {
+    console.error('Σφάλμα φόρτωσης λιστών:', error)
+    setSyncStatus('error')
+    if (updateStatus) setLoadingLists(false)
+    return
+  }
+
+  const loadedLists = data || []
+  setLists(loadedLists)
+
+  setListSortSettings((prev) => {
+    const next = { ...prev }
+    for (const list of loadedLists) {
+      if (!next[list.id]) {
+        next[list.id] = { mode: 'created', direction: 'asc' }
       }
-      return next
-    })
-
-    if (loadedLists.length === 0) {
-      localStorage.removeItem(LAST_SELECTED_LIST_KEY)
-      setSelectedList(null)
-      setSelectedLists([])
-      setListSelectionAnchorId(null)
-      setTasks([])
-      setActiveTask(null)
-      setTaskNotes([])
-      if (updateStatus) setLoadingLists(false)
-      if (updateStatus) markSynced()
-      return
     }
+    return next
+  })
 
-const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
+  if (loadedLists.length === 0) {
+    localStorage.removeItem(LAST_SELECTED_LIST_KEY)
+    setSelectedList(null)
+    setSelectedLists([])
+    setListSelectionAnchorId(null)
+    setTasks([])
+    setActiveTask(null)
+    setTaskNotes([])
+    if (updateStatus) setLoadingLists(false)
+    if (updateStatus) markSynced()
+    return
+  }
 
-const stillExists = selectedListRef.current
-  ? loadedLists.find((l) => String(l.id) === String(selectedListRef.current.id))
-  : null
+  const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
 
-if (stillExists) {
-  setCurrentListRole(
-    stillExists.owner_user_id === session?.user?.id ? 'owner' : 'editor'
-  )
-} else {
-  const savedList = savedListId
-    ? loadedLists.find((l) => String(l.id) === String(savedListId))
+  const stillExists = selectedListRef.current
+    ? loadedLists.find((l) => String(l.id) === String(selectedListRef.current.id))
     : null
 
-  const nextSelected = savedList || loadedLists[0]
+  if (stillExists) {
+    setCurrentListRole(
+      stillExists.owner_user_id === session?.user?.id ? 'owner' : 'editor'
+    )
+    setSelectedList(stillExists)
+  } else {
+    const savedList = savedListId
+      ? loadedLists.find((l) => String(l.id) === String(savedListId))
+      : null
 
-  setCurrentListRole(
-    nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor'
-  )
-  setSelectedList(nextSelected)
-  setSelectedLists([nextSelected.id])
-  setListSelectionAnchorId(nextSelected.id)
+    const nextSelected = savedList || loadedLists[0]
+
+    setCurrentListRole(
+      nextSelected.owner_user_id === session?.user?.id ? 'owner' : 'editor'
+    )
+    setSelectedList(nextSelected)
+    setSelectedLists([nextSelected.id])
+    setListSelectionAnchorId(nextSelected.id)
+  }
+
+  if (updateStatus) {
+    setLoadingLists(false)
+    markSynced()
+  } else {
+    setLoadingLists(false)
+  }
 }
 
-    if (updateStatus) {
-      setLoadingLists(false)
-      markSynced()
-    } else {
-      setLoadingLists(false)
-    }
-  }
-
   async function fetchAllTasks(updateStatus = true) {
-    if (!session?.user?.id) return
+  if (!session?.user?.id) return
 
-    const { data, error } = await supabase.from('tasks').select('*')
+  const fetchId = ++latestAllTasksFetchIdRef.current
 
-    if (error) {
-      console.error('Σφάλμα φόρτωσης όλων των εργασιών:', error)
-      setSyncStatus('error')
-      return
-    }
+  const { data, error } = await supabase.from('tasks').select('*')
 
-    setAllTasks(data || [])
-    if (updateStatus) markSynced()
+  if (fetchId !== latestAllTasksFetchIdRef.current) {
+    return
   }
+
+  if (error) {
+    console.error('Σφάλμα φόρτωσης όλων των εργασιών:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  setAllTasks(data || [])
+  if (updateStatus) markSynced()
+}
 
   async function fetchTaskNoteCounts(updateStatus = true) {
-    if (!session?.user?.id) return
+  if (!session?.user?.id) return
 
-    const { data, error } = await supabase.from('task_notes').select('task_id')
+  const fetchId = ++latestTaskNoteCountsFetchIdRef.current
 
-    if (error) {
-      console.error('Σφάλμα φόρτωσης μετρητών σημειώσεων:', error)
-      setSyncStatus('error')
-      return
-    }
+  const { data, error } = await supabase.from('task_notes').select('task_id')
 
-    const counts = {}
-    for (const note of data || []) {
-      counts[note.task_id] = (counts[note.task_id] || 0) + 1
-    }
-
-    setNoteCountsByTask(counts)
-    if (updateStatus) markSynced()
+  if (fetchId !== latestTaskNoteCountsFetchIdRef.current) {
+    return
   }
+
+  if (error) {
+    console.error('Σφάλμα φόρτωσης μετρητών σημειώσεων:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  const counts = {}
+  for (const note of data || []) {
+    counts[note.task_id] = (counts[note.task_id] || 0) + 1
+  }
+
+  setNoteCountsByTask(counts)
+  if (updateStatus) markSynced()
+}
 
   async function fetchTasks(listId, updateStatus = true) {
   if (!session?.user?.id) return
@@ -2072,43 +2310,49 @@ if (stillExists) {
   }
 }
 
-  async function fetchNotes(taskId, updateStatus = true) {
-    if (!session?.user?.id) return
-    if (!taskId) return
+async function fetchNotes(taskId, updateStatus = true) {
+  if (!session?.user?.id) return
+  if (!taskId) return
 
-    const { data, error } = await supabase
-      .from('task_notes')
-      .select('*')
-      .eq('task_id', taskId)
+  const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
+  latestNotesFetchTokenRef.current.set(taskId, token)
 
-    if (error) {
-      console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
-      setTaskNotes([])
-      setSyncStatus('error')
-      return
-    }
+  const { data, error } = await supabase
+    .from('task_notes')
+    .select('*')
+    .eq('task_id', taskId)
 
-    const sorted = sortNotes(data || [])
-
-    if (editingNoteIdRef.current === null) {
-      setTaskNotes(sorted)
-    } else {
-      setTaskNotes((prev) => {
-        const editingId = editingNoteIdRef.current
-        const existingEditingNote = prev.find((note) => note.id === editingId)
-
-        return sorted.map((note) => {
-          if (note.id === editingId && existingEditingNote) {
-            return existingEditingNote
-          }
-          return note
-        })
-      })
-    }
-
-    if (updateStatus) markSynced()
+  if (latestNotesFetchTokenRef.current.get(taskId) !== token) {
+    return
   }
 
+  if (error) {
+    console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
+    setTaskNotes([])
+    setSyncStatus('error')
+    return
+  }
+
+  const sorted = sortNotes(data || [])
+
+  if (editingNoteIdRef.current === null) {
+    setTaskNotes(sorted)
+  } else {
+    setTaskNotes((prev) => {
+      const editingId = editingNoteIdRef.current
+      const existingEditingNote = prev.find((note) => note.id === editingId)
+
+      return sorted.map((note) => {
+        if (note.id === editingId && existingEditingNote) {
+          return existingEditingNote
+        }
+        return note
+      })
+    })
+  }
+
+  if (updateStatus) markSynced()
+}
   
   async function fetchPendingInvites() {
     if (!session?.user?.id || !session?.user?.email) {
@@ -2144,6 +2388,45 @@ if (stillExists) {
     setPendingInvites(data || [])
     setInvitesLoading(false)
   }
+
+function invalidateTaskViews() {
+  latestTasksFetchIdRef.current += 1
+  latestAllTasksFetchIdRef.current += 1
+}
+
+function invalidateNoteViews(taskId = null) {
+  latestTaskNoteCountsFetchIdRef.current += 1
+
+  if (taskId) {
+    latestNotesFetchTokenRef.current.set(
+      taskId,
+      `invalidated:${Date.now()}`
+    )
+  }
+}
+
+function replaceTaskEverywhere(taskId, nextTask) {
+  setTasks((prev) =>
+    sortTasks(
+      prev.map((task) => (task.id === taskId ? nextTask : task)),
+      currentSortModeRef.current,
+      currentSortDirectionRef.current
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((task) => (task.id === taskId ? nextTask : task))
+  )
+
+  setActiveTask((prev) => (prev?.id === taskId ? nextTask : prev))
+}
+
+function snapshotTaskEverywhere(taskId) {
+  const fromTasks = tasks.find((t) => t.id === taskId)
+  const fromAllTasks = allTasks.find((t) => t.id === taskId)
+  const fromActive = activeTask?.id === taskId ? activeTask : null
+  return fromTasks || fromAllTasks || fromActive || null
+}
 
   async function handleAcceptInvite(inviteIdsOrId) {
     const inviteIds = Array.isArray(inviteIdsOrId) ? inviteIdsOrId : [inviteIdsOrId]
@@ -2434,6 +2717,45 @@ async function fetchShareDetails(list) {
     setShareMessage('Ο χρήστης αφαιρέθηκε από τη λίστα.')
     setShareRemovingUserId(null)
   }
+function applyNoteRealtimePayload(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload
+
+  const note = newRow || oldRow
+  if (!note) return
+
+  if (eventType === 'INSERT' || eventType === 'UPDATE') {
+    setTaskNotes((prev) => {
+      let exists = false
+
+      const next = prev.map((n) => {
+        if (n.id === note.id) {
+          exists = true
+
+          const incomingTs = new Date(note.updated_at || 0).getTime()
+          const currentTs = new Date(n.updated_at || 0).getTime()
+
+          if (incomingTs >= currentTs) {
+            return note
+          }
+
+          return n
+        }
+
+        return n
+      })
+
+      if (!exists) {
+        next.push(note)
+      }
+
+      return sortNotes(next)
+    })
+  }
+
+  if (eventType === 'DELETE') {
+    setTaskNotes((prev) => prev.filter((n) => n.id !== note.id))
+  }
+}
 
   function updateTaskEverywhere(taskId, patch) {
     setTasks((prev) =>
@@ -2450,6 +2772,90 @@ async function fetchShareDetails(list) {
 
     setActiveTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
   }
+
+function applyTaskRealtimePayload(payload) {
+  const { eventType, new: newRow, old: oldRow } = payload
+  const task = newRow || oldRow
+  if (!task) return
+
+  const changedTaskId = task.id
+  const changedListId = newRow?.list_id ?? oldRow?.list_id
+  const currentSelectedListId = selectedListRef.current?.id ?? null
+  const activeEditingNoteId = editingNoteIdRef.current
+
+  if (eventType === 'DELETE') {
+    setTasks((prev) => sortTasks(
+      prev.filter((t) => t.id !== changedTaskId),
+      currentSortModeRef.current,
+      currentSortDirectionRef.current
+    ))
+
+    setAllTasks((prev) => prev.filter((t) => t.id !== changedTaskId))
+    setActiveTask((prev) => (prev?.id === changedTaskId ? null : prev))
+
+    if (activeTaskRef.current?.id === changedTaskId && !activeEditingNoteId) {
+      setTaskNotes([])
+    }
+
+    return
+  }
+
+  setAllTasks((prev) => {
+    const exists = prev.some((t) => t.id === changedTaskId)
+    if (exists) {
+      return prev.map((t) => {
+        if (t.id !== changedTaskId) return t
+        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
+          return { ...t, ...task }
+        }
+        return t
+      })
+    }
+    return [...prev, task]
+  })
+
+  if (String(currentSelectedListId) === String(changedListId)) {
+    setTasks((prev) => {
+      let found = false
+
+      const next = prev.map((t) => {
+        if (t.id !== changedTaskId) return t
+        found = true
+
+        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
+          return { ...t, ...task }
+        }
+        return t
+      })
+
+      if (!found) {
+        next.push(task)
+      }
+
+      return sortTasks(
+        next,
+        currentSortModeRef.current,
+        currentSortDirectionRef.current
+      )
+    })
+  } else {
+    setTasks((prev) =>
+      sortTasks(
+        prev.filter((t) => t.id !== changedTaskId),
+        currentSortModeRef.current,
+        currentSortDirectionRef.current
+      )
+    )
+  }
+
+  setActiveTask((prev) => {
+    if (!prev || prev.id !== changedTaskId) return prev
+    if (new Date(task.updated_at) >= new Date(prev.updated_at || 0)) {
+      return { ...prev, ...task }
+    }
+    return prev
+  })
+}
 
   function handleSelectList(list) {
     setCurrentListRole(list.owner_user_id === session?.user?.id ? 'owner' : 'editor')
@@ -2699,146 +3105,188 @@ if (isMobile) {
   }
 
   async function handleRenameTask(task, nextTitle) {
-    const title = nextTitle.trim()
-    if (!title || !task || isOffline) return
+  const title = nextTitle.trim()
+  if (!title || !task || isOffline) return
 
-    const now = new Date().toISOString()
-    const oldTasks = [...tasks]
+  const now = new Date().toISOString()
+  const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
+  if (!oldTaskSnapshot) return
 
-    updateTaskEverywhere(task.id, { title, updated_at: now, updated_by: session?.user?.id || null })
-    markSaving()
+  invalidateTaskViews()
+  markTaskMutation(task.id)
 
-    const { error } = await supabase
-      .from('tasks')
-      .update({ title, updated_at: now, updated_by: session?.user?.id || null })
-      .eq('id', task.id)
-
-    if (error) {
-      console.error('Σφάλμα μετονομασίας εργασίας:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
-
-    setEditingTaskValue(title)
-    setEditingTaskTitle(false)
-    closeContextMenu()
-    markSynced()
+  const optimisticTask = {
+    ...oldTaskSnapshot,
+    title,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
   }
 
+  replaceTaskEverywhere(task.id, optimisticTask)
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      title,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', task.id)
+
+  if (error) {
+    console.error('Σφάλμα μετονομασίας εργασίας:', error)
+    clearTaskMutation(task.id)
+    replaceTaskEverywhere(task.id, oldTaskSnapshot)
+    setSyncStatus('error')
+    return
+  }
+
+  setEditingTaskValue(title)
+  setEditingTaskTitle(false)
+  closeContextMenu()
+  markSynced()
+}
+
+function scheduleRealtimeRefresh(kind, runner, delay = 120) {
+  let timerRef
+
+  if (kind === 'tasks') {
+    timerRef = tasksRealtimeTimerRef
+  } else if (kind === 'notes') {
+    timerRef = notesRealtimeTimerRef
+  } else if (kind === 'lists') {
+    timerRef = listsRealtimeTimerRef
+  } else {
+    timerRef = tasksRealtimeTimerRef
+  }
+
+  if (timerRef.current) {
+    clearTimeout(timerRef.current)
+  }
+
+  timerRef.current = setTimeout(async () => {
+    timerRef.current = null
+    await runner()
+  }, delay)
+}
   async function handleRenameNote(note, nextContent) {
-    const content = nextContent.trim()
-    const originalContent = String(note?.content || '').trim()
+  const content = nextContent.trim()
+  const originalContent = String(note?.content || '').trim()
 
-    if (!content || !note || isOffline) return
-    if (content === originalContent) {
-      closeContextMenu()
-      return
-    }
-
-    const oldNotes = [...taskNotes]
-    const now = new Date().toISOString()
-
-    setTaskNotes((prev) =>
-      sortNotes(prev.map((n) => (n.id === note.id ? { ...n, content } : n)))
-    )
-
-    if (activeTask?.id) {
-      updateTaskEverywhere(activeTask.id, {
-        updated_at: now,
-        updated_by: session?.user?.id || null,
-      })
-    }
-
-    markSaving()
-
-    const { error } = await supabase
-      .from('task_notes')
-      .update({ content, updated_by: session?.user?.id || null })
-      .eq('id', note.id)
-
-    if (error) {
-      console.error('Σφάλμα μετονομασίας σημείωσης:', error)
-      setTaskNotes(oldNotes)
-      setSyncStatus('error')
-      return
-    }
-
-    if (activeTask?.id) {
-      await supabase
-        .from('tasks')
-        .update({ updated_at: now, updated_by: session?.user?.id || null })
-        .eq('id', activeTask.id)
-    }
-
+  if (!content || !note || isOffline) return
+  if (content === originalContent) {
     closeContextMenu()
-    markSynced()
+    return
   }
+
+  const oldNotes = [...taskNotes]
+  const now = new Date().toISOString()
+
+  setTaskNotes((prev) =>
+    sortNotes(prev.map((n) => (n.id === note.id ? { ...n, content } : n)))
+  )
+
+  if (activeTask?.id) {
+    updateTaskEverywhere(activeTask.id, {
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+  }
+
+  markNoteMutation(note.id)
+  markSaving()
+
+  const { error } = await supabase
+    .from('task_notes')
+    .update({ content, updated_by: session?.user?.id || null })
+    .eq('id', note.id)
+
+  if (error) {
+    console.error('Σφάλμα μετονομασίας σημείωσης:', error)
+    clearNoteMutation(note.id)
+    setTaskNotes(oldNotes)
+    setSyncStatus('error')
+    return
+  }
+
+  if (activeTask?.id) {
+    await supabase
+      .from('tasks')
+      .update({ updated_at: now, updated_by: session?.user?.id || null })
+      .eq('id', activeTask.id)
+  }
+
+  closeContextMenu()
+  markSynced()
+}
 
   async function handleInlineRenameNote(noteId) {
-    const originalNote = taskNotes.find((n) => n.id === noteId)
-    if (!originalNote) {
-      clearEditingNoteIfStillSame(noteId, '')
-      return
-    }
-
-    const content = editingNoteValue.trim()
-    const originalContent = String(originalNote.content || '').trim()
-
-    if (!content) {
-      const shouldDelete = window.confirm('Να διαγραφεί η σημείωση;')
-
-      if (shouldDelete) {
-        await handleDeleteNote(noteId, true)
-      } else {
-        clearEditingNoteIfStillSame(noteId, originalNote.content || '')
-      }
-      return
-    }
-
-    if (content === originalContent) {
-      clearEditingNoteIfStillSame(noteId, '')
-      return
-    }
-
-    const oldNotes = [...taskNotes]
-    const now = new Date().toISOString()
-
-    setTaskNotes((prev) =>
-      sortNotes(prev.map((n) => (n.id === noteId ? { ...n, content } : n)))
-    )
-
-    if (activeTask?.id) {
-      updateTaskEverywhere(activeTask.id, {
-        updated_at: now,
-        updated_by: session?.user?.id || null,
-      })
-    }
-
-    markSaving()
-
-    const { error } = await supabase
-      .from('task_notes')
-      .update({ content, updated_by: session?.user?.id || null })
-      .eq('id', noteId)
-
-    if (error) {
-      console.error('Σφάλμα επεξεργασίας σημείωσης:', error)
-      setTaskNotes(oldNotes)
-      setSyncStatus('error')
-      return
-    }
-
-    if (activeTask?.id) {
-      await supabase
-        .from('tasks')
-        .update({ updated_at: now, updated_by: session?.user?.id || null })
-        .eq('id', activeTask.id)
-    }
-
+  const originalNote = taskNotes.find((n) => n.id === noteId)
+  if (!originalNote) {
     clearEditingNoteIfStillSame(noteId, '')
-    markSynced()
+    return
   }
+
+  const content = editingNoteValue.trim()
+  const originalContent = String(originalNote.content || '').trim()
+
+  if (!content) {
+    const shouldDelete = window.confirm('Να διαγραφεί η σημείωση;')
+
+    if (shouldDelete) {
+      await handleDeleteNote(noteId, true)
+    } else {
+      clearEditingNoteIfStillSame(noteId, originalNote.content || '')
+    }
+    return
+  }
+
+  if (content === originalContent) {
+    clearEditingNoteIfStillSame(noteId, '')
+    return
+  }
+
+  const oldNotes = [...taskNotes]
+  const now = new Date().toISOString()
+
+  setTaskNotes((prev) =>
+    sortNotes(prev.map((n) => (n.id === noteId ? { ...n, content } : n)))
+  )
+
+  if (activeTask?.id) {
+    updateTaskEverywhere(activeTask.id, {
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+  }
+
+  markNoteMutation(noteId)
+  markSaving()
+
+  const { error } = await supabase
+    .from('task_notes')
+    .update({ content, updated_by: session?.user?.id || null })
+    .eq('id', noteId)
+
+  if (error) {
+    console.error('Σφάλμα επεξεργασίας σημείωσης:', error)
+    clearNoteMutation(noteId)
+    setTaskNotes(oldNotes)
+    setSyncStatus('error')
+    return
+  }
+
+  if (activeTask?.id) {
+    await supabase
+      .from('tasks')
+      .update({ updated_at: now, updated_by: session?.user?.id || null })
+      .eq('id', activeTask.id)
+  }
+
+  clearEditingNoteIfStillSame(noteId, '')
+  markSynced()
+}
 
   async function handleDeleteList(list) {
     if (list?.owner_user_id !== session?.user?.id) return
@@ -3688,13 +4136,16 @@ await saveTaskPositions(reorderedTasks)
     }
   }
 
-  async function handleToggleCompleted(task) {
-  if (isOffline) return
+async function handleToggleCompleted(task) {
+  if (isOffline || !task) return
 
-  const oldTasks = [...tasks]
-  const newCompleted = !task.completed
+  const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
+  if (!oldTaskSnapshot) return
 
-  // 🔊 Sound + vibration μόνο όταν γίνεται completed
+  markTaskSaving(task.id)
+  const scrollSnapshot = getTaskScrollSnapshot(task.id)
+  const newCompleted = !oldTaskSnapshot.completed
+
   if (newCompleted) {
     playTaskCompleteSound()
     if (navigator.vibrate) navigator.vibrate(10)
@@ -3702,19 +4153,20 @@ await saveTaskPositions(reorderedTasks)
 
   const now = new Date().toISOString()
 
-  // 🔥 ΣΗΜΑΝΤΙΚΟ: ακυρώνει παλιά fetch responses (fix για flicker)
-  latestTasksFetchIdRef.current += 1
+  invalidateTaskViews()
+  markTaskMutation(task.id)
 
-  // ⚡ Optimistic update (άμεσο UI update)
-  updateTaskEverywhere(task.id, {
+  const optimisticTask = {
+    ...oldTaskSnapshot,
     completed: newCompleted,
     updated_at: now,
     updated_by: session?.user?.id || null,
-  })
+  }
 
+  replaceTaskEverywhere(task.id, optimisticTask)
+  restoreTaskScrollSnapshot(scrollSnapshot)
   markSaving()
 
-  // ☁️ Update στο Supabase
   const { error } = await supabase
     .from('tasks')
     .update({
@@ -3724,82 +4176,63 @@ await saveTaskPositions(reorderedTasks)
     })
     .eq('id', task.id)
 
-  // ❌ Αν αποτύχει → rollback
   if (error) {
-    console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
-    setTasks(oldTasks)
+  console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
+  clearTaskMutation(task.id)
+  replaceTaskEverywhere(task.id, oldTaskSnapshot)
+  restoreTaskScrollSnapshot(scrollSnapshot)
+  markTaskSaved(task.id)
+  setSyncStatus('error')
+  return
+}
+
+markTaskSaved(task.id)
+markSynced()
+}
+
+async function handleToggleWeighing(task, event) {
+  event.preventDefault()
+  event.stopPropagation()
+  if (isOffline || !task) return
+
+  const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
+  if (!oldTaskSnapshot) return
+
+  const now = new Date().toISOString()
+  const newValue = !oldTaskSnapshot.needs_weighing
+
+  invalidateTaskViews()
+  markTaskMutation(task.id)
+
+  const optimisticTask = {
+    ...oldTaskSnapshot,
+    needs_weighing: newValue,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  }
+
+  replaceTaskEverywhere(task.id, optimisticTask)
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      needs_weighing: newValue,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', task.id)
+
+  if (error) {
+    console.error('Σφάλμα αλλαγής ογκομέτρησης:', error)
+    clearTaskMutation(task.id)
+    replaceTaskEverywhere(task.id, oldTaskSnapshot)
     setSyncStatus('error')
     return
   }
 
-  // ✅ Sync OK
   markSynced()
 }
-
-  async function handleToggleWeighing(task, event) {
-    event.preventDefault()
-    event.stopPropagation()
-    if (isOffline) return
-
-    const newValue = !task.needs_weighing
-    const now = new Date().toISOString()
-
-    const updatedTasks = tasks.map((t) =>
-      t.id === task.id
-        ? {
-            ...t,
-            needs_weighing: newValue,
-            updated_at: now,
-            updated_by: session?.user?.id || null,
-          }
-        : t
-    )
-
-    setTasks(sortTasks(updatedTasks, currentSortMode, currentSortDirection))
-
-    setAllTasks((prev) =>
-      prev.map((t) =>
-        t.id === task.id
-          ? {
-              ...t,
-              needs_weighing: newValue,
-              updated_at: now,
-              updated_by: session?.user?.id || null,
-            }
-          : t
-      )
-    )
-
-    setActiveTask((prev) =>
-      prev?.id === task.id
-        ? {
-            ...prev,
-            needs_weighing: newValue,
-            updated_at: now,
-            updated_by: session?.user?.id || null,
-          }
-        : prev
-    )
-
-    markSaving()
-
-    const { error } = await supabase
-      .from('tasks')
-      .update({
-        needs_weighing: newValue,
-        updated_at: now,
-        updated_by: session?.user?.id || null,
-      })
-      .eq('id', task.id)
-
-    if (error) {
-      console.error('Σφάλμα αλλαγής ογκομέτρησης:', error)
-      setSyncStatus('error')
-      return
-    }
-
-    markSynced()
-  }
 
   async function handleDeleteSelected() {
     if (isOffline) return
@@ -4102,50 +4535,55 @@ await saveTaskPositions(reorderedTasks)
   }
 
   async function handleAddNoteFromEnter() {
-    const content = newNoteText.trim()
-    if (!content || !activeTask || isOffline) return
+  const content = newNoteText.trim()
+  if (!content || !activeTask || isOffline) return
 
-    markSaving()
+  markSaving()
 
-    const { data, error } = await supabase
-      .from('task_notes')
-      .insert([
-        {
-          task_id: activeTask.id,
-          content,
-          completed: false,
-          created_by: session?.user?.id || null,
-          updated_by: session?.user?.id || null,
-        },
-      ])
-      .select()
-      .single()
+  const { data, error } = await supabase
+    .from('task_notes')
+    .insert([
+      {
+        task_id: activeTask.id,
+        content,
+        completed: false,
+        created_by: session?.user?.id || null,
+        updated_by: session?.user?.id || null,
+      },
+    ])
+    .select()
+    .single()
 
-    if (error) {
-      console.error('Σφάλμα προσθήκης σημείωσης:', error)
-      setSyncStatus('error')
-      return
-    }
-
-    const now = new Date().toISOString()
-    setTaskNotes((prev) => sortNotes([...prev, data]))
-    setNewNoteText('')
-    updateTaskEverywhere(activeTask.id, {
-      updated_at: now,
-      updated_by: session?.user?.id || null,
-    })
-    setNoteCountsByTask((prev) => ({
-      ...prev,
-      [activeTask.id]: (prev[activeTask.id] || 0) + 1,
-    }))
-
-    await supabase
-      .from('tasks')
-      .update({ updated_at: now, updated_by: session?.user?.id || null })
-      .eq('id', activeTask.id)
-
-    markSynced()
+  if (error) {
+    console.error('Σφάλμα προσθήκης σημείωσης:', error)
+    setSyncStatus('error')
+    return
   }
+
+  markNoteMutation(data.id)
+
+const now = new Date().toISOString()
+setTaskNotes((prev) => sortNotes([...prev, data]))
+
+setNoteCountsByTask((prev) => ({
+  ...prev,
+  [activeTask.id]: (prev[activeTask.id] || 0) + 1,
+}))
+
+setNewNoteText('')
+
+updateTaskEverywhere(activeTask.id, {
+  updated_at: now,
+  updated_by: session?.user?.id || null,
+})
+
+  await supabase
+    .from('tasks')
+    .update({ updated_at: now, updated_by: session?.user?.id || null })
+    .eq('id', activeTask.id)
+
+  markSynced()
+}
 
   async function handleToggleNoteCompleted(note) {
     if (isOffline) return
@@ -4194,98 +4632,111 @@ await saveTaskPositions(reorderedTasks)
   }
 
   async function handleDeleteNote(noteId, skipConfirm = false) {
-    if (isOffline) return
-    if (!skipConfirm && !window.confirm('Να διαγραφεί η σημείωση;')) return
+  if (isOffline) return
+  if (!skipConfirm && !window.confirm('Να διαγραφεί η σημείωση;')) return
 
-    const oldNotes = [...taskNotes]
-    const noteToDelete = taskNotes.find((n) => n.id === noteId)
-    const now = new Date().toISOString()
+  const oldNotes = [...taskNotes]
+const noteToDelete = taskNotes.find((n) => n.id === noteId)
+const now = new Date().toISOString()
 
-    setTaskNotes((prev) => prev.filter((note) => note.id !== noteId))
-    
-    if (activeTask?.id) {
-      updateTaskEverywhere(activeTask.id, {
-        updated_at: now,
-        updated_by: session?.user?.id || null,
-      })
+setTaskNotes((prev) => prev.filter((note) => note.id !== noteId))
+
+if (activeTask?.id && noteToDelete) {
+  setNoteCountsByTask((prev) => {
+    const currentCount = prev[activeTask.id] || 0
+    const nextCount = Math.max(0, currentCount - 1)
+
+    if (nextCount === 0) {
+      const next = { ...prev }
+      delete next[activeTask.id]
+      return next
     }
 
-    if (activeTask?.id && noteToDelete) {
-      setNoteCountsByTask((prev) => ({
-        ...prev,
-        [activeTask.id]: Math.max((prev[activeTask.id] || 1) - 1, 0),
-      }))
+    return {
+      ...prev,
+      [activeTask.id]: nextCount,
     }
+  })
+}
 
-    if (editingNoteIdRef.current === noteId) {
-      setEditingNoteId(null)
-      setEditingNoteValue('')
-    }
-
-    markSaving()
-
-    const noteResult = await supabase.from('task_notes').delete().eq('id', noteId)
-
-    if (noteResult.error) {
-      console.error('Σφάλμα διαγραφής σημείωσης:', noteResult.error)
-      setTaskNotes(oldNotes)
-
-      if (activeTask?.id && noteToDelete) {
-        setNoteCountsByTask((prev) => ({
-          ...prev,
-          [activeTask.id]: (prev[activeTask.id] || 0) + 1,
-        }))
-      }
-
-      setSyncStatus('error')
-      return
-    }
-
-    if (activeTask?.id) {
-      const taskResult = await supabase
-        .from('tasks')
-        .update({ updated_at: now, updated_by: session?.user?.id || null })
-        .eq('id', activeTask.id)
-
-      if (taskResult.error) {
-        console.error('Σφάλμα ενημέρωσης task μετά από διαγραφή σημείωσης:', taskResult.error)
-      }
-    }
-
-    closeContextMenu()
-    markSynced()
+  if (activeTask?.id) {
+    updateTaskEverywhere(activeTask.id, {
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
   }
 
-    function handleTaskRightClick(event, task) {
-    if (isMobile) {
-      event.preventDefault()
-      event.stopPropagation()
-      return
-    }
+  if (editingNoteIdRef.current === noteId) {
+    setEditingNoteId(null)
+    setEditingNoteValue('')
+  }
 
+  markNoteMutation(noteId)
+  markSaving()
+
+  const noteResult = await supabase.from('task_notes').delete().eq('id', noteId)
+
+  if (noteResult.error) {
+  console.error('Σφάλμα διαγραφής σημείωσης:', noteResult.error)
+  clearNoteMutation(noteId)
+  setTaskNotes(oldNotes)
+
+  if (activeTask?.id) {
+    setNoteCountsByTask((prev) => ({
+      ...prev,
+      [activeTask.id]: oldNotes.length,
+    }))
+  }
+
+  setSyncStatus('error')
+  return
+}
+
+  if (activeTask?.id) {
+    const taskResult = await supabase
+      .from('tasks')
+      .update({ updated_at: now, updated_by: session?.user?.id || null })
+      .eq('id', activeTask.id)
+
+    if (taskResult.error) {
+      console.error('Σφάλμα ενημέρωσης task μετά από διαγραφή σημείωσης:', taskResult.error)
+    }
+  }
+
+  closeContextMenu()
+  markSynced()
+}
+
+    function handleTaskRightClick(event, task) {
+  if (isTouchDevice) {
     event.preventDefault()
     event.stopPropagation()
+    return
+  }
 
-    if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
-      setContextMenu({
-        type: 'task_multi',
-        x: event.clientX,
-        y: event.clientY,
-      })
-      setMoveMenuOpen(false)
-      setMultiMoveMenuOpen(false)
-      return
-    }
+  event.preventDefault()
+  event.stopPropagation()
 
+  if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
     setContextMenu({
-      type: 'task',
+      type: 'task_multi',
       x: event.clientX,
       y: event.clientY,
-      task,
     })
     setMoveMenuOpen(false)
     setMultiMoveMenuOpen(false)
+    return
   }
+
+  setContextMenu({
+    type: 'task',
+    x: event.clientX,
+    y: event.clientY,
+    task,
+  })
+  setMoveMenuOpen(false)
+  setMultiMoveMenuOpen(false)
+}
 
   function handleListRightClick(event, list) {
   if (isMobile) {
@@ -4850,20 +5301,22 @@ style={
   ) : (
     <div className="task-container">
       {visibleTasks.map((task) => (
-        <SortableTaskItem
-          key={task.id}
-          task={task}
-          isActive={activeTask?.id === task.id}
-          isSelected={selectedTasks.includes(task.id)}
-          isOffline={isOffline}
-          isSearchMode={true}
-          onClick={(event) => handleTaskClick(task, event)}
-          onContextMenu={(event) => handleTaskRightClick(event, task)}
-          onToggleCompleted={handleToggleCompleted}
-          onToggleWeighing={handleToggleWeighing}
-          onDeleteSwipe={handleDeleteOneTask}
-          onMobileLongPress={handleTaskLongPress}
-        />
+<SortableTaskItem
+  key={task.id}
+  task={task}
+  isActive={activeTask?.id === task.id}
+  isSelected={selectedTasks.includes(task.id)}
+  isOffline={isOffline}
+  isSearchMode={true}
+  isTouchDevice={isTouchDevice}
+  isSaving={savingTaskIds.has(task.id)}
+  onClick={(event) => handleTaskClick(task, event)}
+  onContextMenu={(event) => handleTaskRightClick(event, task)}
+  onToggleCompleted={handleToggleCompleted}
+  onToggleWeighing={handleToggleWeighing}
+  onDeleteSwipe={handleDeleteOneTask}
+  onMobileLongPress={handleTaskLongPress}
+/>
       ))}
     </div>
   )}
@@ -4873,7 +5326,10 @@ style={
   <>
 
     <div className="main-fixed-header">
-      <div className="main-header">
+  <div
+    className="main-header"
+    style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '56px' : '0px' }}
+  >
         {editingListName ? (
           <input
             className="list-title-input"
@@ -5194,21 +5650,23 @@ style={
       )}
 
       {(!task.completed || showCompletedTasks) && (
-        <SortableTaskItem
-          task={task}
-          isActive={activeTask?.id === task.id}
-          isSelected={selectedTasks.includes(task.id)}
-          isOffline={isOffline}
-          isSearchMode={Boolean(taskSearch.trim())}
-          onClick={(event) => handleTaskClick(task, event)}
-          onContextMenu={(event) => handleTaskRightClick(event, task)}
-          onToggleCompleted={handleToggleCompleted}
-          onToggleWeighing={handleToggleWeighing}
-          onDeleteSwipe={(taskId) =>
-            handleDeleteOneTask(taskId, { skipConfirm: true })
-          }
-          onMobileLongPress={handleTaskLongPress}
-        />
+<SortableTaskItem
+  task={task}
+  isActive={activeTask?.id === task.id}
+  isSelected={selectedTasks.includes(task.id)}
+  isOffline={isOffline}
+  isSearchMode={Boolean(taskSearch.trim())}
+  isTouchDevice={isTouchDevice}
+  isSaving={savingTaskIds.has(task.id)}
+  onClick={(event) => handleTaskClick(task, event)}
+  onContextMenu={(event) => handleTaskRightClick(event, task)}
+  onToggleCompleted={handleToggleCompleted}
+  onToggleWeighing={handleToggleWeighing}
+  onDeleteSwipe={(taskId) =>
+    handleDeleteOneTask(taskId, { skipConfirm: true })
+  }
+  onMobileLongPress={handleTaskLongPress}
+/>
       )}
     </div>
   )
@@ -5280,7 +5738,10 @@ style={
 {activeTask && (
   <>
     <div className="details-panel">
-      <div className="details-panel-header">
+  <div
+    className="details-panel-header"
+    style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '56px' : '0px' }}
+  >
 {!editingTaskTitle ? (
   isMobile ? (
     <div
@@ -5443,10 +5904,10 @@ style={
   ) : (
     taskNotes.map((note) => (
       <SwipeableNoteItem
-        key={note.id}
         note={note}
         isOffline={isOffline}
         isMobile={isMobile}
+        isTouchDevice={isTouchDevice}
         isEditing={editingNoteId === note.id}
         editingValue={editingNoteValue}
         onStartEdit={(selectedNote) => {
