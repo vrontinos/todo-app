@@ -168,12 +168,11 @@ button,
 
 .app {
   display: flex;
-  width: 100vw;
+  width: min(96vw, 1760px);
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  max-width: 1400px;
   margin: 0 auto;
 }
 
