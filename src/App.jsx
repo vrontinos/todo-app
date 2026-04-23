@@ -4428,85 +4428,86 @@ async function handleToggleWeighing(task, event) {
   }
 
   async function handlePrintTasks() {
-    const title = taskSearch.trim()
-      ? `Αναζήτηση: ${taskSearch.trim()}`
-      : `Λίστα: ${selectedList?.name || 'Εργασίες'}`
+  const browserTitle = 'To Do ΒΡΟΝΤΙΝΟΣ ΜΙΚΕ'
+  const pageHeading = taskSearch.trim()
+    ? `Αναζήτηση: ${taskSearch.trim()}`
+    : `Λίστα: ${selectedList?.name || 'Εργασίες'}`
 
-    const printableTasks = visibleTasks.filter((task) => !task.completed)
+  const printableTasks = visibleTasks.filter((task) => !task.completed)
 
-    const rows = printableTasks
-      .map((task) => {
-        const listLine = taskSearch.trim()
-          ? `<div style="font-size:11px;color:#666;margin-top:3px;">Λίστα: ${escapeHtml(task.list_name || '—')}</div>`
-          : ''
-        const measuring = task.needs_weighing
-          ? `<div style="font-size:11px;color:#666;margin-top:3px;">Ογκομέτρηση</div>`
-          : ''
+  const rows = printableTasks
+    .map((task) => {
+      const listLine = taskSearch.trim()
+        ? `<div style="font-size:11px;color:#666;margin-top:3px;">Λίστα: ${escapeHtml(task.list_name || '—')}</div>`
+        : ''
+      const measuring = task.needs_weighing
+        ? `<div style="font-size:11px;color:#666;margin-top:3px;">Ογκομέτρηση</div>`
+        : ''
 
-        return `
-          <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #ddd;">
-            <div style="width:14px;height:14px;border:1.5px solid #444;border-radius:999px;box-sizing:border-box;margin-top:1px;flex-shrink:0;"></div>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;">${escapeHtml(task.title || '')}</div>
-              ${listLine}
-              ${measuring}
-            </div>
+      return `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #ddd;">
+          <div style="width:14px;height:14px;border:1.5px solid #444;border-radius:999px;box-sizing:border-box;margin-top:1px;flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">${escapeHtml(task.title || '')}</div>
+            ${listLine}
+            ${measuring}
           </div>
-        `
-      })
-      .join('')
+        </div>
+      `
+    })
+    .join('')
 
-    const html = `
-      <html>
-        <head>
-          <title>${escapeHtml(title)}</title>
-        </head>
-        <body style="font-family:Arial,sans-serif;padding:20px;">
-          <h1 style="margin-top:0;font-size:18px;">${escapeHtml(title)}</h1>
-          ${rows || '<p style="font-size:13px;">Δεν υπάρχουν μη ολοκληρωμένες εργασίες.</p>'}
-        </body>
-      </html>
-    `
+  const html = `
+    <html>
+      <head>
+        <title>${escapeHtml(browserTitle)}</title>
+      </head>
+      <body style="font-family:Arial,sans-serif;padding:20px;">
+        <h1 style="margin-top:0;font-size:18px;">${escapeHtml(pageHeading)}</h1>
+        ${rows || '<p style="font-size:13px;">Δεν υπάρχουν μη ολοκληρωμένες εργασίες.</p>'}
+      </body>
+    </html>
+  `
 
-    const printFrame = document.createElement('iframe')
-    printFrame.style.position = 'fixed'
-    printFrame.style.right = '0'
-    printFrame.style.bottom = '0'
-    printFrame.style.width = '0'
-    printFrame.style.height = '0'
-    printFrame.style.border = '0'
-    printFrame.setAttribute('aria-hidden', 'true')
+  const printFrame = document.createElement('iframe')
+  printFrame.style.position = 'fixed'
+  printFrame.style.right = '0'
+  printFrame.style.bottom = '0'
+  printFrame.style.width = '0'
+  printFrame.style.height = '0'
+  printFrame.style.border = '0'
+  printFrame.setAttribute('aria-hidden', 'true')
 
-    document.body.appendChild(printFrame)
+  document.body.appendChild(printFrame)
 
-    const frameWindow = printFrame.contentWindow
-    const frameDocument = printFrame.contentDocument || frameWindow?.document
+  const frameWindow = printFrame.contentWindow
+  const frameDocument = printFrame.contentDocument || frameWindow?.document
 
-    if (!frameWindow || !frameDocument) {
-      document.body.removeChild(printFrame)
-      return
-    }
-
-    frameDocument.open()
-    frameDocument.write(html)
-    frameDocument.close()
-
-    const cleanup = () => {
-      window.setTimeout(() => {
-        if (document.body.contains(printFrame)) {
-          document.body.removeChild(printFrame)
-        }
-      }, 500)
-    }
-
-    frameWindow.onafterprint = cleanup
-
-    window.setTimeout(() => {
-      frameWindow.focus()
-      frameWindow.print()
-      cleanup()
-    }, 250)
+  if (!frameWindow || !frameDocument) {
+    document.body.removeChild(printFrame)
+    return
   }
+
+  frameDocument.open()
+  frameDocument.write(html)
+  frameDocument.close()
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      if (document.body.contains(printFrame)) {
+        document.body.removeChild(printFrame)
+      }
+    }, 500)
+  }
+
+  frameWindow.onafterprint = cleanup
+
+  window.setTimeout(() => {
+    frameWindow.focus()
+    frameWindow.print()
+    cleanup()
+  }, 250)
+}
 
   async function handleAddNoteFromEnter() {
   const content = newNoteText.trim()
