@@ -168,35 +168,13 @@ button,
 
 .app {
   display: flex;
-  width: min(96vw, 1760px);
-  height: 100vh;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  margin: 0 auto;
-}
-
-.app {
-  display: flex;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  max-width: 1600px;
+  max-width: 1400px;
   margin: 0 auto;
-}
-
-@media (max-width: 1400px) {
-  .app {
-    max-width: 1200px;
-  }
-}
-
-@media (max-width: 1100px) {
-  .app {
-    max-width: 100%;
-  }
 }
 
 .app.is-resizing {
