@@ -4694,13 +4694,13 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   setMultiMoveMenuOpen(false)
 }
 
-  function handleListRightClick(event, list) {
-  if (isMobile) {
-    return
-  }
-
+ function handleListRightClick(event, list) {
   event.preventDefault()
   event.stopPropagation()
+
+  if (isMobile && event.pointerType === 'touch') {
+    return
+  }
 
   const currentIds = selectedListsRef.current
   const included = currentIds.includes(list.id)
