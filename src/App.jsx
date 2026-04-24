@@ -1452,7 +1452,7 @@ useEffect(() => {
   }
 )
 
-    .on(
+  .on(
     'postgres_changes',
     { event: '*', schema: 'public', table: 'lists' },
     async () => {
@@ -1463,25 +1463,7 @@ useEffect(() => {
       })
     }
   )
-  .on(
-    'postgres_changes',
-    { event: '*', schema: 'public', table: 'list_invites' },
-    async (payload) => {
-      const userEmail = String(session?.user?.email || '').trim().toLowerCase()
-      if (!userEmail) return
-
-      const invitedEmail = String(
-        payload?.new?.invited_email || payload?.old?.invited_email || ''
-      )
-        .trim()
-        .toLowerCase()
-
-      if (invitedEmail !== userEmail) return
-
-      await fetchPendingInvites()
-    }
-  )
-  .subscribe((status) => {
+    .subscribe((status) => {
       if (status === 'SUBSCRIBED') setSyncStatus('synced')
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setSyncStatus('error')
