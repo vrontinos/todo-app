@@ -4228,11 +4228,17 @@ async function handleToggleWeighing(task, event) {
 
     if (!window.confirm(label)) return
 
-    const oldTasks = [...tasks]
-    const idsToDelete = [...selectedTasks]
+const oldTasks = [...tasks]
+const idsToDelete = [...selectedTasks]
 
-    setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+idsToDelete.forEach((taskId) => {
+  markTaskMutation(taskId)
+})
+
+invalidateTaskViews()
+
+setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
+setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
     setSelectedTasks([])
     setSelectionAnchorId(null)
 
@@ -4252,11 +4258,16 @@ async function handleToggleWeighing(task, event) {
       .in('id', idsToDelete)
 
     if (error) {
-      console.error('Σφάλμα διαγραφής:', error)
-      setTasks(oldTasks)
-      setSyncStatus('error')
-      return
-    }
+  console.error('Σφάλμα διαγραφής:', error)
+
+  idsToDelete.forEach((taskId) => {
+    clearTaskMutation(taskId)
+  })
+
+  setTasks(oldTasks)
+  setSyncStatus('error')
+  return
+}
 
     closeContextMenu()
     markSynced()
