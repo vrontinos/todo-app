@@ -1110,9 +1110,9 @@ input.round-checkbox:checked::after {
   bottom: 8px;
   height: calc(100vh - 16px);
   z-index: 10010;
-  width: min(560px, 70vw);
-  min-width: min(560px, 70vw);
-  max-width: min(760px, 82vw);
+  width: min(420px, 55vw);
+  min-width: min(420px, 55vw);
+  max-width: min(4200px, 55vw);
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -1123,8 +1123,9 @@ input.round-checkbox:checked::after {
 }
 
 .submenu-large {
-  min-width: min(560px, 70vw);
-  max-width: min(760px, 82vw);
+  width: min(420px, 55vw);
+  min-width: min(420px, 55vw);
+  max-width: min(420px, 55vw);
 }
 
 .submenu-list-item:hover {

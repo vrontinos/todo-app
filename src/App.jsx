@@ -1757,36 +1757,28 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
   }
 
   function getFullscreenSubmenuPosition() {
-    const submenuWidth = Math.min(560, Math.floor(window.innerWidth * 0.7))
-    const padding = 8
-    const overlap = 10
+  const submenuWidth = Math.min(420, Math.floor(window.innerWidth * 0.55))
+  const padding = 8
+  const gap = -7
 
-    const menuRect = contextMenuRef.current?.getBoundingClientRect()
+  const menuRect = contextMenuRef.current?.getBoundingClientRect()
 
-    if (!menuRect) {
-      return {
-        left: `${padding}px`,
-        top: `${padding}px`,
-      }
-    }
-
-    const openRightLeft = menuRect.right - overlap
-    const openLeftLeft = menuRect.left - submenuWidth + overlap
-
-    const fitsRight = openRightLeft + submenuWidth <= window.innerWidth - padding
-
+  if (!menuRect) {
     return {
-      left: `${fitsRight ? openRightLeft : Math.max(padding, openLeftLeft)}px`,
+      left: `${padding}px`,
       top: `${padding}px`,
     }
   }
-function playTaskCompleteSound() {
-  try {
-    const audio = new Audio(taskCompleteSoundFile)
-    audio.volume = 0.6
-    audio.currentTime = 0
-    void audio.play()
-  } catch {}
+
+  const openRightLeft = menuRect.right + gap
+  const openLeftLeft = menuRect.left - submenuWidth - gap
+
+  const fitsRight = openRightLeft + submenuWidth <= window.innerWidth - padding
+
+  return {
+    left: `${fitsRight ? openRightLeft : Math.max(padding, openLeftLeft)}px`,
+    top: `${padding}px`,
+  }
 }
   function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
   const factor = direction === 'desc' ? -1 : 1
