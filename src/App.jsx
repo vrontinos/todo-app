@@ -1452,7 +1452,7 @@ useEffect(() => {
   }
 )
 
-  .on(
+    .on(
     'postgres_changes',
     { event: '*', schema: 'public', table: 'lists' },
     async () => {
@@ -1463,7 +1463,14 @@ useEffect(() => {
       })
     }
   )
-    .subscribe((status) => {
+  .on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'list_invites' },
+    async () => {
+      await fetchPendingInvites()
+    }
+  )
+  .subscribe((status) => {
       if (status === 'SUBSCRIBED') setSyncStatus('synced')
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setSyncStatus('error')
