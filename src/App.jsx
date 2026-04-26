@@ -379,28 +379,35 @@ const showMobileSelectionDot = isTouchInput && isSelected
         {...attributes}
         {...restListeners}
       >
-                <span
-          className={`round-checkbox task-select-indicator ${task.completed ? 'is-completed' : ''} ${showMobileSelectionDot ? 'is-selected' : ''}`}
-          onPointerDown={(e) => {
-            e.stopPropagation()
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
-          onClick={(e) => {
-            e.stopPropagation()
+<span
+  className={`round-checkbox task-select-indicator ${task.completed ? 'is-completed' : ''} ${showMobileSelectionDot ? 'is-selected' : ''}`}
+  onPointerDown={(e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }}
+  onMouseDown={(e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }}
+  onPointerUp={(e) => {
+    e.preventDefault()
+    e.stopPropagation()
 
-            if (isTouchInput && isSelected) {
-              onClick(e)
-              return
-            }
+    if (isTouchInput && isSelected) {
+      onClick(e)
+      return
+    }
 
-            onToggleCompleted(task)
-          }}
-          role="checkbox"
-          aria-checked={task.completed}
-          tabIndex={-1}
-        />
+    onToggleCompleted(task)
+  }}
+  onClick={(e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }}
+  role="checkbox"
+  aria-checked={task.completed}
+  tabIndex={-1}
+/>
 
         <div className="task-text-block">
           <span className={`task-title ${task.completed ? 'completed' : ''}`}>
