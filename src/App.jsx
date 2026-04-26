@@ -5954,6 +5954,7 @@ style={
     </div>
   </div>
 ) : taskNotes.length === 0 ? (
+
     <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
   ) : (
     taskNotes.map((note) => (
