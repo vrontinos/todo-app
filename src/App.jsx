@@ -1543,17 +1543,19 @@ function handleVisibilityChange() {
         const currentActiveTask = activeTaskRef.current
         const isEditingNote = editingNoteIdRef.current !== null
 
-        fetchLists(false)
-        fetchAllTasks(false)
-        fetchTaskNoteCounts(false)
-
-        if (currentSelectedList?.id) {
-          fetchTasks(currentSelectedList.id, false, false)
-        }
-
-        if (currentActiveTask?.id && !isEditingNote) {
-          fetchNotes(currentActiveTask.id, false)
-        }
+        Promise.all([
+  fetchLists(false),
+  fetchAllTasks(false),
+  fetchTaskNoteCounts(false),
+  currentSelectedList?.id
+    ? fetchTasks(currentSelectedList.id, false, false)
+    : Promise.resolve(),
+  currentActiveTask?.id && !isEditingNote
+    ? fetchNotes(currentActiveTask.id, false)
+    : Promise.resolve(),
+]).then(() => {
+  markSynced()
+})
       }
     }
 
