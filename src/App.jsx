@@ -4114,6 +4114,17 @@ await saveTaskPositions(reorderedTasks)
     }
   }
 
+function playTaskCompleteSound() {
+  try {
+    const audio = new Audio(taskCompleteSoundFile)
+    audio.volume = 0.6
+    audio.currentTime = 0
+    void audio.play()
+  } catch (error) {
+    console.warn('Δεν μπόρεσε να παίξει ο ήχος ολοκλήρωσης:', error)
+  }
+}
+
 async function handleToggleCompleted(task) {
   if (isOffline || !task) return
 
@@ -4123,7 +4134,8 @@ async function handleToggleCompleted(task) {
   const scrollSnapshot = getTaskScrollSnapshot(task.id)
   const newCompleted = !oldTaskSnapshot.completed
 
-  if (newCompleted) {
+if (newCompleted) {
+  playTaskCompleteSound?.()
   if (navigator.vibrate) navigator.vibrate(10)
 }
 
