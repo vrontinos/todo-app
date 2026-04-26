@@ -719,6 +719,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [editingTaskValue, setEditingTaskValue] = useState('')
 
   const [taskNotes, setTaskNotes] = useState([])
+  const [taskNotesTaskId, setTaskNotesTaskId] = useState(null)
   const [newNoteText, setNewNoteText] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
@@ -2309,6 +2310,8 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
 async function fetchNotes(taskId, updateStatus = true) {
   if (!session?.user?.id) return
   if (!taskId) return
+  setTaskNotesTaskId(null)
+  setTaskNotes([])
 
   const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
   latestNotesFetchTokenRef.current.set(taskId, token)
@@ -2331,8 +2334,10 @@ async function fetchNotes(taskId, updateStatus = true) {
 
   const sorted = sortNotes(data || [])
 
-  if (editingNoteIdRef.current === null) {
-    setTaskNotes(sorted)
+setTaskNotesTaskId(taskId)
+
+if (editingNoteIdRef.current === null) {
+  setTaskNotes(sorted)
   } else {
     setTaskNotes((prev) => {
       const editingId = editingNoteIdRef.current
@@ -5929,7 +5934,9 @@ style={
       />
 
       <div className="notes-list">
-  {taskNotes.length === 0 ? (
+  {String(taskNotesTaskId) !== String(activeTask?.id) ? (
+  <p className="notes-empty">Φόρτωση σημειώσεων...</p>
+) : taskNotes.length === 0 ? (
     <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
   ) : (
     taskNotes.map((note) => (
