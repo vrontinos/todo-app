@@ -5653,8 +5653,18 @@ style={
 
     <div className="main-scroll-area">
       {loadingTasks ? (
-        <p>Φόρτωση εργασιών...</p>
-      ) : visibleTasks.length === 0 ? (
+  <div className="task-container">
+    {[1, 2, 3, 4, 5].map((item) => (
+      <div className="skeleton-card" key={item}>
+        <div className="skeleton-circle"></div>
+        <div className="skeleton-text-group">
+          <div className="skeleton-line title"></div>
+          <div className="skeleton-line medium"></div>
+        </div>
+      </div>
+    ))}
+  </div>
+) : visibleTasks.length === 0 ? (
         <p>
           {taskSearch.trim()
             ? 'Δεν βρέθηκε αυτό που ψάχνεις'
