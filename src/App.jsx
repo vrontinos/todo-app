@@ -751,8 +751,11 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [activeDragId, setActiveDragId] = useState(null)
   const [activeOverId, setActiveOverId] = useState(null)
 
-  const appRef = useRef(null)
-  const mainRef = useRef(null)
+const appRef = useRef(null)
+const mainRef = useRef(null)
+const mobileSearchScrollTopRef = useRef(0)
+const openedTaskFromMobileSearchRef = useRef(false)
+
 function getTaskScrollSnapshot(excludeTaskId = null) {
   if (isMobile) return null
 
@@ -1107,11 +1110,26 @@ useEffect(() => {
     skipNextMobileHistoryPushRef.current = true
 
     if (mobileView === 'details') {
-      setSelectedTasks([])
-      setSelectionAnchorId(null)
-      navigateMobile('tasks')
-      return
-    }
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
+
+  if (openedTaskFromMobileSearchRef.current) {
+    openedTaskFromMobileSearchRef.current = false
+    navigateMobile('search')
+
+    requestAnimationFrame(() => {
+      const searchScrollArea = document.querySelector('.mobile-search-results')
+      if (searchScrollArea) {
+        searchScrollArea.scrollTop = mobileSearchScrollTopRef.current
+      }
+    })
+
+    return
+  }
+
+  navigateMobile('tasks')
+  return
+}
 
     if (mobileView === 'search') {
       setSelectedList(null)
@@ -4048,6 +4066,24 @@ await saveTaskPositions(reorderedTasks)
 
     const taskId = task.id
 
+const isSearchClick = Boolean(taskSearch.trim())
+
+if (isSearchClick) {
+  setSelectedTasks([taskId])
+  setSelectionAnchorId(taskId)
+
+  if (isMobile) {
+    openedTaskFromMobileSearchRef.current = true
+
+    const searchScrollArea = document.querySelector('.mobile-search-results')
+    mobileSearchScrollTopRef.current = searchScrollArea?.scrollTop || 0
+
+    navigateMobile('details')
+  }
+
+  return
+}
+
     if (event.shiftKey && selectionAnchorId !== null) {
       const currentIndex = visibleTasks.findIndex((t) => t.id === taskId)
       const anchorIndex = visibleTasks.findIndex((t) => t.id === selectionAnchorId)
@@ -4924,11 +4960,26 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
       }
 
       if (mobileView === 'details') {
-        setSelectedTasks([])
-        setSelectionAnchorId(null)
-        navigateMobile('tasks')
-        return
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
+
+  if (openedTaskFromMobileSearchRef.current) {
+    openedTaskFromMobileSearchRef.current = false
+    navigateMobile('search')
+
+    requestAnimationFrame(() => {
+      const searchScrollArea = document.querySelector('.mobile-search-results')
+      if (searchScrollArea) {
+        searchScrollArea.scrollTop = mobileSearchScrollTopRef.current
       }
+    })
+
+    return
+  }
+
+  navigateMobile('tasks')
+  return
+}
 
       if (mobileView === 'search') {
         setSelectedList(null)
