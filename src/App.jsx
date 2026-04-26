@@ -4049,7 +4049,6 @@ await saveTaskPositions(reorderedTasks)
   setEditingTaskValue(task.title)
   setEditingNoteId(null)
   setEditingNoteValue('')
-  setTaskNotes([])
   fetchNotes(task.id, false)
 
   setSelectedTasks((prev) =>
@@ -4063,7 +4062,6 @@ await saveTaskPositions(reorderedTasks)
     setEditingTaskValue(task.title)
     setEditingNoteId(null)
     setEditingNoteValue('')
-    setTaskNotes([])
     fetchNotes(task.id, false)
 
     const taskId = task.id
