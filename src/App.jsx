@@ -1075,7 +1075,7 @@ useEffect(() => {
 
   if (mobileView === 'search') return
 
-  if (!selectedList) {
+  if (!selectedList && !(mobileView === 'details' && activeTask)) {
     setMobileDirection('back')
     setMobileView('lists')
     return
@@ -1083,7 +1083,7 @@ useEffect(() => {
 
   if (!activeTask && mobileView === 'details') {
     setMobileDirection('back')
-    setMobileView('tasks')
+    setMobileView(selectedList ? 'tasks' : 'search')
   }
 }, [isMobile, selectedList, activeTask, mobileView])
 
