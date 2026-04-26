@@ -2308,14 +2308,16 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
   }
 }
 
-async function fetchNotes(taskId, updateStatus = true) {
+async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
   if (!session?.user?.id) return
   if (!taskId) return
 
   const taskKey = String(taskId)
   activeNotesTaskIdRef.current = taskKey
+  if (showLoading) {
   setTaskNotes([])
   setNotesLoading(true)
+}
 
   const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
   latestNotesFetchTokenRef.current.set(taskId, token)
@@ -2336,7 +2338,9 @@ async function fetchNotes(taskId, updateStatus = true) {
   if (error) {
   console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
   setTaskNotes([])
+  if (showLoading) {
   setNotesLoading(false)
+}
   setSyncStatus('error')
   return
 }
@@ -2358,7 +2362,9 @@ async function fetchNotes(taskId, updateStatus = true) {
       })
     })
   }
+  if (showLoading) {
   setNotesLoading(false)
+}
   if (updateStatus) markSynced()
 }
   
@@ -4062,7 +4068,7 @@ await saveTaskPositions(reorderedTasks)
   setEditingNoteId(null)
   setEditingNoteValue('')
   setTaskNotes([])
-  fetchNotes(task.id, false)
+  fetchNotes(task.id, false, true)
 
   setSelectedTasks((prev) =>
     prev.includes(task.id) ? prev : [...prev, task.id]
@@ -4076,7 +4082,7 @@ await saveTaskPositions(reorderedTasks)
     setEditingNoteId(null)
     setEditingNoteValue('')
     setTaskNotes([])
-    fetchNotes(task.id, false)
+    fetchNotes(task.id, false, true)
 
     const taskId = task.id
 
