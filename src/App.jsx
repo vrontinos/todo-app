@@ -1200,7 +1200,7 @@ useEffect(() => {
     return
   }
 
-  fetchTasks(selectedList.id, false)
+  fetchTasks(selectedList.id, false, true)
 }, [selectedList?.id, session?.user?.id])
 
   useEffect(() => {
@@ -1237,12 +1237,27 @@ useEffect(() => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null)
-      setAuthError('')
-      setAuthMessage('')
-      setAuthLoading(false)
-    })
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+  const nextUserId = nextSession?.user?.id ?? null
+
+  setSession((prevSession) => {
+    const prevUserId = prevSession?.user?.id ?? null
+
+    if (event === 'TOKEN_REFRESHED' && prevUserId === nextUserId) {
+      return prevSession
+    }
+
+    if (prevUserId && prevUserId === nextUserId) {
+      return prevSession
+    }
+
+    return nextSession ?? null
+  })
+
+  setAuthError('')
+  setAuthMessage('')
+  setAuthLoading(false)
+})
 
     return () => {
       mounted = false
@@ -1296,7 +1311,7 @@ useEffect(() => {
         const currentActiveTask = activeTaskRef.current
 
         if (currentSelectedList?.id) {
-          fetchTasks(currentSelectedList.id, false)
+          fetchTasks(currentSelectedList.id, false, false)
         }
 
         if (currentActiveTask?.id && editingNoteIdRef.current === null) {
@@ -1351,7 +1366,7 @@ useEffect(() => {
     fetchAllTasks()
     fetchTaskNoteCounts()
     fetchPendingInvites()
-  }, [session])
+ }, [session?.user?.id])
 
   useEffect(() => {
   setTasks((prev) => sortTasks(prev, currentSortMode, currentSortDirection))
@@ -1397,7 +1412,7 @@ useEffect(() => {
       await fetchAllTasks(false)
 
       if (currentSelectedList?.id) {
-        await fetchTasks(currentSelectedList.id, false)
+        await fetchTasks(currentSelectedList.id, false, false)
       }
 
       if (
@@ -1519,8 +1534,8 @@ useEffect(() => {
   setTimeout(resize, 50)
 }, [editingTaskTitle])
 
-  useEffect(() => {
-    function handleVisibilityChange() {
+useEffect(() => {
+function handleVisibilityChange() {
       if (document.visibilityState === 'visible' && session?.user?.id) {
         setSyncStatus('syncing')
 
@@ -1533,7 +1548,7 @@ useEffect(() => {
         fetchTaskNoteCounts(false)
 
         if (currentSelectedList?.id) {
-          fetchTasks(currentSelectedList.id, false)
+          fetchTasks(currentSelectedList.id, false, false)
         }
 
         if (currentActiveTask?.id && !isEditingNote) {
@@ -2173,11 +2188,14 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
     : null
 
   if (stillExists) {
-    setCurrentListRole(
-      stillExists.owner_user_id === session?.user?.id ? 'owner' : 'editor'
-    )
+  setCurrentListRole(
+    stillExists.owner_user_id === session?.user?.id ? 'owner' : 'editor'
+  )
+
+  if (updateStatus) {
     setSelectedList(stillExists)
-  } else {
+  }
+} else {
     const savedList = savedListId
       ? loadedLists.find((l) => String(l.id) === String(savedListId))
       : null
@@ -2247,13 +2265,13 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
   if (updateStatus) markSynced()
 }
 
-  async function fetchTasks(listId, updateStatus = true) {
+  async function fetchTasks(listId, updateStatus = true, showLoading = updateStatus) {
   if (!session?.user?.id) return
   if (!listId) return
 
   const fetchId = ++latestTasksFetchIdRef.current
 
-  if (updateStatus) setLoadingTasks(true)
+  if (showLoading) setLoadingTasks(true)
 
   const { data, error } = await supabase
     .from('tasks')
@@ -2268,7 +2286,7 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
     console.error('Σφάλμα φόρτωσης εργασιών:', error)
     setTasks([])
     setSyncStatus('error')
-    if (updateStatus) setLoadingTasks(false)
+    setLoadingTasks(false)
     return
   }
 
@@ -2300,12 +2318,12 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
     }
   }
 
-  if (updateStatus) {
-    setLoadingTasks(false)
-    markSynced()
-  } else {
-    setLoadingTasks(false)
-  }
+setLoadingTasks(false)
+
+if (updateStatus) {
+  markSynced()
+}
+
 }
 
 async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
@@ -5654,13 +5672,12 @@ style={
     <div className="main-scroll-area">
       {loadingTasks ? (
   <div className="task-container">
-    {[1, 2, 3, 4, 5].map((item) => (
+    {[1, 2].map((item) => (
       <div className="skeleton-card" key={item}>
         <div className="skeleton-circle"></div>
         <div className="skeleton-text-group">
-          <div className="skeleton-line title"></div>
-          <div className="skeleton-line medium"></div>
-        </div>
+        <div className="skeleton-line full"></div>
+</div>
       </div>
     ))}
   </div>
@@ -5956,7 +5973,7 @@ style={
         disabled={isOffline}
       />
 
-      <div className="notes-list">
+<div className="notes-list">
   {notesLoading ? (
   <div className="skeleton-block">
     <div className="skeleton-note">
