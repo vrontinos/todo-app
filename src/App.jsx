@@ -719,6 +719,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [editingTaskValue, setEditingTaskValue] = useState('')
 
   const [taskNotes, setTaskNotes] = useState([])
+  const [notesLoading, setNotesLoading] = useState(false)
   const [newNoteText, setNewNoteText] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
@@ -2314,6 +2315,7 @@ async function fetchNotes(taskId, updateStatus = true) {
   const taskKey = String(taskId)
   activeNotesTaskIdRef.current = taskKey
   setTaskNotes([])
+  setNotesLoading(true)
 
   const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
   latestNotesFetchTokenRef.current.set(taskId, token)
@@ -2332,11 +2334,12 @@ async function fetchNotes(taskId, updateStatus = true) {
   }
 
   if (error) {
-    console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
-    setTaskNotes([])
-    setSyncStatus('error')
-    return
-  }
+  console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
+  setTaskNotes([])
+  setNotesLoading(false)
+  setSyncStatus('error')
+  return
+}
 
   const sorted = sortNotes(data || [])
 
@@ -2355,7 +2358,7 @@ async function fetchNotes(taskId, updateStatus = true) {
       })
     })
   }
-
+  setNotesLoading(false)
   if (updateStatus) markSynced()
 }
   
@@ -5938,7 +5941,19 @@ style={
       />
 
       <div className="notes-list">
-  {taskNotes.length === 0 ? (
+  {notesLoading ? (
+  <div className="skeleton-block">
+    <div className="skeleton-note">
+      <div className="skeleton-line full"></div>
+    </div>
+    <div className="skeleton-note">
+      <div className="skeleton-line medium"></div>
+    </div>
+    <div className="skeleton-note">
+      <div className="skeleton-line short"></div>
+    </div>
+  </div>
+) : taskNotes.length === 0 ? (
     <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
   ) : (
     taskNotes.map((note) => (
