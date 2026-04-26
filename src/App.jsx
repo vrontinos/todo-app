@@ -719,7 +719,6 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [editingTaskValue, setEditingTaskValue] = useState('')
 
   const [taskNotes, setTaskNotes] = useState([])
-  const [taskNotesTaskId, setTaskNotesTaskId] = useState(null)
   const [newNoteText, setNewNoteText] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
@@ -844,6 +843,7 @@ function restoreTaskScrollSnapshot(snapshot) {
   const latestAllTasksFetchIdRef = useRef(0)
   const latestTaskNoteCountsFetchIdRef = useRef(0)
   const latestNotesFetchTokenRef = useRef(new Map())
+  const activeNotesTaskIdRef = useRef(null)
   const pendingTaskMutationsRef = useRef(new Map())
   const pendingNoteMutationsRef = useRef(new Map())
   const suppressOwnTaskRealtimeUntilRef = useRef(0)
@@ -2310,7 +2310,9 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
 async function fetchNotes(taskId, updateStatus = true) {
   if (!session?.user?.id) return
   if (!taskId) return
-  setTaskNotesTaskId(null)
+
+  const taskKey = String(taskId)
+  activeNotesTaskIdRef.current = taskKey
   setTaskNotes([])
 
   const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
@@ -2320,6 +2322,10 @@ async function fetchNotes(taskId, updateStatus = true) {
     .from('task_notes')
     .select('*')
     .eq('task_id', taskId)
+
+  if (activeNotesTaskIdRef.current !== taskKey) {
+    return
+  }
 
   if (latestNotesFetchTokenRef.current.get(taskId) !== token) {
     return
@@ -2334,10 +2340,8 @@ async function fetchNotes(taskId, updateStatus = true) {
 
   const sorted = sortNotes(data || [])
 
-setTaskNotesTaskId(taskId)
-
-if (editingNoteIdRef.current === null) {
-  setTaskNotes(sorted)
+  if (editingNoteIdRef.current === null) {
+    setTaskNotes(sorted)
   } else {
     setTaskNotes((prev) => {
       const editingId = editingNoteIdRef.current
@@ -5934,9 +5938,7 @@ style={
       />
 
       <div className="notes-list">
-  {String(taskNotesTaskId) !== String(activeTask?.id) ? (
-  <p className="notes-empty">Φόρτωση σημειώσεων...</p>
-) : taskNotes.length === 0 ? (
+  {taskNotes.length === 0 ? (
     <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
   ) : (
     taskNotes.map((note) => (
