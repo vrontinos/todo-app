@@ -2524,3 +2524,18 @@ textarea {
     overflow: visible;
   }
 }
+
+@media (min-width: 1025px) {
+  .task-drop-wrapper,
+  .task-swipe-shell,
+  .task-swipe-content,
+  .task-item,
+  .task-text-block {
+    overflow: visible !important;
+  }
+
+  .task-flag-row {
+    top: 3px;
+    right: 8px;
+  }
+}
