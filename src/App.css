@@ -2578,3 +2578,9 @@ textarea {
     grid-column: 1 / -1;
   }
 }
+
+@media (min-width: 1025px) {
+  .list-name-text {
+    font-size: 12px;
+  }
+}
