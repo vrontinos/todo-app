@@ -2490,11 +2490,10 @@ textarea {
 
   .task-flag-row {
     width: 100%;
+    display: flex;
     justify-content: flex-end;
     gap: 6px;
-    padding-right: 2px;
+
+    margin-left: auto;   /* 👉 ΑΥΤΟ ΤΟ ΛΥΝΕΙ */
   }
-.task-flag-row {
-  display: flex;
-}
 }
