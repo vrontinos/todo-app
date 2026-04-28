@@ -2485,13 +2485,14 @@ textarea {
   }
 
   .task-text-block {
-    flex-basis: calc(100% - 35px);
+    display: flex;
+    flex-direction: column;
   }
 
   .task-flag-row {
-  display: flex !important;
-  justify-content: flex-end !important;
-  margin-left: auto !important;
-  width: 100% !important;
-}
+    align-self: flex-end;   /* 👉 ΤΟ ΚΛΕΙΔΙ */
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
 }
