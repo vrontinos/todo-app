@@ -1392,12 +1392,12 @@ useEffect(() => {
       }
     }
 
-    function handleOffline() {
-      setIsOffline(true)
-      if (session?.user?.id) {
-        setSyncStatus('error')
-      }
-    }
+function handleOffline() {
+  setIsOffline(true)
+  if (session?.user?.id) {
+    setSyncStatus('offline')
+  }
+}
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -1940,14 +1940,14 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
     return d.toLocaleString('el-GR')
   }
 
-  const syncText = useMemo(() => {
-    if (isOffline) return 'Χωρίς σύνδεση στο internet'
-    if (syncStatus === 'saving') return 'Συγχρονίζεται...'
-    if (syncStatus === 'syncing') return 'Ενημέρωση...'
-    if (syncStatus === 'error') return 'Πρόβλημα συγχρονισμού'
-    if (lastSyncAt) return `Συγχρονισμένο ${formatDateTime(lastSyncAt)}`
-    return 'Σύνδεση...'
-  }, [syncStatus, lastSyncAt, isOffline])
+const syncText = useMemo(() => {
+  if (isOffline || syncStatus === 'offline') return 'Δεν υπάρχει σύνδεση στο internet'
+  if (syncStatus === 'saving') return 'Συγχρονίζεται...'
+  if (syncStatus === 'syncing') return 'Ενημέρωση...'
+  if (syncStatus === 'error') return 'Πρόβλημα συγχρονισμού'
+  if (lastSyncAt) return `Συγχρονισμένο ${formatDateTime(lastSyncAt)}`
+  return 'Σύνδεση...'
+}, [syncStatus, lastSyncAt, isOffline])
 
   const incompleteCountByList = useMemo(() => {
     const counts = {}
