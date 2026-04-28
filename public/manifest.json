@@ -3,12 +3,12 @@
   "short_name": "To Do Vrontinos",
   "icons": [
     {
-      "src": "/icon-192v1.png",
+      "src": "/icon-192v2.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512v1.png",
+      "src": "/icon-512v2.png",
       "sizes": "512x512",
       "type": "image/png"
     }
