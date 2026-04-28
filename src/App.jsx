@@ -436,10 +436,6 @@ const showMobileSelectionDot = isTouchInput && isSelected
   <span className="task-timer">
     Χρόνος: {formatTaskTimer(getTaskTimerSeconds(task))}
   </span>
-
-  <div className="task-flag-row">
-    {/* εδώ μέσα μένουν τα 3 κουμπιά Κατάστημα / Skroutz / Ογκομέτρηση */}
-  </div>
 </div>
           {task.notes_count > 0 && (
             <span
@@ -454,8 +450,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
           {isSearchMode && (
             <span className="task-list-label">Λίστα: {task.list_name || '—'}</span>
           )}
-        </div>
-        <div className="task-flag-row">
+                  <div className="task-flag-row">
                 <button
           type="button"
           className={`weight-toggle ${task.is_store ? 'on' : ''}`}
@@ -509,6 +504,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
         </div>
       </div>
     </div>
+</div>
   )
 }
 
