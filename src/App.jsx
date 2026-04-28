@@ -4522,6 +4522,235 @@ setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
     markSynced()
   }
 
+const selectedTasksData = allTasks.filter((t) =>
+  selectedTasks.includes(t.id)
+)
+
+const hasIncompleteSelected = selectedTasksData.some((t) => !t.completed)
+const hasCompletedSelected = selectedTasksData.some((t) => t.completed)
+
+const canBulkComplete =
+  selectedTasks.length > 1 &&
+  hasIncompleteSelected &&
+  !hasCompletedSelected
+const canBulkUncomplete =
+  selectedTasks.length > 1 &&
+  hasCompletedSelected &&
+  !hasIncompleteSelected
+
+async function handleCompleteSelectedTasks() {
+  if (isOffline) return
+  if (selectedTasks.length === 0) return
+
+  const idsToComplete = [...selectedTasks]
+
+  const selectedTaskObjects = allTasks.filter((task) =>
+    idsToComplete.includes(task.id)
+  )
+
+  const incompleteSelectedTasks = selectedTaskObjects.filter(
+    (task) => !task.completed
+  )
+
+  if (incompleteSelectedTasks.length === 0) {
+    window.alert('Οι επιλεγμένες εργασίες είναι ήδη ολοκληρωμένες.')
+    return
+  }
+
+  const label =
+    incompleteSelectedTasks.length === 1
+      ? 'Να ολοκληρωθεί η επιλεγμένη εργασία;'
+      : `Να ολοκληρωθούν ${incompleteSelectedTasks.length} επιλεγμένες εργασίες;`
+
+  if (!window.confirm(label)) return
+
+  const now = new Date().toISOString()
+  const oldTasks = [...tasks]
+  const oldAllTasks = [...allTasks]
+
+  const completedMap = new Map(
+    incompleteSelectedTasks.map((task) => [
+      task.id,
+      {
+        completed: true,
+        timer_elapsed_seconds: getTaskTimerSeconds(task),
+        timer_started_at: null,
+        updated_at: now,
+        updated_by: session?.user?.id || null,
+      },
+    ])
+  )
+
+  incompleteSelectedTasks.forEach((task) => {
+    markTaskMutation(task.id)
+  })
+
+  invalidateTaskViews()
+
+  setTasks((prev) =>
+    prev.map((task) => {
+      const patch = completedMap.get(task.id)
+      return patch ? { ...task, ...patch } : task
+    })
+  )
+
+  setAllTasks((prev) =>
+    prev.map((task) => {
+      const patch = completedMap.get(task.id)
+      return patch ? { ...task, ...patch } : task
+    })
+  )
+
+  if (activeTask && completedMap.has(activeTask.id)) {
+    setActiveTask((prev) => {
+      if (!prev) return prev
+      const patch = completedMap.get(prev.id)
+      return patch ? { ...prev, ...patch } : prev
+    })
+  }
+
+  markSaving()
+
+  const updates = await Promise.all(
+    incompleteSelectedTasks.map((task) => {
+      const patch = completedMap.get(task.id)
+
+      return supabase
+        .from('tasks')
+        .update(patch)
+        .eq('id', task.id)
+    })
+  )
+
+  const firstError = updates.find((result) => result.error)?.error
+
+  if (firstError) {
+    console.error('Σφάλμα ολοκλήρωσης επιλεγμένων εργασιών:', firstError)
+
+    incompleteSelectedTasks.forEach((task) => {
+      clearTaskMutation(task.id)
+    })
+
+    setTasks(oldTasks)
+    setAllTasks(oldAllTasks)
+    setSyncStatus('error')
+    return
+  }
+
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
+  closeContextMenu()
+  setIsTaskActionsMenuOpen(false)
+  setIsMobileTaskMoveMenuOpen(false)
+  markSynced()
+}
+
+async function handleUncompleteSelectedTasks() {
+  if (isOffline) return
+  if (selectedTasks.length === 0) return
+
+  const idsToUncomplete = [...selectedTasks]
+
+  const selectedTaskObjects = allTasks.filter((task) =>
+    idsToUncomplete.includes(task.id)
+  )
+
+  const completedSelectedTasks = selectedTaskObjects.filter(
+    (task) => task.completed
+  )
+
+  if (completedSelectedTasks.length === 0) {
+    window.alert('Οι επιλεγμένες εργασίες δεν είναι ολοκληρωμένες.')
+    return
+  }
+
+  const label =
+    completedSelectedTasks.length === 1
+      ? 'Να γίνει άρση ολοκλήρωσης της επιλεγμένης εργασίας;'
+      : `Να γίνει άρση ολοκλήρωσης ${completedSelectedTasks.length} επιλεγμένων εργασιών;`
+
+  if (!window.confirm(label)) return
+
+  const now = new Date().toISOString()
+  const oldTasks = [...tasks]
+  const oldAllTasks = [...allTasks]
+
+  const uncompletedMap = new Map(
+    completedSelectedTasks.map((task) => [
+      task.id,
+      {
+        completed: false,
+        timer_started_at: now,
+        updated_at: now,
+        updated_by: session?.user?.id || null,
+      },
+    ])
+  )
+
+  completedSelectedTasks.forEach((task) => {
+    markTaskMutation(task.id)
+  })
+
+  invalidateTaskViews()
+
+  setTasks((prev) =>
+    prev.map((task) => {
+      const patch = uncompletedMap.get(task.id)
+      return patch ? { ...task, ...patch } : task
+    })
+  )
+
+  setAllTasks((prev) =>
+    prev.map((task) => {
+      const patch = uncompletedMap.get(task.id)
+      return patch ? { ...task, ...patch } : task
+    })
+  )
+
+  if (activeTask && uncompletedMap.has(activeTask.id)) {
+    setActiveTask((prev) => {
+      if (!prev) return prev
+      const patch = uncompletedMap.get(prev.id)
+      return patch ? { ...prev, ...patch } : prev
+    })
+  }
+
+  markSaving()
+
+  const updates = await Promise.all(
+    completedSelectedTasks.map((task) => {
+      const patch = uncompletedMap.get(task.id)
+
+      return supabase
+        .from('tasks')
+        .update(patch)
+        .eq('id', task.id)
+    })
+  )
+
+  const firstError = updates.find((result) => result.error)?.error
+
+  if (firstError) {
+    console.error('Σφάλμα άρσης ολοκλήρωσης επιλεγμένων εργασιών:', firstError)
+
+    completedSelectedTasks.forEach((task) => {
+      clearTaskMutation(task.id)
+    })
+
+    setTasks(oldTasks)
+    setAllTasks(oldAllTasks)
+    setSyncStatus('error')
+    return
+  }
+
+  setSelectedTasks([])
+  setSelectionAnchorId(null)
+  closeContextMenu()
+  setIsTaskActionsMenuOpen(false)
+  setIsMobileTaskMoveMenuOpen(false)
+  markSynced()
+}
+
     async function handleDeleteOneTask(taskId, options = {}) {
   if (isOffline) return
 
@@ -5709,6 +5938,33 @@ style={
           </div>
         )}
 
+{canBulkComplete && (
+  <div className="task-actions-section">
+    <button
+      type="button"
+      className="task-actions-menu-button"
+      onClick={async () => {
+        await handleCompleteSelectedTasks()
+      }}
+    >
+      Ολοκλήρωση {selectedTasks.length} εργασιών
+    </button>
+  </div>
+)}
+
+{canBulkUncomplete && (
+  <div className="task-actions-section">
+    <button
+      type="button"
+      className="task-actions-menu-button"
+      onClick={async () => {
+        await handleUncompleteSelectedTasks()
+      }}
+    >
+      Άρση Ολοκλήρωσης {selectedTasks.length} εργασιών
+    </button>
+  </div>
+)}
         <div className="task-actions-section">
           <button
             type="button"
@@ -6310,7 +6566,22 @@ style={
                 </div>
               )}
             </div>
-
+{canBulkComplete && (
+  <button
+    className="context-menu-item"
+    onClick={handleCompleteSelectedTasks}
+  >
+    Ολοκλήρωση {selectedTasks.length} εργασιών
+  </button>
+)}
+{canBulkUncomplete && (
+  <button
+    className="context-menu-item"
+    onClick={handleUncompleteSelectedTasks}
+  >
+    Άρση Ολοκλήρωσης {selectedTasks.length} εργασιών
+  </button>
+)}
             <button className="context-menu-item danger" onClick={handleDeleteSelected}>
               {selectedTasks.length === 1 ? 'Διαγραφή εργασίας' : 'Διαγραφή εργασιών'}
             </button>
