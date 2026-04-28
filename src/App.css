@@ -2468,37 +2468,37 @@ textarea {
   line-height: 1.2;
 }
 
-@media (max-width: 1024px) {
-  .task-timer {
-    font-size: 12px;
-  }
-.task-flag-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
 .task-timer-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.task-timer {
+  flex-shrink: 0;
 }
 
 .task-flag-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
 @media (max-width: 1024px) {
+  .task-text-block {
+    flex: 1;
+    min-width: 0;
+  }
+
   .task-timer-row {
     width: 100%;
-    justify-content: space-between;
   }
 
   .task-flag-row {
-    margin-left: auto;
+    margin-left: auto !important;
+    justify-content: flex-end;
   }
 }
