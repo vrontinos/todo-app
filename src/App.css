@@ -2494,11 +2494,21 @@ textarea {
   }
 
   .task-timer-row {
-    width: 100%;
-  }
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
 
-  .task-flag-row {
-    margin-left: auto !important;
-    justify-content: flex-end;
-  }
+.task-timer {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-flag-row {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 }
