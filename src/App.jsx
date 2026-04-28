@@ -4131,29 +4131,46 @@ await saveTaskPositions(reorderedTasks)
       updated_by: session?.user?.id || null,
     }))
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert(insertTasks)
-      .select()
+    const insertedTasks = []
+const BATCH_SIZE = 50
 
-    if (error) {
-      console.error('Σφάλμα μαζικής επικόλλησης εργασιών:', error)
-      setTasks((prev) =>
-        prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
-      )
-      setSyncStatus('error')
-      return
-    }
+for (let i = 0; i < insertTasks.length; i += BATCH_SIZE) {
+  const batch = insertTasks.slice(i, i + BATCH_SIZE)
 
-    setTasks((prev) => {
-      const withoutTemps = prev.filter(
-        (task) => !tempTasks.some((temp) => temp.id === task.id)
-      )
-      return sortTasks([...withoutTemps, ...(data || [])], currentSortMode, currentSortDirection)
-    })
-    setAllTasks((prev) => [...prev, ...(data || [])])
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert(batch)
+    .select()
 
-    markSynced()
+  if (error) {
+    console.error('Σφάλμα μαζικής επικόλλησης εργασιών:', error)
+
+    setTasks((prev) =>
+      prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
+    )
+
+    setSyncStatus('error')
+    return
+  }
+
+  insertedTasks.push(...(data || []))
+}
+
+setTasks((prev) => {
+  const withoutTemps = prev.filter(
+    (task) => !tempTasks.some((temp) => temp.id === task.id)
+  )
+
+  return sortTasks(
+    [...withoutTemps, ...insertedTasks],
+    currentSortMode,
+    currentSortDirection
+  )
+})
+
+setAllTasks((prev) => [...prev, ...insertedTasks])
+
+markSynced()
   }
 
   function handleTaskLongPress(task) {
@@ -4611,8 +4628,13 @@ async function handleCompleteSelectedTasks() {
 
   markSaving()
 
-  const updates = await Promise.all(
-    incompleteSelectedTasks.map((task) => {
+  const updates = []
+
+for (let i = 0; i < incompleteSelectedTasks.length; i += 50) {
+  const batch = incompleteSelectedTasks.slice(i, i + 50)
+
+  const batchResults = await Promise.all(
+    batch.map((task) => {
       const patch = completedMap.get(task.id)
 
       return supabase
@@ -4622,7 +4644,10 @@ async function handleCompleteSelectedTasks() {
     })
   )
 
-  const firstError = updates.find((result) => result.error)?.error
+  updates.push(...batchResults)
+}
+
+const firstError = updates.find((result) => result.error)?.error
 
   if (firstError) {
     console.error('Σφάλμα ολοκλήρωσης επιλεγμένων εργασιών:', firstError)
