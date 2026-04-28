@@ -2540,3 +2540,41 @@ textarea {
   }
 }
 
+@media (max-width: 1024px) {
+  .task-text-block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+
+  .task-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .task-timer-row {
+    display: contents;
+  }
+
+  .task-timer {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  .task-flag-row {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .task-notes-count,
+  .task-list-label {
+    grid-column: 1 / -1;
+  }
+}
