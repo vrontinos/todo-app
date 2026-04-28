@@ -850,8 +850,8 @@ input.round-checkbox:checked::after {
 }
 
 .weight-toggle img {
-  width: 20px !important;
-  height: 20px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 
 .flag-icon {
