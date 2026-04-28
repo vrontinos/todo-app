@@ -434,7 +434,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
           </span>
 <div className="task-timer-row">
   <span className="task-timer">
-    Χρόνος: {formatTaskTimer(getTaskTimerSeconds(task))}
+    Χρόνος Ολοκλήρωσης: {formatTaskTimer(getTaskTimerSeconds(task))}
   </span>
 </div>
           {task.notes_count > 0 && (
