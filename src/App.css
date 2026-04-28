@@ -713,7 +713,7 @@ html, body {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.35;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .task-title.completed {
@@ -819,7 +819,7 @@ input.round-checkbox:checked::after {
   transform: translate(-50%, -50%);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .task-select-indicator.is-selected:not(.is-completed) {
     border-color: var(--blue);
   }
@@ -2472,4 +2472,16 @@ textarea {
   .task-timer {
     font-size: 12px;
   }
+
+@media (max-width: 1024px) {
+  .task-item {
+    align-items: flex-start;
+  }
+
+  .task-item > div:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
 }
