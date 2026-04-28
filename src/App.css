@@ -713,7 +713,7 @@ html, body {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.35;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .task-title.completed {
