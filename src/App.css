@@ -60,6 +60,10 @@
   --skeleton-highlight: rgba(255, 255, 255, 0.12);
 }
 
+:root[data-theme='dark'] .weight-toggle img {
+  filter: brightness(0) invert(1);
+}
+
 html,
 body,
 #root {
@@ -838,6 +842,19 @@ input.round-checkbox:checked::after {
   font-size: 14px;
   line-height: 1;
   pointer-events: auto;
+}
+
+.weight-toggle img {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.flag-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  pointer-events: none;
+  display: block;
 }
 
 .weight-toggle:hover {
@@ -2436,5 +2453,18 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-line {
     animation: none !important;
+  }
+}
+.task-timer {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--text-soft);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+@media (max-width: 1024px) {
+  .task-timer {
+    font-size: 12px;
   }
 }

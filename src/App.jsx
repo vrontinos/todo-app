@@ -75,6 +75,28 @@ function autoResizeTextarea(element) {
   element.style.height = `${element.scrollHeight}px`
 }
 
+function getTaskTimerSeconds(task) {
+  const savedSeconds = Number(task?.timer_elapsed_seconds) || 0
+
+  if (!task?.timer_started_at || task?.completed) {
+    return savedSeconds
+  }
+
+  const startedAt = new Date(task.timer_started_at).getTime()
+  if (!Number.isFinite(startedAt)) return savedSeconds
+
+  return savedSeconds + Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+}
+
+function formatTaskTimer(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0)
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+
+  if (hours > 0) return `${hours}ω ${String(minutes).padStart(2, '0')}λ`
+  return `${minutes}λ`
+}
+
 function TaskListDropZone({ listId, disabled, className = '', children, forceActive = false }) {
   const { isOver, setNodeRef, active } = useDroppable({
     id: getTaskListDropId(listId),
@@ -146,6 +168,8 @@ function SortableListItem({
   )
 }
 
+
+
 function SortableTaskItem({
   task,
   isActive,
@@ -156,6 +180,8 @@ function SortableTaskItem({
   onClick,
   onContextMenu,
   onToggleCompleted,
+  onToggleStore,
+  onToggleSkroutz,
   onToggleWeighing,
   onDeleteSwipe,
   onMobileLongPress,
@@ -406,7 +432,9 @@ const showMobileSelectionDot = isTouchInput && isSelected
           <span className={`task-title ${task.completed ? 'completed' : ''}`}>
             {task.title}
           </span>
-
+<span className="task-timer">
+  Χρόνος: {formatTaskTimer(getTaskTimerSeconds(task))}
+</span>
           {task.notes_count > 0 && (
             <span
               className="task-notes-count"
@@ -422,6 +450,40 @@ const showMobileSelectionDot = isTouchInput && isSelected
           )}
         </div>
 
+                <button
+          type="button"
+          className={`weight-toggle ${task.is_store ? 'on' : ''}`}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onClick={(e) => onToggleStore(task, e)}
+          title="Κατάστημα"
+          disabled={isOffline}
+        >
+          <img src="/store.png" alt="Κατάστημα" className="flag-icon" />
+        </button>
+
+        <button
+          type="button"
+          className={`weight-toggle ${task.is_skroutz ? 'on' : ''}`}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onClick={(e) => onToggleSkroutz(task, e)}
+          title="Skroutz"
+          disabled={isOffline}
+        >
+          <img src="/skroutz.png" alt="Skroutz" className="flag-icon" />
+        </button>
+
         <button
           type="button"
           className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
@@ -436,7 +498,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
           title="Ογκομέτρηση"
           disabled={isOffline}
         >
-          ⚖
+          <img src="/scale.png" alt="Ογκομέτρηση" className="flag-icon" />
         </button>
       </div>
     </div>
@@ -1817,28 +1879,26 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
     top: `${padding}px`,
   }
 }
-  function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
+ function sortTasks(taskArray, mode = currentSortMode, direction = currentSortDirection) {
   const factor = direction === 'desc' ? -1 : 1
 
   return [...taskArray].sort((a, b) => {
-    if (mode === 'manual') {
-  if (a.completed !== b.completed) {
-    return a.completed ? 1 : -1
-  }
-
-  if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
-    return a.needs_weighing ? 1 : -1
-  }
-
-  return (Number(a.position) || 0) - (Number(b.position) || 0)
-}
-
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1
     }
 
-    if (!a.completed && !b.completed && a.needs_weighing !== b.needs_weighing) {
-      return a.needs_weighing ? 1 : -1
+    if (!a.completed && !b.completed) {
+      if (a.is_store !== b.is_store) {
+        return a.is_store ? -1 : 1
+      }
+
+      if (a.is_skroutz !== b.is_skroutz) {
+        return a.is_skroutz ? -1 : 1
+      }
+
+      if (a.needs_weighing !== b.needs_weighing) {
+        return a.needs_weighing ? 1 : -1
+      }
     }
 
     if (mode === 'alpha') {
@@ -1855,7 +1915,7 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
       return (aTime - bTime) * factor
     }
 
-    return ((Number(a.position) || 0) - (Number(b.position) || 0)) * factor
+    return (Number(a.position) || 0) - (Number(b.position) || 0)
   })
 }
 
@@ -3961,11 +4021,15 @@ await saveTaskPositions(reorderedTasks)
       title,
       completed: false,
       needs_weighing: false,
+      is_store: false,
+      is_skroutz: false,
       position: nextPosition,
       updated_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       created_by: session?.user?.id || null,
       updated_by: session?.user?.id || null,
+      timer_started_at: new Date().toISOString(),
+      timer_elapsed_seconds: 0,
     }
 
     setTasks((prev) => sortTasks([...prev, tempTask], currentSortMode, currentSortDirection))
@@ -3974,17 +4038,22 @@ await saveTaskPositions(reorderedTasks)
     const { data, error } = await supabase
       .from('tasks')
       .insert([
-        {
-          list_id: selectedList.id,
-          title,
-          completed: false,
-          needs_weighing: false,
-          position: nextPosition,
-          updated_at: new Date().toISOString(),
-          created_by: session?.user?.id || null,
-          updated_by: session?.user?.id || null,
-        },
-      ])
+  {
+    list_id: selectedList.id,
+    title,
+    completed: false,
+    needs_weighing: false,
+    is_store: false,
+    is_skroutz: false,
+    position: nextPosition,
+    updated_at: new Date().toISOString(),
+    created_by: session?.user?.id || null,
+    updated_by: session?.user?.id || null,
+
+    timer_started_at: new Date().toISOString(),
+    timer_elapsed_seconds: 0,
+  },
+])
       .select()
       .single()
 
@@ -4032,6 +4101,8 @@ await saveTaskPositions(reorderedTasks)
       title,
       completed: false,
       needs_weighing: false,
+      is_store: false,
+      is_skroutz: false,
       position: maxPosition + index + 1,
       updated_at: now,
       created_at: now,
@@ -4049,6 +4120,8 @@ await saveTaskPositions(reorderedTasks)
       title,
       completed: false,
       needs_weighing: false,
+      is_store: false,
+      is_skroutz: false,
       position: maxPosition + index + 1,
       updated_at: now,
       created_by: session?.user?.id || null,
@@ -4210,12 +4283,14 @@ async function handleToggleCompleted(task) {
   const scrollSnapshot = getTaskScrollSnapshot(task.id)
   const newCompleted = !oldTaskSnapshot.completed
 
-if (newCompleted) {
-  playTaskCompleteSound?.()
-  if (navigator.vibrate) navigator.vibrate(10)
-}
+  if (newCompleted) {
+    playTaskCompleteSound?.()
+    if (navigator.vibrate) navigator.vibrate(10)
+  }
 
   const now = new Date().toISOString()
+  const currentElapsedSeconds = getTaskTimerSeconds(oldTaskSnapshot)
+  const nextTimerStartedAt = newCompleted ? null : now
 
   invalidateTaskViews()
   markTaskMutation(task.id)
@@ -4223,6 +4298,8 @@ if (newCompleted) {
   const optimisticTask = {
     ...oldTaskSnapshot,
     completed: newCompleted,
+    timer_elapsed_seconds: currentElapsedSeconds,
+    timer_started_at: nextTimerStartedAt,
     updated_at: now,
     updated_by: session?.user?.id || null,
   }
@@ -4235,19 +4312,109 @@ if (newCompleted) {
     .from('tasks')
     .update({
       completed: newCompleted,
+      timer_elapsed_seconds: currentElapsedSeconds,
+      timer_started_at: nextTimerStartedAt,
       updated_at: now,
       updated_by: session?.user?.id || null,
     })
     .eq('id', task.id)
 
   if (error) {
-  console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
-  clearTaskMutation(task.id)
-  replaceTaskEverywhere(task.id, oldTaskSnapshot)
-  restoreTaskScrollSnapshot(scrollSnapshot)
-  setSyncStatus('error')
-  return
+    console.error('Σφάλμα αλλαγής ολοκλήρωσης:', error)
+    clearTaskMutation(task.id)
+    replaceTaskEverywhere(task.id, oldTaskSnapshot)
+    restoreTaskScrollSnapshot(scrollSnapshot)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
 }
+
+async function handleToggleStore(task, event) {
+  event.preventDefault()
+  event.stopPropagation()
+  if (isOffline || !task) return
+
+  const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
+  if (!oldTaskSnapshot) return
+
+  const now = new Date().toISOString()
+  const newValue = !oldTaskSnapshot.is_store
+
+  invalidateTaskViews()
+  markTaskMutation(task.id)
+
+  const optimisticTask = {
+    ...oldTaskSnapshot,
+    is_store: newValue,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  }
+
+  replaceTaskEverywhere(task.id, optimisticTask)
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_store: newValue,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', task.id)
+
+  if (error) {
+    console.error('Σφάλμα αλλαγής καταστήματος:', error)
+    clearTaskMutation(task.id)
+    replaceTaskEverywhere(task.id, oldTaskSnapshot)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+}
+
+async function handleToggleSkroutz(task, event) {
+  event.preventDefault()
+  event.stopPropagation()
+  if (isOffline || !task) return
+
+  const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
+  if (!oldTaskSnapshot) return
+
+  const now = new Date().toISOString()
+  const newValue = !oldTaskSnapshot.is_skroutz
+
+  invalidateTaskViews()
+  markTaskMutation(task.id)
+
+  const optimisticTask = {
+    ...oldTaskSnapshot,
+    is_skroutz: newValue,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  }
+
+  replaceTaskEverywhere(task.id, optimisticTask)
+  markSaving()
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_skroutz: newValue,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .eq('id', task.id)
+
+  if (error) {
+    console.error('Σφάλμα αλλαγής Skroutz:', error)
+    clearTaskMutation(task.id)
+    replaceTaskEverywhere(task.id, oldTaskSnapshot)
+    setSyncStatus('error')
+    return
+  }
 
   markSynced()
 }
@@ -5382,6 +5549,8 @@ style={
   onClick={(event) => handleTaskClick(task, event)}
   onContextMenu={(event) => handleTaskRightClick(event, task)}
   onToggleCompleted={handleToggleCompleted}
+  onToggleStore={handleToggleStore}
+  onToggleSkroutz={handleToggleSkroutz}
   onToggleWeighing={handleToggleWeighing}
   onDeleteSwipe={handleDeleteOneTask}
   onMobileLongPress={handleTaskLongPress}
@@ -5738,6 +5907,8 @@ style={
   onClick={(event) => handleTaskClick(task, event)}
   onContextMenu={(event) => handleTaskRightClick(event, task)}
   onToggleCompleted={handleToggleCompleted}
+  onToggleStore={handleToggleStore}
+  onToggleSkroutz={handleToggleSkroutz}
   onToggleWeighing={handleToggleWeighing}
   onDeleteSwipe={(taskId) =>
     handleDeleteOneTask(taskId, { skipConfirm: true })
