@@ -461,7 +461,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
             e.stopPropagation()
           }}
           onClick={(e) => onToggleStore(task, e)}
-          title="Κατάστημα"
+          title="Παραλαβή από Κατάστημα"
           disabled={isOffline}
         >
           <img src="/store.png" alt="Κατάστημα" className="flag-icon" />
@@ -478,7 +478,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
             e.stopPropagation()
           }}
           onClick={(e) => onToggleSkroutz(task, e)}
-          title="Skroutz"
+          title="Παραγγελία Skroutz"
           disabled={isOffline}
         >
           <img src="/skroutz.png" alt="Skroutz" className="flag-icon" />
@@ -495,7 +495,7 @@ const showMobileSelectionDot = isTouchInput && isSelected
             e.stopPropagation()
           }}
           onClick={(e) => onToggleWeighing(task, e)}
-          title="Ογκομέτρηση"
+          title="Για Ογκομέτρηση"
           disabled={isOffline}
         >
           <img src="/scale.png" alt="Ογκομέτρηση" className="flag-icon" />

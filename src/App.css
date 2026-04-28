@@ -22,7 +22,7 @@
   --muted-bg: #f9fafb;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   --font-main: 11.2px;
-  --font-family-main: 'Roboto', Arial, sans-serif;
+  --font-family-main: 'Inter', 'Roboto', Arial, sans-serif;
   --font-small: 9.8px;
   --font-title: 19px;
   --radius-sm: 6px;
@@ -76,6 +76,10 @@ body {
   font-size: var(--font-main);
   background: var(--bg);
   color: var(--text);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -709,6 +713,7 @@ html, body {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.35;
+  font-size: 14px;
 }
 
 .task-title.completed {
@@ -845,8 +850,8 @@ input.round-checkbox:checked::after {
 }
 
 .weight-toggle img {
-  width: 28px !important;
-  height: 28px !important;
+  width: 24px !important;
+  height: 24px !important;
 }
 
 .flag-icon {
@@ -2459,7 +2464,7 @@ textarea {
   display: inline-flex;
   width: fit-content;
   color: var(--text-soft);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.2;
 }
 
