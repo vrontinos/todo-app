@@ -2468,47 +2468,53 @@ textarea {
   line-height: 1.2;
 }
 
-.task-timer-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-.task-timer {
-  flex-shrink: 0;
-}
-
-.task-flag-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-@media (max-width: 1024px) {
+/* WEB ONLY: icons δίπλα στο όνομα εργασίας */
+@media (min-width: 1025px) {
   .task-text-block {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 150px;
+  }
+
+  .task-title {
+    display: block;
+  }
+
+  .task-timer-row {
+    display: contents;
+  }
+
+  .task-flag-row {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 0;
+  }
+}
+
+/* MOBILE: μην το πειράζουμε */
+@media (max-width: 1024px) {
+  .task-timer-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-timer {
     flex: 1;
     min-width: 0;
   }
 
-  .task-timer-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-.task-timer {
-  flex: 1;
-  min-width: 0;
-}
-
-.task-flag-row {
-  display: flex;
-  gap: 6px;
-  margin-left: auto !important;
-  flex-shrink: 0;
-}
+  .task-flag-row {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
 }
