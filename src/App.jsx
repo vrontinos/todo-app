@@ -90,11 +90,18 @@ function getTaskTimerSeconds(task) {
 
 function formatTaskTimer(seconds) {
   const safeSeconds = Math.max(0, Number(seconds) || 0)
-  const hours = Math.floor(safeSeconds / 3600)
+
+  const days = Math.floor(safeSeconds / 86400)
+  const hours = Math.floor((safeSeconds % 86400) / 3600)
   const minutes = Math.floor((safeSeconds % 3600) / 60)
 
-  if (hours > 0) return `${hours}ω ${String(minutes).padStart(2, '0')}λ`
-  return `${minutes}λ`
+  const parts = []
+
+  if (days > 0) parts.push(`${days}μ`)
+  if (hours > 0 || days > 0) parts.push(`${hours}ω`)
+  parts.push(`${minutes}λ`)
+
+  return parts.join(' ')
 }
 
 function TaskListDropZone({ listId, disabled, className = '', children, forceActive = false }) {
@@ -1890,27 +1897,26 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
       return a.completed ? 1 : -1
     }
 
-    if (!a.completed && !b.completed) {
-      if (a.is_store !== b.is_store) {
-        return a.is_store ? -1 : 1
-      }
+   if (!a.completed && !b.completed) {
+  const aStore = Boolean(a.is_store)
+  const bStore = Boolean(b.is_store)
+  const aSkroutz = Boolean(a.is_skroutz)
+  const bSkroutz = Boolean(b.is_skroutz)
+  const aWeighing = Boolean(a.needs_weighing)
+  const bWeighing = Boolean(b.needs_weighing)
 
-      if (a.is_skroutz !== b.is_skroutz) {
-        return a.is_skroutz ? -1 : 1
-      }
+  if (aStore !== bStore) {
+    return aStore ? -1 : 1
+  }
 
-      if (a.needs_weighing !== b.needs_weighing) {
-        return a.needs_weighing ? 1 : -1
-      }
-    }
+  if (aSkroutz !== bSkroutz) {
+    return aSkroutz ? -1 : 1
+  }
 
-    if (mode === 'alpha') {
-      return (
-        (a.title || '').localeCompare(b.title || '', 'el', {
-          sensitivity: 'base',
-        }) * factor
-      )
-    }
+  if (aWeighing !== bWeighing) {
+    return aWeighing ? 1 : -1
+  }
+}
 
     if (mode === 'created') {
       const aTime = new Date(a.created_at || 0).getTime()
