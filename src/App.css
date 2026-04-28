@@ -2494,4 +2494,7 @@ textarea {
     gap: 6px;
     padding-right: 2px;
   }
+.task-flag-row {
+  display: flex;
+}
 }
