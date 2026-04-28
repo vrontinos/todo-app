@@ -2472,13 +2472,12 @@ textarea {
   .task-timer {
     font-size: 12px;
   }
-
 @media (max-width: 1024px) {
   .task-item {
     align-items: flex-start;
   }
 
-  .task-item > div:last-child {
+  .task-item .weight-toggle {
     display: flex;
     flex-direction: column;
     gap: 4px;
