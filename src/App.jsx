@@ -2283,12 +2283,53 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
   }
 }
 
+async function fetchTasksPage(buildQuery) {
+  const PAGE_SIZE = 500
+  let from = 0
+  const rows = []
+  const seenIds = new Set()
+
+  while (true) {
+    const { data, error } = await buildQuery()
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) {
+      return { data: rows, error }
+    }
+
+    const page = data || []
+
+    for (const row of page) {
+      const key = String(row.id)
+      if (!seenIds.has(key)) {
+        seenIds.add(key)
+        rows.push(row)
+      }
+    }
+
+    if (page.length < PAGE_SIZE) {
+      break
+    }
+
+    from += PAGE_SIZE
+  }
+
+  return { data: rows, error: null }
+}
+
   async function fetchAllTasks(updateStatus = true) {
   if (!session?.user?.id) return
 
   const fetchId = ++latestAllTasksFetchIdRef.current
 
-  const { data, error } = await supabase.from('tasks').select('*')
+  const { data, error } = await fetchTasksPage(() =>
+  supabase
+    .from('tasks')
+    .select('*')
+    .order('list_id', { ascending: true })
+    .order('position', { ascending: true })
+    .order('id', { ascending: true })
+)
 
   if (fetchId !== latestAllTasksFetchIdRef.current) {
     return
@@ -2338,10 +2379,14 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
 
   if (showLoading) setLoadingTasks(true)
 
-  const { data, error } = await supabase
+const { data, error } = await fetchTasksPage(() =>
+  supabase
     .from('tasks')
     .select('*')
     .eq('list_id', listId)
+    .order('position', { ascending: true })
+    .order('id', { ascending: true })
+)
 
   if (fetchId !== latestTasksFetchIdRef.current) {
     return
@@ -4131,30 +4176,23 @@ await saveTaskPositions(reorderedTasks)
       updated_by: session?.user?.id || null,
     }))
 
-    const insertedTasks = []
-const BATCH_SIZE = 50
+    const { data, error } = await supabase
+  .from('tasks')
+  .insert(insertTasks)
+  .select()
 
-for (let i = 0; i < insertTasks.length; i += BATCH_SIZE) {
-  const batch = insertTasks.slice(i, i + BATCH_SIZE)
+if (error) {
+  console.error('Σφάλμα μαζικής επικόλλησης εργασιών:', error)
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert(batch)
-    .select()
+  setTasks((prev) =>
+    prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
+  )
 
-  if (error) {
-    console.error('Σφάλμα μαζικής επικόλλησης εργασιών:', error)
-
-    setTasks((prev) =>
-      prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
-    )
-
-    setSyncStatus('error')
-    return
-  }
-
-  insertedTasks.push(...(data || []))
+  setSyncStatus('error')
+  return
 }
+
+const insertedTasks = data || []
 
 setTasks((prev) => {
   const withoutTemps = prev.filter(
@@ -4168,7 +4206,7 @@ setTasks((prev) => {
   )
 })
 
-setAllTasks((prev) => [...prev, ...insertedTasks])
+setAllTasks(insertedTasks)
 
 markSynced()
   }
@@ -4561,7 +4599,7 @@ async function handleCompleteSelectedTasks() {
 
   const idsToComplete = [...selectedTasks]
 
-  const selectedTaskObjects = allTasks.filter((task) =>
+  const selectedTaskObjects = tasks.filter((task) =>
     idsToComplete.includes(task.id)
   )
 
@@ -4628,26 +4666,17 @@ async function handleCompleteSelectedTasks() {
 
   markSaving()
 
-  const updates = []
+const idsToUpdate = incompleteSelectedTasks.map((task) => task.id)
 
-for (let i = 0; i < incompleteSelectedTasks.length; i += 50) {
-  const batch = incompleteSelectedTasks.slice(i, i + 50)
-
-  const batchResults = await Promise.all(
-    batch.map((task) => {
-      const patch = completedMap.get(task.id)
-
-      return supabase
-        .from('tasks')
-        .update(patch)
-        .eq('id', task.id)
-    })
-  )
-
-  updates.push(...batchResults)
-}
-
-const firstError = updates.find((result) => result.error)?.error
+const { error: firstError } = await supabase
+  .from('tasks')
+  .update({
+    completed: true,
+    timer_started_at: null,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  })
+  .in('id', idsToUpdate)
 
   if (firstError) {
     console.error('Σφάλμα ολοκλήρωσης επιλεγμένων εργασιών:', firstError)
@@ -4676,7 +4705,7 @@ async function handleUncompleteSelectedTasks() {
 
   const idsToUncomplete = [...selectedTasks]
 
-  const selectedTaskObjects = allTasks.filter((task) =>
+  const selectedTaskObjects = tasks.filter((task) =>
     idsToUncomplete.includes(task.id)
   )
 
@@ -4742,18 +4771,17 @@ async function handleUncompleteSelectedTasks() {
 
   markSaving()
 
-  const updates = await Promise.all(
-    completedSelectedTasks.map((task) => {
-      const patch = uncompletedMap.get(task.id)
+ const idsToUpdate = completedSelectedTasks.map((task) => task.id)
 
-      return supabase
-        .from('tasks')
-        .update(patch)
-        .eq('id', task.id)
-    })
-  )
-
-  const firstError = updates.find((result) => result.error)?.error
+const { error: firstError } = await supabase
+  .from('tasks')
+  .update({
+    completed: false,
+    timer_started_at: now,
+    updated_at: now,
+    updated_by: session?.user?.id || null,
+  })
+  .in('id', idsToUpdate)
 
   if (firstError) {
     console.error('Σφάλμα άρσης ολοκλήρωσης επιλεγμένων εργασιών:', firstError)
@@ -5795,8 +5823,8 @@ style={
   ) : (
     <div className="task-container">
       {visibleTasks.map((task) => (
-        <SortableTaskItem
-  key={task.id}
+ <SortableTaskItem
+  key={`search-task-${task.id}`}
   task={task}
   isActive={activeTask?.id === task.id}
   isSelected={selectedTasks.includes(task.id)}
@@ -6155,7 +6183,7 @@ style={
     (index === 0 || !previousTask?.completed)
 
   return (
-    <div key={task.id}>
+  <div key={`task-row-${task.id}`}>
       {shouldShowCompletedDivider && (
         <button
           type="button"
