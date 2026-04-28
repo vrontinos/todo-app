@@ -2472,15 +2472,26 @@ textarea {
   .task-timer {
     font-size: 12px;
   }
+.task-flag-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 @media (max-width: 1024px) {
   .task-item {
-    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
-  .task-item .weight-toggle {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+  .task-text-block {
+    flex-basis: calc(100% - 35px);
   }
-}
+
+  .task-flag-row {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-right: 2px;
+  }
 }
