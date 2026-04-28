@@ -2508,7 +2508,7 @@ textarea {
 .task-flag-row {
   display: flex;
   gap: 6px;
-  margin-left: auto;
+  margin-left: auto !important;
   flex-shrink: 0;
 }
 }
