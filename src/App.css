@@ -2489,11 +2489,9 @@ textarea {
   }
 
   .task-flag-row {
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-
-    margin-left: auto;   /* 👉 ΑΥΤΟ ΤΟ ΛΥΝΕΙ */
-  }
+  display: flex !important;
+  justify-content: flex-end !important;
+  margin-left: auto !important;
+  width: 100% !important;
+}
 }
