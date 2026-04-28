@@ -2518,3 +2518,9 @@ textarea {
     flex-shrink: 0;
   }
 }
+
+@media (min-width: 1025px) {
+  .task-item {
+    overflow: visible;
+  }
+}
