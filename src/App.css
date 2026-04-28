@@ -855,8 +855,8 @@ input.round-checkbox:checked::after {
 }
 
 .flag-icon {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
   pointer-events: none;
   display: block;
