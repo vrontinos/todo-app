@@ -2500,23 +2500,23 @@ textarea {
 /* MOBILE: μην το πειράζουμε */
 @media (max-width: 1024px) {
   .task-timer-row {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    min-width: 0;
-  }
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+}
 
-  .task-timer {
-    flex: 1;
-    min-width: 0;
-  }
+.task-timer {
+  flex: 1;
+  min-width: 0;
+}
 
-  .task-flag-row {
-    display: flex;
-    gap: 6px;
-    margin-left: auto;
-    flex-shrink: 0;
-  }
+.task-flag-row {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 }
 
 @media (min-width: 1025px) {
