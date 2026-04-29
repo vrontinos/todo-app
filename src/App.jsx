@@ -775,32 +775,37 @@ function AdminLogsPanel({
     }
   }
 
-  const getEventBadgeStyle = (eventType) => {
-    const type = String(eventType || '').toLowerCase()
+const getEventBadgeStyle = (eventType) => {
+  const type = String(eventType || '').toLowerCase()
 
-    if (type.includes('create') || type.includes('add')) {
-      return { bg: isDark ? '#052e2b' : '#dcfce7', color: isDark ? '#5eead4' : '#166534', label: 'CREATE' }
-    }
+  const map = {
+    // TASKS
+    task_created: { bg: '#dbeafe', color: '#1d4ed8', label: 'TASK_CREATED' },
+    task_updated: { bg: '#e0e7ff', color: '#4338ca', label: 'TASK_UPDATED' },
+    task_moved: { bg: '#fef3c7', color: '#92400e', label: 'TASK_MOVED' },
+    task_deleted: { bg: '#fee2e2', color: '#991b1b', label: 'TASK_DELETED' },
+    task_completed: { bg: '#ccfbf1', color: '#0f766e', label: 'TASK_DONE' },
+    task_uncompleted: { bg: '#e5e7eb', color: '#374151', label: 'TASK_UNDONE' },
 
-    if (type.includes('update') || type.includes('edit')) {
-      return { bg: isDark ? '#172554' : '#dbeafe', color: isDark ? '#93c5fd' : '#1d4ed8', label: 'UPDATE' }
-    }
+    // NOTES
+    note_created: { bg: '#f3e8ff', color: '#7e22ce', label: 'NOTE_CREATED' },
+    note_updated: { bg: '#ede9fe', color: '#5b21b6', label: 'NOTE_UPDATED' },
+    note_deleted: { bg: '#fee2e2', color: '#991b1b', label: 'NOTE_DELETED' },
 
-    if (type.includes('delete') || type.includes('remove')) {
-      return { bg: isDark ? '#3f0f0f' : '#fee2e2', color: isDark ? '#fca5a5' : '#b91c1c', label: 'DELETE' }
-    }
-
-    if (type.includes('move')) {
-      return { bg: isDark ? '#581c87' : '#f3e8ff', color: isDark ? '#e9d5ff' : '#7e22ce', label: 'MOVE' }
-    }
-
-    if (type.includes('complete') || type.includes('done')) {
-      return { bg: isDark ? '#022c22' : '#ccfbf1', color: isDark ? '#5eead4' : '#0f766e', label: 'DONE' }
-    }
-
-return { bg: isDark ? '#1e293b' : '#f1f5f9', color: isDark ? '#cbd5e1' : '#475569', label: (eventType || 'LOG').toUpperCase() }
+    // LISTS
+    list_created: { bg: '#dcfce7', color: '#166534', label: 'LIST_CREATED' },
+    list_renamed: { bg: '#fef3c7', color: '#92400e', label: 'LIST_RENAMED' },
+    list_deleted: { bg: '#fee2e2', color: '#991b1b', label: 'LIST_DELETED' },
   }
 
+  return (
+    map[type] || {
+      bg: '#f1f5f9',
+      color: '#475569',
+      label: (eventType || 'LOG').toUpperCase(),
+    }
+  )
+}
   const groupedResults = results.reduce((groups, log) => {
     const groupKey = String(log.task_id || log.task_title || log.list_name || 'no-task')
     const existingGroup = groups.find((group) => group.key === groupKey)
@@ -1045,23 +1050,27 @@ return { bg: isDark ? '#1e293b' : '#f1f5f9', color: isDark ? '#cbd5e1' : '#47556
                                 {log.created_at_greece}
                               </div>
 
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: '2px 7px',
-                                  borderRadius: 999,
-                                  fontSize: 8,
-                                  fontWeight: 800,
-                                  background: badge.bg,
-                                  color: badge.color,
-                                  lineHeight: 1,
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {badge.label}
-                              </span>
+<span
+  style={{
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 16,           // 👈 πιο μικρό ύψος
+    minWidth: 85,         // 👈 ίδιο πλάτος αλλά πιο compact
+    padding: '0 8px',
+    borderRadius: '999px',
+    fontSize: 8,          // 👈 πιο μικρά γράμματα
+    fontWeight: 700,
+    letterSpacing: '0.3px',
+    background: badge.bg,
+    color: badge.color,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+  }}
+>
+  {badge.label}
+</span>
                             </div>
 
                             <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.3, fontWeight: 400, color: textColor, overflowWrap: 'anywhere' }}>
