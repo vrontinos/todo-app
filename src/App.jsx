@@ -978,8 +978,11 @@ return { bg: isDark ? '#1e293b' : '#f1f5f9', color: isDark ? '#cbd5e1' : '#47556
                         <span style={{ marginRight: 7, color: textColor }}>
                           {isOpen ? '▼' : '▶'}
                         </span>
-                        {group.task_id ? `#${group.task_id}` : 'Χωρίς εργασία'}
-                        {group.task_title ? ` · ${group.task_title}` : ''}
+                        {group.task_title
+  ? group.task_id
+    ? `#${group.task_id} · ${group.task_title}`
+    : `${group.task_title} (Διαγραμμένη)`
+  : 'Χωρίς εργασία'}
                       </div>
 
                       <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
