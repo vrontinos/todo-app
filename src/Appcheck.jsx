@@ -1893,34 +1893,26 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
       return a.completed ? 1 : -1
     }
 
-    if (mode === 'alpha') {
-      return (
-        (a.title || '').localeCompare(b.title || '', 'el', {
-          sensitivity: 'base',
-        }) * factor
-      )
-    }
+   if (!a.completed && !b.completed) {
+  const aStore = Boolean(a.is_store)
+  const bStore = Boolean(b.is_store)
+  const aSkroutz = Boolean(a.is_skroutz)
+  const bSkroutz = Boolean(b.is_skroutz)
+  const aWeighing = Boolean(a.needs_weighing)
+  const bWeighing = Boolean(b.needs_weighing)
 
-    if (!a.completed && !b.completed) {
-      const aStore = Boolean(a.is_store)
-      const bStore = Boolean(b.is_store)
-      const aSkroutz = Boolean(a.is_skroutz)
-      const bSkroutz = Boolean(b.is_skroutz)
-      const aWeighing = Boolean(a.needs_weighing)
-      const bWeighing = Boolean(b.needs_weighing)
+  if (aStore !== bStore) {
+    return aStore ? -1 : 1
+  }
 
-      if (aStore !== bStore) {
-        return aStore ? -1 : 1
-      }
+  if (aSkroutz !== bSkroutz) {
+    return aSkroutz ? -1 : 1
+  }
 
-      if (aSkroutz !== bSkroutz) {
-        return aSkroutz ? -1 : 1
-      }
-
-      if (aWeighing !== bWeighing) {
-        return aWeighing ? 1 : -1
-      }
-    }
+  if (aWeighing !== bWeighing) {
+    return aWeighing ? 1 : -1
+  }
+}
 
     if (mode === 'created') {
       const aTime = new Date(a.created_at || 0).getTime()
