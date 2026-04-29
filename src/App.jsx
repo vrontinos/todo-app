@@ -832,14 +832,28 @@ flexDirection: 'column'
               hash = taskKey.charCodeAt(i) + ((hash << 5) - hash)
             }
 
-            const hue = Math.abs(hash) % 360
-            const bgColor = isDark
-  ? `hsl(${hue}, 35%, 22%)`
-  : `hsl(${hue}, 85%, 94%)`
+const colors = [
+  { bg: '#fee2e2', border: '#dc2626' },
+  { bg: '#ffedd5', border: '#ea580c' },
+  { bg: '#fef9c3', border: '#ca8a04' },
+  { bg: '#dcfce7', border: '#16a34a' },
+  { bg: '#ccfbf1', border: '#0d9488' },
+  { bg: '#e0f2fe', border: '#0284c7' },
+  { bg: '#e0e7ff', border: '#4f46e5' },
+  { bg: '#f3e8ff', border: '#9333ea' },
+  { bg: '#fce7f3', border: '#db2777' },
+  { bg: '#f1f5f9', border: '#475569' },
+  { bg: '#ecfccb', border: '#65a30d' },
+  { bg: '#ffe4e6', border: '#e11d48' },
+]
 
-const borderColor = isDark
-  ? `hsl(${hue}, 70%, 60%)`
-  : `hsl(${hue}, 70%, 48%)`
+const index = Math.abs(hash) % colors.length
+
+const bgColor = isDark
+  ? colors[index].border + '33'
+  : colors[index].bg
+
+const borderColor = colors[index].border
 
             return (
               <div
@@ -886,6 +900,8 @@ function App() {
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
+  const [resetCooldown, setResetCooldown] = useState(0)
+  const [authResetLoading, setAuthResetLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
   const [isTaskActionsMenuOpen, setIsTaskActionsMenuOpen] = useState(false)
@@ -1528,6 +1544,11 @@ useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    setAuthMode('update-password')
+    setAuthPassword('')
+    setAuthMessage('Βάλε νέο κωδικό για τον λογαριασμό σου.')
+  }
   const nextUserId = nextSession?.user?.id ?? null
 
   setSession((prevSession) => {
@@ -3387,6 +3408,77 @@ if (isMobile) {
 
     setAuthPassword('')
   }
+
+async function handleForgotPassword(e) {
+  e.preventDefault()
+  setAuthError('')
+  setAuthMessage('')
+
+  const email = authEmail.trim().toLowerCase()
+
+  if (!email) {
+    setAuthError('Συμπλήρωσε το email σου.')
+    return
+  }
+
+  setAuthResetLoading(true)
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  })
+
+  setAuthResetLoading(false)
+
+  if (error) {
+    setAuthError(error.message)
+    return
+  }
+
+  setAuthMessage('Σου στείλαμε email για αλλαγή κωδικού.')
+setResetCooldown(60)
+
+const interval = setInterval(() => {
+  setResetCooldown((prev) => {
+    if (prev <= 1) {
+      clearInterval(interval)
+      return 0
+    }
+    return prev - 1
+  })
+}, 1000)
+}
+
+async function handleUpdatePassword(e) {
+  e.preventDefault()
+  setAuthError('')
+  setAuthMessage('')
+
+  const password = authPassword
+
+  if (!password) {
+    setAuthError('Συμπλήρωσε νέο κωδικό.')
+    return
+  }
+
+  if (password.length < 6) {
+    setAuthError('Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.')
+    return
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+  })
+
+  if (error) {
+    setAuthError(error.message)
+    return
+  }
+
+  setAuthPassword('')
+  setAuthMode('signin')
+  setAuthMessage('Ο κωδικός άλλαξε επιτυχώς. Μπορείς να συνδεθείς.')
+  await supabase.auth.signOut()
+}
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -5596,11 +5688,25 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
           }}
         >
           <h2 style={{ margin: '0 0 16px 0', fontSize: '20px' }}>
-            {authMode === 'signin' ? 'Σύνδεση' : 'Εγγραφή'}
+            {authMode === 'signin'
+  ? 'Σύνδεση'
+  : authMode === 'signup'
+    ? 'Εγγραφή'
+    : authMode === 'reset'
+      ? 'Επαναφορά κωδικού'
+      : 'Νέος κωδικός'}
           </h2>
 
-          <form
-            onSubmit={authMode === 'signin' ? handleSignIn : handleSignUp}
+<form
+            onSubmit={
+  authMode === 'signin'
+    ? handleSignIn
+    : authMode === 'signup'
+      ? handleSignUp
+      : authMode === 'reset'
+        ? handleForgotPassword
+        : handleUpdatePassword
+}
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
           >
             <input
@@ -5612,14 +5718,16 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
               autoComplete="email"
             />
 
-            <input
-              type="password"
-              placeholder="Κωδικός"
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              className="task-input"
-              autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
-            />
+            {authMode !== 'reset' && (
+  <input
+    type="password"
+    placeholder={authMode === 'update-password' ? 'Νέος κωδικός' : 'Κωδικός'}
+    value={authPassword}
+    onChange={(e) => setAuthPassword(e.target.value)}
+    className="task-input"
+    autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
+  />
+)}
 
             {authError && (
               <div style={{ color: 'var(--red)', fontSize: '12px', lineHeight: 1.4 }}>
@@ -5633,10 +5741,55 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
               </div>
             )}
 
-            <button type="submit" className="add-button">
-              {authMode === 'signin' ? 'Σύνδεση' : 'Εγγραφή'}
-            </button>
+<button
+  type="submit"
+  className="add-button"
+  disabled={authResetLoading || resetCooldown > 0}
+>
+  {authMode === 'signin'
+    ? 'Σύνδεση'
+    : authMode === 'signup'
+      ? 'Εγγραφή'
+      : authMode === 'reset'
+        ? authResetLoading
+          ? 'Αποστολή...'
+          : resetCooldown > 0
+            ? `Ξαναδοκίμασε σε ${resetCooldown}s`
+            : 'Στείλε email επαναφοράς'
+        : 'Αλλαγή κωδικού'}
+</button>
           </form>
+{authMode === 'signin' && (
+  <button
+    type="button"
+    className="theme-toggle"
+    style={{ marginTop: '8px', width: '100%' }}
+    onClick={() => {
+      setAuthError('')
+      setAuthMessage('')
+      setAuthPassword('')
+      setAuthMode('reset')
+    }}
+  >
+    Ξέχασες τον κωδικό;
+  </button>
+)}
+
+{(authMode === 'reset' || authMode === 'update-password') && (
+  <button
+    type="button"
+    className="theme-toggle"
+    style={{ marginTop: '8px', width: '100%' }}
+    onClick={() => {
+      setAuthError('')
+      setAuthMessage('')
+      setAuthPassword('')
+      setAuthMode('signin')
+    }}
+  >
+    Πίσω στη σύνδεση
+  </button>
+)}
 
           <button
             type="button"
@@ -6486,9 +6639,7 @@ style={
   onToggleStore={handleToggleStore}
   onToggleSkroutz={handleToggleSkroutz}
   onToggleWeighing={handleToggleWeighing}
-  onDeleteSwipe={(taskId) =>
-    handleDeleteOneTask(taskId, { skipConfirm: true })
-  }
+  onDeleteSwipe={handleDeleteOneTask}
   onMobileLongPress={handleTaskLongPress}
 />
       )}
