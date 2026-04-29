@@ -6674,6 +6674,12 @@ style={
       </form>
     </div>
   </>
+) : loadingLists ? (
+  <div style={{ padding: 16 }}>
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+  </div>
 ) : (
   <p>Διάλεξε ή δημιούργησε μια λίστα.</p>
 )}
