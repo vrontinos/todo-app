@@ -722,171 +722,359 @@ function AdminLogsPanel({
   loading,
   error,
   onClose,
+  onDownloadAll,
+  onDownloadTask,
+  downloading,
 }) {
-
   const trimmedSearch = search.trim()
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: 'min(980px, 100%)', maxHeight: '88vh', background: isDark ? '#1f2937' : 'white',
-color: isDark ? '#f9fafb' : '#111',
-borderRadius: 14,
-overflow: 'hidden',
-display: 'flex',
-flexDirection: 'column'
-}}>
-        <div
-          style={{
-            padding: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            borderBottom: isDark ? '1px solid #374151' : '1px solid #ddd',
-          }}
-        >
-          <strong>Αναζήτηση Logs</strong>
-          <button className="theme-toggle" type="button" onClick={onClose}>
-            Κλείσιμο
-          </button>
-        </div>
+  const panelBg = isDark ? '#0b1220' : '#ffffff'
+  const softBg = isDark ? '#0f172a' : '#f8fafc'
+  const textColor = isDark ? '#e5e7eb' : '#111827'
+  const mutedColor = isDark ? '#94a3b8' : '#64748b'
+  const borderColorBase = isDark ? '#1f2937' : '#e5e7eb'
+  const inputBg = isDark ? '#020617' : '#ffffff'
 
-        <div style={{ padding: 16 }}>
-          <input
+  const [openGroups, setOpenGroups] = useState({})
+
+  const toggleGroup = (groupKey) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }))
+  }
+
+  const getTaskColor = (taskKey) => {
+    let hash = 0
+
+    for (let i = 0; i < taskKey.length; i += 1) {
+      hash = taskKey.charCodeAt(i) + ((hash << 5) - hash)
+    }
+
+    const colors = [
+      { bg: '#fee2e2', border: '#dc2626' },
+      { bg: '#ffedd5', border: '#ea580c' },
+      { bg: '#fef9c3', border: '#ca8a04' },
+      { bg: '#dcfce7', border: '#16a34a' },
+      { bg: '#ccfbf1', border: '#0d9488' },
+      { bg: '#e0f2fe', border: '#0284c7' },
+      { bg: '#e0e7ff', border: '#4f46e5' },
+      { bg: '#f3e8ff', border: '#9333ea' },
+      { bg: '#fce7f3', border: '#db2777' },
+      { bg: '#f1f5f9', border: '#475569' },
+      { bg: '#ecfccb', border: '#65a30d' },
+      { bg: '#ffe4e6', border: '#e11d48' },
+    ]
+
+    const index = Math.abs(hash) % colors.length
+
+    return {
+      bgColor: isDark ? colors[index].border + '22' : colors[index].bg,
+      borderColor: colors[index].border,
+    }
+  }
+
+  const getEventBadgeStyle = (eventType) => {
+    const type = String(eventType || '').toLowerCase()
+
+    if (type.includes('create') || type.includes('add')) {
+      return { bg: isDark ? '#052e2b' : '#dcfce7', color: isDark ? '#5eead4' : '#166534', label: 'CREATE' }
+    }
+
+    if (type.includes('update') || type.includes('edit')) {
+      return { bg: isDark ? '#172554' : '#dbeafe', color: isDark ? '#93c5fd' : '#1d4ed8', label: 'UPDATE' }
+    }
+
+    if (type.includes('delete') || type.includes('remove')) {
+      return { bg: isDark ? '#3f0f0f' : '#fee2e2', color: isDark ? '#fca5a5' : '#b91c1c', label: 'DELETE' }
+    }
+
+    if (type.includes('move')) {
+      return { bg: isDark ? '#581c87' : '#f3e8ff', color: isDark ? '#e9d5ff' : '#7e22ce', label: 'MOVE' }
+    }
+
+    if (type.includes('complete') || type.includes('done')) {
+      return { bg: isDark ? '#022c22' : '#ccfbf1', color: isDark ? '#5eead4' : '#0f766e', label: 'DONE' }
+    }
+
+return { bg: isDark ? '#1e293b' : '#f1f5f9', color: isDark ? '#cbd5e1' : '#475569', label: (eventType || 'LOG').toUpperCase() }
+  }
+
+  const groupedResults = results.reduce((groups, log) => {
+    const groupKey = String(log.task_id || log.task_title || log.list_name || 'no-task')
+    const existingGroup = groups.find((group) => group.key === groupKey)
+
+    if (existingGroup) {
+      existingGroup.logs.push(log)
+    } else {
+      groups.push({
+        key: groupKey,
+        task_id: log.task_id,
+        task_title: log.task_title,
+        list_name: log.list_name,
+        logs: [log],
+      })
+    }
+
+    return groups
+  }, [])
+
+  const getGroupCreatedInfo = (logs) => {
+  const createLog = logs.find((log) => {
+    const type = String(log.event_type || '').toLowerCase()
+    return type.includes('create') || type.includes('add')
+  })
+
+  if (createLog) {
+    return createLog.created_at_greece
+  }
+
+  return logs[logs.length - 1]?.created_at_greece || '-'
+}
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 10 }}>
+      <div style={{ width: 'min(980px, 100%)', maxHeight: '92vh', background: panelBg, color: textColor, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', border: `1px solid ${borderColorBase}`, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
+
+        <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderBottom: `1px solid ${borderColorBase}`, background: softBg }}>
+  <strong style={{ fontSize: 14 }}>Αναζήτηση Logs</strong>
+
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+    <button
+  className="theme-toggle"
+  type="button"
+  onClick={() => onDownloadAll()}
+  disabled={downloading}
+  style={{
+    fontSize: 11,
+    padding: '5px 9px',
+    opacity: downloading ? 0.7 : 1,
+  }}
+>
+  {downloading ? 'Ετοιμάζω...' : 'PDF'}
+</button>
+
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onClose}
+    >
+      Κλείσιμο
+    </button>
+
+  </div>
+</div>
+
+        <div style={{ padding: 12, borderBottom: `1px solid ${borderColorBase}` }}>
+<input
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Γράψε εργασία, λίστα, χρήστη ή σημείωση..."style={{
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: 12,
-  fontSize: 16,
-  background: isDark ? '#111827' : 'white',
-  color: isDark ? '#f9fafb' : '#111',
-  border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
-}}
+            placeholder="Αναζήτηση..."
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              fontSize: 13,
+              background: inputBg,
+              color: textColor,
+              border: `1px solid ${borderColorBase}`,
+              borderRadius: 10,
+              outline: 'none',
+            }}
           />
 
-          <div
-  style={{
-    display: 'flex',
-    gap: 8,
-    marginTop: 10,
-    background: isDark ? '#1f2937' : 'transparent',
-    padding: 8,
-    borderRadius: 8,
-  }}
->
-            <label style={{ flex: 1, fontSize: 13, color: isDark ? '#f9fafb' : '#111' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 10 }}>
+            <label style={{ fontSize: 11, color: mutedColor }}>
               Από
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 style={{
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: 10,
-  marginTop: 4,
-  background: isDark ? '#111827' : 'white',
-  color: isDark ? '#f9fafb' : '#111',
-  border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
-}}
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: 8,
+                  marginTop: 4,
+                  fontSize: 11,
+                  borderRadius: 8,
+                  background: inputBg,
+                  color: textColor,
+                  border: `1px solid ${borderColorBase}`,
+                  colorScheme: isDark ? 'dark' : 'light',
+                }}
               />
             </label>
 
-            <label style={{ flex: 1, fontSize: 13 }}>
+            <label style={{ fontSize: 11, color: mutedColor }}>
               Έως
               <input
-  type="date"
-  value={dateTo}
-  onChange={(e) => setDateTo(e.target.value)}
-  style={{
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: 10,
-    marginTop: 4,
-    background: isDark ? '#111827' : 'white',
-    color: isDark ? '#f9fafb' : '#111',
-    border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
-    colorScheme: isDark ? 'dark' : 'light',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-  }}
-/>
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: 8,
+                  marginTop: 4,
+                  fontSize: 11,
+                  borderRadius: 8,
+                  background: inputBg,
+                  color: textColor,
+                  border: `1px solid ${borderColorBase}`,
+                  colorScheme: isDark ? 'dark' : 'light',
+                }}
+              />
             </label>
           </div>
         </div>
 
-        <div style={{ overflow: 'auto', padding: '0 16px 16px' }}>
-          {trimmedSearch.length < 2 && <div>Γράψε τουλάχιστον 2 χαρακτήρες.</div>}
-          {loading && <div>Ψάχνω...</div>}
-          {error && <div style={{ color: 'red' }}>{error}</div>}
-          {trimmedSearch.length >= 2 && !loading && !error && results.length === 0 && <div>Δεν βρέθηκαν logs.</div>}
+        <div style={{ overflow: 'auto', padding: 12 }}>
+          {trimmedSearch.length < 2 && <div style={{ fontSize: 12, color: mutedColor }}>Γράψε τουλάχιστον 2 χαρακτήρες.</div>}
+          {loading && <div style={{ fontSize: 12, color: mutedColor }}>Ψάχνω...</div>}
+          {error && <div style={{ fontSize: 12, color: isDark ? '#fca5a5' : '#dc2626' }}>{error}</div>}
+          {trimmedSearch.length >= 2 && !loading && !error && results.length === 0 && <div style={{ fontSize: 12, color: mutedColor }}>Δεν βρέθηκαν logs.</div>}
 
-          {results.map((log) => {
-            const taskKey = String(log.task_id || log.task_title || 'no-task')
+          <div style={{ display: 'grid', gap: 10 }}>
+            {groupedResults.map((group) => {
+              const taskKey = String(group.task_id || group.task_title || group.list_name || group.key)
+              const { bgColor, borderColor } = getTaskColor(taskKey)
+              const isOpen = !!openGroups[group.key]
+              const createdInfo = getGroupCreatedInfo(group.logs)
 
-            let hash = 0
-            for (let i = 0; i < taskKey.length; i += 1) {
-              hash = taskKey.charCodeAt(i) + ((hash << 5) - hash)
-            }
+              return (
+                <section
+                  key={group.key}
+                  style={{
+                    border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                    borderLeft: `6px solid ${borderColor}`,
+                    borderRadius: 13,
+                    background: bgColor,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      border: 0,
+                      borderBottom: isOpen ? `1px solid ${isDark ? '#334155' : 'rgba(15,23,42,.12)'}` : 'none',
+                      background: isDark ? 'rgba(2,6,23,.55)' : 'rgba(255,255,255,.55)',
+                      color: textColor,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, overflowWrap: 'anywhere' }}>
+                        <span style={{ marginRight: 7, color: textColor }}>
+                          {isOpen ? '▼' : '▶'}
+                        </span>
+                        {group.task_id ? `#${group.task_id}` : 'Χωρίς εργασία'}
+                        {group.task_title ? ` · ${group.task_title}` : ''}
+                      </div>
 
-const colors = [
-  { bg: '#fee2e2', border: '#dc2626' },
-  { bg: '#ffedd5', border: '#ea580c' },
-  { bg: '#fef9c3', border: '#ca8a04' },
-  { bg: '#dcfce7', border: '#16a34a' },
-  { bg: '#ccfbf1', border: '#0d9488' },
-  { bg: '#e0f2fe', border: '#0284c7' },
-  { bg: '#e0e7ff', border: '#4f46e5' },
-  { bg: '#f3e8ff', border: '#9333ea' },
-  { bg: '#fce7f3', border: '#db2777' },
-  { bg: '#f1f5f9', border: '#475569' },
-  { bg: '#ecfccb', border: '#65a30d' },
-  { bg: '#ffe4e6', border: '#e11d48' },
-]
+                      <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 10, fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <span>{createdInfo}</span>
+                        {group.list_name && <span>Λίστα: {group.list_name}</span>}
+                      </div>
+                    </div>
 
-const index = Math.abs(hash) % colors.length
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
 
-const bgColor = isDark
-  ? colors[index].border + '33'
-  : colors[index].bg
+  <span
+    style={{
+      flexShrink: 0,
+      padding: '3px 8px',
+      fontSize: 10,
+      borderRadius: 999,
+      border: `1px solid ${borderColorBase}`,
+      background: isDark ? '#020617' : '#ffffff',
+      fontWeight: 800,
+    }}
+  >
+    {group.logs.length}
+  </span>
 
-const borderColor = colors[index].border
+  <button
+    type="button"
+    className="theme-toggle"
+    onClick={(e) => {
+      e.stopPropagation()
+      onDownloadTask(group.logs, group)
+    }}
+    style={{
+      flexShrink: 0,
+      fontSize: 9,
+      padding: '3px 7px',
+    }}
+  >
+    PDF
+  </button>
 
-            return (
-              <div
-                key={log.id}
-                style={{
-                  padding: 12,
-                  marginBottom: 8,
-                  borderBottom: '1px solid #ddd',
-                  borderLeft: `6px solid ${borderColor}`,
-                  background: bgColor,
-                  borderRadius: 8,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                  <strong>{log.created_at_greece}</strong>
-                  <span>{log.actor_email || '-'}</span>
-                </div>
+</div>
+                  </button>
 
-                <div>{log.description || log.event_type}</div>
+                  {isOpen && (
+                    <div style={{ display: 'grid', gap: 1 }}>
+                      {[...group.logs].reverse().map((log) => {
+                        const badge = getEventBadgeStyle(log.event_type)
 
-                {(log.task_title || log.list_name || log.task_id) && (
-                  <small>
-                    {log.task_id ? `Ομάδα εργασίας: #${log.task_id}` : ''}
-                    {log.task_id && log.task_title ? ' · ' : ''}
-                    {log.task_title ? `Εργασία: ${log.task_title}` : ''}
-                    {(log.task_title || log.task_id) && log.list_name ? ' · ' : ''}
-                    {log.list_name ? `Λίστα: ${log.list_name}` : ''}
-                  </small>
-                )}
-              </div>
-            )
-          })}
+                        return (
+                          <div
+                            key={log.id}
+                            style={{
+                              padding: '9px 12px',
+                              background: isDark ? 'rgba(2,6,23,.18)' : 'rgba(255,255,255,.35)',
+                              borderTop: `1px solid ${isDark ? 'rgba(148,163,184,.13)' : 'rgba(15,23,42,.08)'}`,
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 500, color: mutedColor }}>
+                                {log.created_at_greece}
+                              </div>
+
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '2px 7px',
+                                  borderRadius: 999,
+                                  fontSize: 8,
+                                  fontWeight: 800,
+                                  background: badge.bg,
+                                  color: badge.color,
+                                  lineHeight: 1,
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {badge.label}
+                              </span>
+                            </div>
+
+                            <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.3, fontWeight: 400, color: textColor, overflowWrap: 'anywhere' }}>
+                              {log.description || log.event_type}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
+          </div>
         </div>
+
       </div>
     </div>
   )
@@ -983,6 +1171,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [adminLogsError, setAdminLogsError] = useState('')
   const [adminLogsDateFrom, setAdminLogsDateFrom] = useState('')
   const [adminLogsDateTo, setAdminLogsDateTo] = useState('')
+  const [adminLogsDownloading, setAdminLogsDownloading] = useState(false)
   const [contextMenu, setContextMenu] = useState(null)
   const [moveMenuOpen, setMoveMenuOpen] = useState(false)
   const [multiMoveMenuOpen, setMultiMoveMenuOpen] = useState(false)
@@ -1062,6 +1251,292 @@ useEffect(() => {
     window.clearTimeout(timeoutId)
   }
 }, [adminLogsSearch, adminLogsDateFrom, adminLogsDateTo, isAdminLogsOpen, isAdminLogsUser])
+
+const downloadAdminLogsCsv = async (logsOverride = null, groupOverride = null) => {
+  setAdminLogsDownloading(true)
+
+  let logs = logsOverride
+
+  if (!logs) {
+    const { data, error } = await supabase.rpc('admin_search_activity_logs', {
+      p_search_term: '',
+      p_limit: 5000,
+      p_date_from: adminLogsDateFrom || null,
+      p_date_to: adminLogsDateTo || null,
+    })
+
+    if (error) {
+      alert('Δεν μπόρεσα να ετοιμάσω το PDF.')
+      setAdminLogsDownloading(false)
+      return
+    }
+
+    logs = data || []
+  }
+
+  if (logs.length === 0) {
+    alert('Δεν βρέθηκαν logs για export.')
+    setAdminLogsDownloading(false)
+    return
+  }
+
+  const escapeHtml = (value) => {
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;')
+  }
+
+  const getTaskColor = (taskKey) => {
+    let hash = 0
+
+    for (let i = 0; i < taskKey.length; i += 1) {
+      hash = taskKey.charCodeAt(i) + ((hash << 5) - hash)
+    }
+
+    const colors = [
+      { bg: '#fff1f2', border: '#e11d48' },
+      { bg: '#f0fdf4', border: '#16a34a' },
+      { bg: '#f8fafc', border: '#475569' },
+      { bg: '#fefce8', border: '#ca8a04' },
+      { bg: '#eff6ff', border: '#2563eb' },
+      { bg: '#faf5ff', border: '#9333ea' },
+      { bg: '#ecfeff', border: '#0891b2' },
+      { bg: '#fff7ed', border: '#ea580c' },
+    ]
+
+    return colors[Math.abs(hash) % colors.length]
+  }
+
+  const groupedLogs = logs.reduce((groups, log) => {
+    const key = String(log.task_id || log.task_title || log.list_name || 'no-task')
+
+    if (!groups[key]) {
+      groups[key] = {
+        key,
+        task_id: log.task_id,
+        task_title: log.task_title,
+        list_name: log.list_name,
+        logs: [],
+      }
+    }
+
+    groups[key].logs.push(log)
+    return groups
+  }, {})
+
+  const groupsHtml = Object.values(groupedLogs).map((group) => {
+    const color = getTaskColor(group.key)
+
+    const logsHtml = [...group.logs].reverse().map((log) => {
+      return `
+        <div class="log-row">
+          <div class="log-top">
+            <strong>${escapeHtml(log.created_at_greece)}</strong>
+            <span class="badge">${escapeHtml(String(log.event_type || 'LOG').toUpperCase())}</span>
+          </div>
+          <div class="log-description">
+            ${escapeHtml(log.description || log.event_type)}
+          </div>
+          <div class="log-meta">
+            ${escapeHtml(log.actor_email || '-')}
+          </div>
+        </div>
+      `
+    }).join('')
+
+    const createdLog = group.logs.find((log) => {
+      const type = String(log.event_type || '').toLowerCase()
+      return type.includes('create') || type.includes('add')
+    })
+
+    const createdAt = createdLog?.created_at_greece || group.logs[group.logs.length - 1]?.created_at_greece || '-'
+
+    return `
+      <section class="task-card" style="background:${color.bg}; border-left-color:${color.border};">
+        <div class="task-header">
+          <div>
+            <div class="task-title">
+              #${escapeHtml(group.task_id || '-')} · ${escapeHtml(group.task_title || 'Χωρίς τίτλο')}
+            </div>
+            <div class="task-subtitle">
+              ${escapeHtml(createdAt)}
+              ${group.list_name ? ` · Λίστα: ${escapeHtml(group.list_name)}` : ''}
+            </div>
+          </div>
+          <div class="count">${group.logs.length}</div>
+        </div>
+
+        <div class="logs">
+          ${logsHtml}
+        </div>
+      </section>
+    `
+  }).join('')
+
+  const today = new Date().toLocaleDateString('el-GR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+  const activeFilters = [
+  adminLogsSearch.trim() ? `Αναζήτηση: ${adminLogsSearch.trim()}` : 'Αναζήτηση: Όλα',
+  adminLogsDateFrom ? `Από: ${adminLogsDateFrom}` : 'Από: Όλες',
+  adminLogsDateTo ? `Έως: ${adminLogsDateTo}` : 'Έως: Όλες',
+].join(' · ')
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>ΒΡΟΝΤΙΝΟΣ To Do Logs</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+            color: #111827;
+            background: #ffffff;
+          }
+
+          h1 {
+            font-size: 20px;
+            margin: 0 0 4px;
+          }
+
+.date {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.filters {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 18px;
+}
+
+          .task-card {
+            border: 1px solid #cbd5e1;
+            border-left: 7px solid;
+            border-radius: 14px;
+            margin-bottom: 14px;
+            overflow: hidden;
+            break-inside: avoid;
+          }
+
+          .task-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(15,23,42,.12);
+          }
+
+          .task-title {
+            font-size: 15px;
+            font-weight: 800;
+          }
+
+          .task-subtitle {
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+          }
+
+          .count {
+            min-width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 800;
+          }
+
+          .log-row {
+            padding: 10px 14px;
+            border-top: 1px solid rgba(15,23,42,.08);
+            background: rgba(255,255,255,.55);
+          }
+
+          .log-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 12px;
+          }
+
+          .badge {
+            border-radius: 999px;
+            padding: 3px 8px;
+            background: #111827;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 800;
+          }
+
+          .log-description {
+            margin-top: 6px;
+            font-size: 13px;
+            line-height: 1.35;
+          }
+
+          .log-meta {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #64748b;
+          }
+
+          @media print {
+            body {
+              margin: 14mm;
+            }
+
+            .task-card {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+
+ <body>
+  <h1>${groupOverride ? `Task #${escapeHtml(groupOverride.task_id || '-')} Logs` : 'Admin Logs'}</h1>
+  <div class="date">Export: ${escapeHtml(today)}</div>
+  <div class="filters">${escapeHtml(activeFilters)}</div>
+  ${groupsHtml}
+</body>
+</html>
+`
+
+const printWindow = window.open('', '_blank')
+
+if (!printWindow) {
+  alert('Το popup μπλοκαρίστηκε. Επίτρεψε popups για να γίνει export.')
+  setAdminLogsDownloading(false)
+  return
+}
+
+printWindow.document.open()
+printWindow.document.write(html)
+printWindow.document.close()
+
+printWindow.onload = () => {
+  printWindow.focus()
+  printWindow.print()
+}
+
+setAdminLogsDownloading(false)
+}
 
 function getTaskScrollSnapshot(excludeTaskId = null) {
   if (isMobile) return null
@@ -1567,9 +2042,13 @@ useEffect(() => {
     return nextSession ?? null
   })
 
-  setAuthError('')
+setAuthError('')
+
+if (event !== 'PASSWORD_RECOVERY') {
   setAuthMessage('')
-  setAuthLoading(false)
+}
+
+setAuthLoading(false)
 })
 
     return () => {
@@ -3761,21 +4240,37 @@ function scheduleRealtimeRefresh(kind, runner, delay = 120) {
     if (!list || isOffline) return
     if (!window.confirm(`Να διαγραφεί η λίστα "${list.name}";`)) return
 
-    markSaving()
+markSaving()
 
-    const { error } = await supabase.from('lists').delete().eq('id', list.id)
+const { error: tasksDeleteError } = await supabase
+  .from('tasks')
+  .delete()
+  .eq('list_id', list.id)
 
-    if (error) {
-      console.error('Σφάλμα διαγραφής λίστας:', error)
-      setSyncStatus('error')
-      return
-    }
+if (tasksDeleteError) {
+  console.error('Σφάλμα διαγραφής εργασιών λίστας:', tasksDeleteError)
+  setSyncStatus('error')
+  return
+}
 
-    closeContextMenu()
+const { data, error } = await supabase
+  .from('lists')
+  .delete()
+  .eq('id', list.id)
+  .eq('owner_user_id', session.user.id)
+  .select('id, name')
 
-    const updatedLists = lists.filter((l) => l.id !== list.id)
-    setLists(updatedLists)
-    setSelectedLists((prev) => prev.filter((id) => id !== list.id))
+if (error) {
+  console.error('Σφάλμα διαγραφής λίστας:', error)
+  setSyncStatus('error')
+  return
+}
+
+closeContextMenu()
+
+const updatedLists = lists.filter((l) => l.id !== list.id)
+setLists(updatedLists)
+setSelectedLists((prev) => prev.filter((id) => id !== list.id))
 
 
     if (selectedList?.id === list.id) {
@@ -5665,7 +6160,7 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
     )
   }
 
-  if (!session) {
+  if (!session || authMode === 'update-password') {
     return (
       <div
         style={{
@@ -5817,17 +6312,20 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   <>
     {isAdminLogsOpen && isAdminLogsUser && (
       <AdminLogsPanel
-        search={adminLogsSearch}
-	dateFrom={adminLogsDateFrom}
-	setDateFrom={setAdminLogsDateFrom}
-	dateTo={adminLogsDateTo}
-	setDateTo={setAdminLogsDateTo}
-        setSearch={setAdminLogsSearch}
-        results={adminLogsResults}
-        loading={adminLogsLoading}
-        error={adminLogsError}
-        onClose={() => setIsAdminLogsOpen(false)}
-      />
+  onDownloadTask={downloadAdminLogsCsv}
+  search={adminLogsSearch}
+  setSearch={setAdminLogsSearch}
+  dateFrom={adminLogsDateFrom}
+  setDateFrom={setAdminLogsDateFrom}
+  dateTo={adminLogsDateTo}
+  setDateTo={setAdminLogsDateTo}
+  results={adminLogsResults}
+  loading={adminLogsLoading}
+  error={adminLogsError}
+  onClose={() => setIsAdminLogsOpen(false)}
+  onDownloadAll={downloadAdminLogsCsv}
+  downloading={adminLogsDownloading}
+/>
     )}
 
     <DndContext
