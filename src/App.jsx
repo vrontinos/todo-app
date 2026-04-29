@@ -6151,8 +6151,12 @@ style={
         >
           {invitesLoading ? (
             <div className="invites-banner">
-              <h3>Προσκλήσεις σε λίστες</h3>
-              <p>Φόρτωση προσκλήσεων...</p>
+              {!loadingLists && (
+  <>
+    <h3>Προσκλήσεις σε λίστες</h3>
+    <p>Φόρτωση προσκλήσεων...</p>
+  </>
+)}
             </div>
           ) : groupedPendingInvites.length > 0 ? (
             <div className="invites-banner">
