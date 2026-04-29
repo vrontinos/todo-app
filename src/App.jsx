@@ -6149,16 +6149,16 @@ style={
             }
           }}
         >
-          {invitesLoading ? (
-            <div className="invites-banner">
-              {!loadingLists && (
-  <>
-    <h3>Προσκλήσεις σε λίστες</h3>
-    <p>Φόρτωση προσκλήσεων...</p>
-  </>
-)}
-            </div>
-          ) : groupedPendingInvites.length > 0 ? (
+          {loadingLists ? (
+  <div style={{ padding: 16 }}>
+    <div className="skeleton" style={{ height: 24, marginBottom: 12 }} />
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+    <div className="skeleton" style={{ height: 20, marginBottom: 10 }} />
+  </div>
+) : invitesLoading ? (
+  null
+) : groupedPendingInvites.length > 0 ? (
             <div className="invites-banner">
               <h3>Προσκλήσεις σε λίστες</h3>
               {groupedPendingInvites.map((group) => {
