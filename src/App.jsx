@@ -10,6 +10,7 @@ const LIST_DND_PREFIX = 'list:'
 const TASK_DND_PREFIX = 'task:'
 const TASK_LIST_DROP_PREFIX = 'tasklist:'
 const MOBILE_BREAKPOINT = 1024
+const ADMIN_LOGS_EMAIL = 'eshop@vrontinos.gr'
 
 function getIsTouchDevice() {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
@@ -710,6 +711,173 @@ function SwipeableNoteItem({
   )
 }
 
+function AdminLogsPanel({
+  search,
+  setSearch,
+  dateFrom,
+  setDateFrom,
+  dateTo,
+  setDateTo,
+  results,
+  loading,
+  error,
+  onClose,
+}) {
+
+  const trimmedSearch = search.trim()
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: 'min(980px, 100%)', maxHeight: '88vh', background: isDark ? '#1f2937' : 'white',
+color: isDark ? '#f9fafb' : '#111',
+borderRadius: 14,
+overflow: 'hidden',
+display: 'flex',
+flexDirection: 'column'
+}}>
+        <div
+          style={{
+            padding: 16,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            borderBottom: isDark ? '1px solid #374151' : '1px solid #ddd',
+          }}
+        >
+          <strong>Αναζήτηση Logs</strong>
+          <button className="theme-toggle" type="button" onClick={onClose}>
+            Κλείσιμο
+          </button>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          <input
+            autoFocus
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Γράψε εργασία, λίστα, χρήστη ή σημείωση..."style={{
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: 12,
+  fontSize: 16,
+  background: isDark ? '#111827' : 'white',
+  color: isDark ? '#f9fafb' : '#111',
+  border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
+}}
+          />
+
+          <div
+  style={{
+    display: 'flex',
+    gap: 8,
+    marginTop: 10,
+    background: isDark ? '#1f2937' : 'transparent',
+    padding: 8,
+    borderRadius: 8,
+  }}
+>
+            <label style={{ flex: 1, fontSize: 13, color: isDark ? '#f9fafb' : '#111' }}>
+              Από
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: 10,
+  marginTop: 4,
+  background: isDark ? '#111827' : 'white',
+  color: isDark ? '#f9fafb' : '#111',
+  border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
+}}
+              />
+            </label>
+
+            <label style={{ flex: 1, fontSize: 13 }}>
+              Έως
+              <input
+  type="date"
+  value={dateTo}
+  onChange={(e) => setDateTo(e.target.value)}
+  style={{
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: 10,
+    marginTop: 4,
+    background: isDark ? '#111827' : 'white',
+    color: isDark ? '#f9fafb' : '#111',
+    border: isDark ? '1px solid #4b5563' : '1px solid #ccc',
+    colorScheme: isDark ? 'dark' : 'light',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+  }}
+/>
+            </label>
+          </div>
+        </div>
+
+        <div style={{ overflow: 'auto', padding: '0 16px 16px' }}>
+          {trimmedSearch.length < 2 && <div>Γράψε τουλάχιστον 2 χαρακτήρες.</div>}
+          {loading && <div>Ψάχνω...</div>}
+          {error && <div style={{ color: 'red' }}>{error}</div>}
+          {trimmedSearch.length >= 2 && !loading && !error && results.length === 0 && <div>Δεν βρέθηκαν logs.</div>}
+
+          {results.map((log) => {
+            const taskKey = String(log.task_id || log.task_title || 'no-task')
+
+            let hash = 0
+            for (let i = 0; i < taskKey.length; i += 1) {
+              hash = taskKey.charCodeAt(i) + ((hash << 5) - hash)
+            }
+
+            const hue = Math.abs(hash) % 360
+            const bgColor = isDark
+  ? `hsl(${hue}, 35%, 22%)`
+  : `hsl(${hue}, 85%, 94%)`
+
+const borderColor = isDark
+  ? `hsl(${hue}, 70%, 60%)`
+  : `hsl(${hue}, 70%, 48%)`
+
+            return (
+              <div
+                key={log.id}
+                style={{
+                  padding: 12,
+                  marginBottom: 8,
+                  borderBottom: '1px solid #ddd',
+                  borderLeft: `6px solid ${borderColor}`,
+                  background: bgColor,
+                  borderRadius: 8,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <strong>{log.created_at_greece}</strong>
+                  <span>{log.actor_email || '-'}</span>
+                </div>
+
+                <div>{log.description || log.event_type}</div>
+
+                {(log.task_title || log.list_name || log.task_id) && (
+                  <small>
+                    {log.task_id ? `Ομάδα εργασίας: #${log.task_id}` : ''}
+                    {log.task_id && log.task_title ? ' · ' : ''}
+                    {log.task_title ? `Εργασία: ${log.task_title}` : ''}
+                    {(log.task_title || log.task_id) && log.list_name ? ' · ' : ''}
+                    {log.list_name ? `Λίστα: ${log.list_name}` : ''}
+                  </small>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
 
   const [session, setSession] = useState(null)
@@ -792,7 +960,13 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
   const [lastEditorEmail, setLastEditorEmail] = useState('')
-  
+  const [isAdminLogsOpen, setIsAdminLogsOpen] = useState(false)
+  const [adminLogsSearch, setAdminLogsSearch] = useState('')
+  const [adminLogsResults, setAdminLogsResults] = useState([])
+  const [adminLogsLoading, setAdminLogsLoading] = useState(false)
+  const [adminLogsError, setAdminLogsError] = useState('')
+  const [adminLogsDateFrom, setAdminLogsDateFrom] = useState('')
+  const [adminLogsDateTo, setAdminLogsDateTo] = useState('')
   const [contextMenu, setContextMenu] = useState(null)
   const [moveMenuOpen, setMoveMenuOpen] = useState(false)
   const [multiMoveMenuOpen, setMultiMoveMenuOpen] = useState(false)
@@ -824,6 +998,54 @@ const appRef = useRef(null)
 const mainRef = useRef(null)
 const mobileSearchScrollTopRef = useRef(0)
 const openedTaskFromMobileSearchRef = useRef(false)
+const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
+
+useEffect(() => {
+  if (!isAdminLogsOpen || !isAdminLogsUser) {
+    setAdminLogsLoading(false)
+    setAdminLogsError('')
+    setAdminLogsResults([])
+    return
+  }
+
+  const searchTerm = adminLogsSearch.trim()
+
+  if (searchTerm.length < 2) {
+    setAdminLogsLoading(false)
+    setAdminLogsError('')
+    setAdminLogsResults([])
+    return
+  }
+
+  let cancelled = false
+  setAdminLogsLoading(true)
+  setAdminLogsError('')
+
+  const timeoutId = window.setTimeout(async () => {
+  const { data, error } = await supabase.rpc('admin_search_activity_logs', {
+  p_search_term: searchTerm,
+  p_limit: 50,
+  p_date_from: adminLogsDateFrom || null,
+  p_date_to: adminLogsDateTo || null,
+})
+
+    if (cancelled) return
+
+    if (error) {
+      setAdminLogsError('Δεν μπόρεσα να φορτώσω τα logs.')
+      setAdminLogsResults([])
+    } else {
+      setAdminLogsResults(data || [])
+    }
+
+    setAdminLogsLoading(false)
+  }, 350)
+
+  return () => {
+    cancelled = true
+    window.clearTimeout(timeoutId)
+  }
+}, [adminLogsSearch, adminLogsDateFrom, adminLogsDateTo, isAdminLogsOpen, isAdminLogsUser])
 
 function getTaskScrollSnapshot(excludeTaskId = null) {
   if (isMobile) return null
@@ -5437,8 +5659,23 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   }
 
   return (
-    <>
-      <DndContext
+  <>
+    {isAdminLogsOpen && isAdminLogsUser && (
+      <AdminLogsPanel
+        search={adminLogsSearch}
+	dateFrom={adminLogsDateFrom}
+	setDateFrom={setAdminLogsDateFrom}
+	dateTo={adminLogsDateTo}
+	setDateTo={setAdminLogsDateTo}
+        setSearch={setAdminLogsSearch}
+        results={adminLogsResults}
+        loading={adminLogsLoading}
+        error={adminLogsError}
+        onClose={() => setIsAdminLogsOpen(false)}
+      />
+    )}
+
+    <DndContext
         sensors={dndSensors}
         collisionDetection={collisionDetectionStrategy}
         onDragStart={handleGlobalDragStart}
@@ -5534,15 +5771,32 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
   <div style={{ display: 'flex', gap: '6px' }}>
     <button
-      className="theme-toggle"
-      onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-    >
-      {theme === 'light' ? 'Dark' : 'Light'}
-    </button>
+  className="theme-toggle"
+  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+>
+  {theme === 'light' ? 'Dark' : 'Light'}
+</button>
 
-    <button className="theme-toggle" onClick={handleSignOut}>
-      Έξοδος
-    </button>
+{isAdminLogsUser && (
+  <button
+    className="theme-toggle"
+    type="button"
+   onClick={() => {
+  setAdminLogsSearch('')
+  setAdminLogsResults([])
+  setAdminLogsError('')
+  setAdminLogsDateFrom('')
+  setAdminLogsDateTo('')
+  setIsAdminLogsOpen(true)
+}}
+  >
+    Logs
+  </button>
+)}
+
+<button className="theme-toggle" onClick={handleSignOut}>
+  Έξοδος
+</button>
   </div>
 
 </div>
