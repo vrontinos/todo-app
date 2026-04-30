@@ -1,11 +1,11 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "notes": "First test update",
   "pub_date": "2026-04-30T12:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVHlFWGhSTzgrRmNKUjZMV3BmZWhTVU9NODVkN1F6bE1QZDZpYjU0MURNMVMxcnFtUktYQWgzZVFSdlpXY0ZxOGpPQ3MrUHVSaFpycUtGVXp1Q2s3UXJwMHFEVHM1RUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3NTcyNjIyCWZpbGU6VG8gRG8gVnJvbnRpbm9zXzEuMC4yX3g2NF9lbi1VUy5tc2kKeXVaYWV3c25VcGlUOXRaTXJ6b3R4ek1WT1F3OVBpdDhQaWlYdjgxc0NEYktqTVZqdHRmbVI2N05sL2FlYXd4UHBCak1uT0xRT0h5MW9ZNWw1cTZoRHc9PQo=",
-      "url": "https://github.com/vrontinos/todo-app/releases/download/v1.0.2/To.Do.Vrontinos_1.0.2_x64_en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVHlFWGhSTzgrRmZtVDBqTkJTcldFMHhHMkQzUzZNVnl3dkgxU0hvUUJKV0pRR2p3R3EyYmhWcDNlb3NRZnMrMWtDZEtMTXdReXBMQWFsRkZRcm1IaThZVkpPREVnSndFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3NTgyNzI1CWZpbGU6VG8gRG8gVnJvbnRpbm9zXzEuMC4zX3g2NF9lbi1VUy5tc2kKRWJWQVZoYnNydW1vbUJkdy9uL2Y5VnRWUHlNM3A4NklQSlA0YUs1U2YySk9JcHh1blJIeS9MK0VjeVN1SG95bGVDMnZvTVBGSUl0SHQ2ekcveVl2Qnc9PQo=",
+      "url": "https://github.com/vrontinos/todo-app/releases/download/v1.0.3/To.Do.Vrontinos_1.0.3_x64_en-US.msi"
     }
   }
 }
