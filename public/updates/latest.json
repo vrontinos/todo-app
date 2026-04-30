@@ -1,0 +1,11 @@
+{
+  "version": "1.0.1",
+  "notes": "First test update",
+  "pub_date": "2026-04-30T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUVHlFWGhSTzgrRlpVSzJmQjBFOEM1cFRFUmtrak5YTHZ6UU9mL084bmlLWnN3citPVnBrUWRlQjBWOFlINDVGVkxtd2NScXlCcFp4SUQ1U2VUeHo2VTQxcWpFQk9zaXc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc3NTU4NDI5CWZpbGU6VG8gRG8gVnJvbnRpbm9zXzEuMC4xX3g2NF9lbi1VUy5tc2kKUk9iNks3VUFqeklVbFNHb2pRUVo4ZEhSR1QzOWxRQ2M0N0M3MTgxcVl4cXl2eFlCcDExK25IYWgraVFJdHI0R1d4MmZreDYwQW9iV2JCbDJWRHM4QlE9PQo=",
+      "url": "https://vrontinos-todo-app.vercel.app/updates/To.Do.Vrontinos_1.0.1_x64_en-US.msi"
+    }
+  }
+}

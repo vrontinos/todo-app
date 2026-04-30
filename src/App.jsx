@@ -6360,6 +6360,7 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
         className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
         ref={appRef}
       >
+
 {isMobile && mobileView !== 'lists' && (
   <button
     type="button"
