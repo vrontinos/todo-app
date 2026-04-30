@@ -1218,6 +1218,14 @@ const openedTaskFromMobileSearchRef = useRef(false)
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
 useEffect(() => {
+  if (!window.__TAURI_INTERNALS__) return
+
+  import('./tauriUpdates')
+    .then(({ checkForUpdates }) => checkForUpdates())
+    .catch(console.error)
+}, [])
+
+useEffect(() => {
   if (!isAdminLogsOpen || !isAdminLogsUser) {
     setAdminLogsLoading(false)
     setAdminLogsError('')
