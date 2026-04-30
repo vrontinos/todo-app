@@ -1219,11 +1219,17 @@ const openedTaskFromMobileSearchRef = useRef(false)
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
 useEffect(() => {
-  if (!window.__TAURI_INTERNALS__) return
+  async function runUpdaterCheck() {
+    try {
+      const { checkForUpdates } = await import('./tauriUpdates')
+      await checkForUpdates()
+    } catch (error) {
+      alert(`Updater load error: ${error?.message || error}`)
+      console.error(error)
+    }
+  }
 
-  import('./tauriUpdates')
-    .then(({ checkForUpdates }) => checkForUpdates())
-    .catch(console.error)
+  runUpdaterCheck()
 }, [])
 
 useEffect(() => {
