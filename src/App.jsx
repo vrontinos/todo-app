@@ -1218,44 +1218,6 @@ const mobileSearchScrollTopRef = useRef(0)
 const openedTaskFromMobileSearchRef = useRef(false)
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
-useEffect(() => {
-  async function runUpdaterCheck() {
-    try {
-      const { checkForUpdates } = await import('./tauriUpdates')
-      await checkForUpdates()
-    } catch (error) {
-      alert(`Updater load error: ${error?.message || error}`)
-      console.error(error)
-    }
-  }
-
-  runUpdaterCheck()
-}, [])
-
-useEffect(() => {
-  let isMounted = true
-
-  async function loadAppVersion() {
-    try {
-      const { getVersion } = await import('@tauri-apps/api/app')
-      const version = await getVersion()
-
-      if (isMounted) {
-        setAppVersion(version)
-      }
-    } catch {
-      if (isMounted) {
-        setAppVersion('')
-      }
-    }
-  }
-
-  loadAppVersion()
-
-  return () => {
-    isMounted = false
-  }
-}, [])
 
 useEffect(() => {
   if (!isAdminLogsOpen || !isAdminLogsUser) {
@@ -6356,11 +6318,6 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
               : 'Έχεις ήδη λογαριασμό; Σύνδεση'}
           </button>
 
-{appVersion && (
-  <div className="login-version">
-    v.{appVersion}
-  </div>
-)}
         </div>
       </div>
     )
