@@ -2601,3 +2601,13 @@ textarea {
   0% { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
 }
+
+.login-version {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 400;
+  font-style: normal;
+  color: var(--text-soft);
+  opacity: 0.7;
+}

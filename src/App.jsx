@@ -1104,6 +1104,7 @@ function App() {
   const [authResetLoading, setAuthResetLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
+  const [appVersion, setAppVersion] = useState('')
   const [isTaskActionsMenuOpen, setIsTaskActionsMenuOpen] = useState(false)
 const [isMobileSortMenuOpen, setIsMobileSortMenuOpen] = useState(false)
 const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
@@ -1223,6 +1224,31 @@ useEffect(() => {
   import('./tauriUpdates')
     .then(({ checkForUpdates }) => checkForUpdates())
     .catch(console.error)
+}, [])
+
+useEffect(() => {
+  let isMounted = true
+
+  async function loadAppVersion() {
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app')
+      const version = await getVersion()
+
+      if (isMounted) {
+        setAppVersion(version)
+      }
+    } catch {
+      if (isMounted) {
+        setAppVersion('')
+      }
+    }
+  }
+
+  loadAppVersion()
+
+  return () => {
+    isMounted = false
+  }
 }, [])
 
 useEffect(() => {
@@ -6323,6 +6349,12 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
               ? 'Δεν έχεις λογαριασμό; Εγγραφή'
               : 'Έχεις ήδη λογαριασμό; Σύνδεση'}
           </button>
+
+{appVersion && (
+  <div className="login-version">
+    v.{appVersion}
+  </div>
+)}
         </div>
       </div>
     )
