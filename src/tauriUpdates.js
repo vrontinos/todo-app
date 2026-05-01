@@ -7,8 +7,6 @@ export async function checkForUpdates() {
 
     if (!update) return
 
-    console.log(`Installing update ${update.version}...`)
-
     await update.downloadAndInstall()
     await relaunch()
   } catch (error) {

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "To Do Vrontinos",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "identifier": "com.vrontinos.todo",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -44,7 +44,7 @@
         "https://github.com/vrontinos/todo-app/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }
