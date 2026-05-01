@@ -4,7 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <link rel="manifest" href="/manifest.json" />
+    <script>
+      if (!window.__TAURI__) {
+        const link = document.createElement('link')
+        link.rel = 'manifest'
+        link.href = '/manifest.json'
+        document.head.appendChild(link)
+      }
+    </script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>To Do Vrontinos</title>

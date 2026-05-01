@@ -6,6 +6,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import './App.css'
 
+import { isTauri } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
+import { checkForUpdates } from './tauriUpdates'
+
 const LIST_DND_PREFIX = 'list:'
 const TASK_DND_PREFIX = 'task:'
 const TASK_LIST_DROP_PREFIX = 'tasklist:'
@@ -1096,6 +1100,7 @@ function App() {
 
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+
   const [authMode, setAuthMode] = useState('signin')
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
   const [authEmail, setAuthEmail] = useState('')
@@ -1105,6 +1110,7 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
   const [appVersion, setAppVersion] = useState('')
+
   const [isTaskActionsMenuOpen, setIsTaskActionsMenuOpen] = useState(false)
 const [isMobileSortMenuOpen, setIsMobileSortMenuOpen] = useState(false)
 const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
@@ -1216,6 +1222,21 @@ const appRef = useRef(null)
 const mainRef = useRef(null)
 const mobileSearchScrollTopRef = useRef(0)
 const openedTaskFromMobileSearchRef = useRef(false)
+
+useEffect(() => {
+  if (!isTauri()) return
+
+  getVersion()
+    .then((version) => {
+      setAppVersion(version)
+    })
+    .catch((error) => {
+      alert(`Version error: ${error?.message || error}`)
+    })
+
+  checkForUpdates()
+}, [])
+
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
 
@@ -6302,21 +6323,34 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   </button>
 )}
 
-          <button
-            type="button"
-            className="theme-toggle"
-            style={{ marginTop: '12px', width: '100%' }}
-            onClick={() => {
-              setAuthError('')
-              setAuthMessage('')
-              setAuthPassword('')
-              setAuthMode((prev) => (prev === 'signin' ? 'signup' : 'signin'))
-            }}
-          >
-            {authMode === 'signin'
-              ? 'Δεν έχεις λογαριασμό; Εγγραφή'
-              : 'Έχεις ήδη λογαριασμό; Σύνδεση'}
-          </button>
+         <button
+  type="button"
+  className="theme-toggle"
+  style={{ marginTop: '12px', width: '100%' }}
+  onClick={() => {
+    setAuthError('')
+    setAuthMessage('')
+    setAuthPassword('')
+    setAuthMode((prev) => (prev === 'signin' ? 'signup' : 'signin'))
+  }}
+>
+  {authMode === 'signin'
+    ? 'Δεν έχεις λογαριασμό; Εγγραφή'
+    : 'Έχεις ήδη λογαριασμό; Σύνδεση'}
+</button>
+
+{appVersion && (
+  <div
+    style={{
+      marginTop: '14px',
+      textAlign: 'center',
+      fontSize: '12px',
+      color: '#6b7280',
+    }}
+  >
+    v{appVersion}
+  </div>
+)}
 
         </div>
       </div>
