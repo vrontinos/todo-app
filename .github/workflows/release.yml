@@ -1,0 +1,66 @@
+name: Release Windows App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm install
+
+      - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri:build
+
+      - name: Create latest.json
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+
+          $bundleDir = "src-tauri/target/release/bundle/msi"
+          $msi = Get-ChildItem $bundleDir -Filter "*.msi" | Select-Object -First 1
+          $sig = Get-ChildItem $bundleDir -Filter "*.msi.sig" | Select-Object -First 1
+
+          $signature = (Get-Content $sig.FullName -Raw).Trim()
+          $assetName = [uri]::EscapeDataString($msi.Name)
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$assetName"
+
+          $json = @{
+            version = $version
+            notes = "Release $version"
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature
+                url = $url
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+
+          $json | Set-Content "$bundleDir/latest.json" -Encoding UTF8
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.sig
+            src-tauri/target/release/bundle/msi/latest.json
