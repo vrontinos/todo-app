@@ -1099,11 +1099,6 @@ const getEventBadgeStyle = (eventType) => {
 function App() {
 
   const [session, setSession] = useState(null)
-useEffect(() => {
-  if (isTauri()) {
-    checkForUpdates()
-  }
-}, [])
   const [authLoading, setAuthLoading] = useState(true)
 
   const [authMode, setAuthMode] = useState('signin')
@@ -1236,10 +1231,14 @@ useEffect(() => {
       setAppVersion(version)
     })
     .catch((error) => {
-      alert(`Version error: ${error?.message || error}`)
+      console.error('Version error:', error)
     })
 
-  checkForUpdates()
+  const timer = setTimeout(() => {
+    checkForUpdates()
+  }, 5000)
+
+  return () => clearTimeout(timer)
 }, [])
 
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
