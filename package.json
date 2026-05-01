@@ -1,7 +1,7 @@
 {
   "name": "my-app",
   "private": true,
-  "version": "1.0.21",
+  "version": "1.0.22",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -20,6 +20,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.102.1",
+    "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "react": "^19.2.4",

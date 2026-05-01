@@ -1099,6 +1099,11 @@ const getEventBadgeStyle = (eventType) => {
 function App() {
 
   const [session, setSession] = useState(null)
+useEffect(() => {
+  if (isTauri()) {
+    checkForUpdates()
+  }
+}, [])
   const [authLoading, setAuthLoading] = useState(true)
 
   const [authMode, setAuthMode] = useState('signin')

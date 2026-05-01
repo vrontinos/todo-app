@@ -3,7 +3,7 @@ name: Release Windows App
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -17,8 +17,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
-          cache: 'npm'
+          node-version: "lts/*"
+          cache: "npm"
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -27,7 +27,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - run: npm install
+      - run: npm ci
 
       - name: Build Tauri app
         env:
@@ -49,6 +49,7 @@ jobs:
           if (-not $originalExe) { throw "NSIS EXE not found" }
           if (-not $originalSig) { throw "NSIS EXE signature not found" }
 
+          # normalize filenames (no spaces)
           $safeExeName = $originalExe.Name.Replace(" ", ".")
           $safeSigName = $originalSig.Name.Replace(" ", ".")
 
