@@ -15,7 +15,7 @@ export async function checkForUpdates() {
 
     await log(`Update found: ${update.version}`)
 
-    await log('Download started')
+    await log('Download + install started')
     await update.downloadAndInstall()
     await log('Download + install finished')
 
