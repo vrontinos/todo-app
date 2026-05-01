@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "To Do Vrontinos",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "identifier": "com.vrontinos.todo",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -25,7 +25,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi"],
+    "targets": [
+      "msi"
+    ],
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -38,9 +40,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE1M0VFRjQ0RTE0NUM4RDMKUldUVHlFWGhSTzgrRmFySGNvQkVVaGVqNklHTEt2VUYzanV2WjFmNTJZajBlUmdpSnpBVENqNksK",
-"endpoints": [
-  "https://github.com/vrontinos/todo-app/releases/latest/download/latest.json"
-],
+      "endpoints": [
+        "https://github.com/vrontinos/todo-app/releases/latest/download/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }
