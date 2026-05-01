@@ -29,19 +29,32 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build
 
-      - name: Create latest.json
+      - name: Create latest.json (fix filenames)
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart("v")
 
           $bundleDir = "src-tauri/target/release/bundle/msi"
+
+          # 🔥 Βρες αρχικά αρχεία
+          $originalMsi = Get-ChildItem $bundleDir -Filter "*.msi" | Select-Object -First 1
+          $originalSig = Get-ChildItem $bundleDir -Filter "*.msi.sig" | Select-Object -First 1
+
+          # 🔥 Κάνε replace τα spaces με dots
+          $safeMsiName = $originalMsi.Name.Replace(" ", ".")
+          $safeSigName = $originalSig.Name.Replace(" ", ".")
+
+          Rename-Item $originalMsi.FullName $safeMsiName
+          Rename-Item $originalSig.FullName $safeSigName
+
+          # 🔥 Ξαναπάρε τα renamed
           $msi = Get-ChildItem $bundleDir -Filter "*.msi" | Select-Object -First 1
           $sig = Get-ChildItem $bundleDir -Filter "*.msi.sig" | Select-Object -First 1
 
           $signature = (Get-Content $sig.FullName -Raw).Trim()
-          $assetName = [uri]::EscapeDataString($msi.Name)
-          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$assetName"
+
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$($msi.Name)"
 
           $json = @{
             version = $version
