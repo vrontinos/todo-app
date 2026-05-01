@@ -6339,18 +6339,6 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
     : 'Έχεις ήδη λογαριασμό; Σύνδεση'}
 </button>
 
-{appVersion && (
-  <div
-    style={{
-      marginTop: '14px',
-      textAlign: 'center',
-      fontSize: '12px',
-      color: '#6b7280',
-    }}
-  >
-    v{appVersion}
-  </div>
-)}
 
         </div>
       </div>
