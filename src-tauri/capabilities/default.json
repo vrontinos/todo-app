@@ -8,13 +8,13 @@
   "permissions": [
     "core:default",
     "updater:default",
+    "dialog:default",
     "fs:allow-applocaldata-read",
     "fs:allow-applocaldata-write",
     "fs:allow-applocaldata-read-recursive",
     "fs:allow-applocaldata-write-recursive",
-    "dialog:default",
     "fs:allow-write-text-file",
     "fs:allow-write-file",
-    "fs:allow-create",
+    "fs:allow-create"
   ]
 }
