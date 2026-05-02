@@ -1,3 +1,5 @@
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { enable } from '@tauri-apps/plugin-autostart'
 import logo from './assets/logo.png'
 import taskCompleteSoundFile from './assets/sounds/task-complete.mp3'
@@ -17,6 +19,14 @@ const TASK_DND_PREFIX = 'task:'
 const TASK_LIST_DROP_PREFIX = 'tasklist:'
 const MOBILE_BREAKPOINT = 1024
 const ADMIN_LOGS_EMAIL = 'eshop@vrontinos.gr'
+function isDesktopApp() {
+  return (
+    isTauri() ||
+    Boolean(window.__TAURI__) ||
+    Boolean(window.__TAURI_INTERNALS__) ||
+    navigator.userAgent.toLowerCase().includes('tauri')
+  )
+}
 
 function getIsTouchDevice() {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
@@ -1576,24 +1586,42 @@ const downloadAdminLogsCsv = async (logsOverride = null, groupOverride = null) =
 </body>
 </html>
 `
+const fileName = `activity-logs-${new Date().toISOString().slice(0, 10)}.html`
 
-const printWindow = window.open('', '_blank')
+if (isDesktopApp()) {
+  const filePath = await save({
+    defaultPath: fileName,
+    filters: [
+      {
+        name: 'HTML',
+        extensions: ['html'],
+      },
+    ],
+  })
 
-if (!printWindow) {
-  alert('Το popup μπλοκαρίστηκε. Επίτρεψε popups για να γίνει export.')
+  if (!filePath) {
+    setAdminLogsDownloading(false)
+    return
+  }
+
+  await writeTextFile(filePath, html)
+
   setAdminLogsDownloading(false)
   return
 }
 
-printWindow.document.open()
-printWindow.document.write(html)
-printWindow.document.close()
+const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+const url = URL.createObjectURL(blob)
 
-printWindow.onload = () => {
-  printWindow.focus()
-  printWindow.print()
-}
+const link = document.createElement('a')
+link.href = url
+link.download = fileName
 
+document.body.appendChild(link)
+link.click()
+document.body.removeChild(link)
+
+URL.revokeObjectURL(url)
 setAdminLogsDownloading(false)
 }
 
@@ -2385,7 +2413,6 @@ function handleOffline() {
     }
   )
 .subscribe((status) => {
-  console.log('Realtime status:', status)
 
   if (status === 'SUBSCRIBED') {
     markSynced()
@@ -2393,7 +2420,7 @@ function handleOffline() {
   }
 
   if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-    console.warn('Realtime warning:', status)
+
 
     fetchLists(false)
       .then(() => {
