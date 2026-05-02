@@ -55,13 +55,17 @@ pub fn run() {
             tray_builder.build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
-                if is_autostart {
-                    let _ = window.hide();
-                }
+    if is_autostart {
+        let _ = window.hide();
+    } else {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 
-                let window_clone = window.clone();
+    let window_clone = window.clone();
 
-                window.on_window_event(move |event| {
+    window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
                         let _ = window_clone.hide();
