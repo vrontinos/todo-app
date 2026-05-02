@@ -4,47 +4,37 @@ use tauri::{
     Manager,
 };
 
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        // 🔴 Single instance ΠΡΩΤΟ
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_main_window(app);
         }))
-
-        // 🔴 Autostart
         .plugin(tauri_plugin_autostart::Builder::new().build())
-
-        // 🔴 Άλλα plugins
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-
         .setup(|app| {
-            // 🔹 Tray menu
+            let is_autostart = std::env::args().any(|arg| arg == "--autostart");
+
             let show_i = MenuItem::with_id(app, "show", "Άνοιγμα", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Έξοδος", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
-            // 🔹 Tray icon
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("To Do Vrontinos")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
+                    "show" => show_main_window(app),
+                    "quit" => app.exit(0),
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -54,19 +44,16 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        show_main_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
 
-            // 🔹 Close → hide στο tray
             if let Some(window) = app.get_webview_window("main") {
+                if is_autostart {
+                    let _ = window.hide();
+                }
+
                 let window_clone = window.clone();
 
                 window.on_window_event(move |event| {
@@ -77,7 +64,6 @@ pub fn run() {
                 });
             }
 
-            // 🔹 Logging (μόνο dev)
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
