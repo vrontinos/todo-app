@@ -15,7 +15,6 @@
     "dialog:default",
     "fs:allow-write-text-file",
     "fs:allow-write-file",
-    "fs:allow-create"
-    "dialog:default"
+    "fs:allow-create",
   ]
 }
