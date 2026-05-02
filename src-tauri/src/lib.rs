@@ -24,7 +24,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let is_autostart = std::env::args().any(|arg| arg == "--autostart");
-
+            let is_autostart = std::env::args().any(|arg| arg == "--autostart");
             let show_i = MenuItem::with_id(app, "show", "Άνοιγμα", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Έξοδος", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
@@ -51,6 +51,9 @@ pub fn run() {
                 .build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
+    		if is_autostart {
+       		 let _ = window.hide();
+    		}
                 if is_autostart {
                     let _ = window.hide();
                 }
