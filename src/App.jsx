@@ -238,6 +238,11 @@ const showMobileSelectionDot = isTouchInput && isSelected
   const DELETE_THRESHOLD = 72
   const longPressTimerRef = useRef(null)
   const longPressTriggeredRef = useRef(false)
+useEffect(() => {
+  return () => {
+    clearLongPressTimer()
+  }
+}, [])
 
   function resetSwipeState() {
     swipeOffsetRef.current = 0
@@ -1604,10 +1609,17 @@ if (isDesktopApp()) {
     return
   }
 
+try {
   await writeTextFile(filePath, html)
-
+} catch (error) {
+  console.error('Admin logs export error:', error)
+  alert('Δεν μπόρεσα να αποθηκεύσω το αρχείο logs.')
   setAdminLogsDownloading(false)
   return
+}
+
+setAdminLogsDownloading(false)
+return
 }
 
 const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
