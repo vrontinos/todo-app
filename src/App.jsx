@@ -1,3 +1,4 @@
+import { enable } from '@tauri-apps/plugin-autostart'
 import logo from './assets/logo.png'
 import taskCompleteSoundFile from './assets/sounds/task-complete.mp3'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -1253,6 +1254,14 @@ useEffect(() => {
   }, 800)
 
   return () => clearTimeout(timer)
+}, [])
+
+useEffect(() => {
+  if (!isTauri()) return
+
+  enable().catch((error) => {
+    console.error('Autostart enable error:', error)
+  })
 }, [])
 
 useEffect(() => {
