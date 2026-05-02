@@ -1,3 +1,4 @@
+import logo from './assets/logo.png'
 import taskCompleteSoundFile from './assets/sounds/task-complete.mp3'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
@@ -1103,9 +1104,12 @@ function App() {
 
   const [authMode, setAuthMode] = useState('signin')
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
-  const [authEmail, setAuthEmail] = useState('')
-  const [authPassword, setAuthPassword] = useState('')
-  const [resetCooldown, setResetCooldown] = useState(0)
+const [authEmail, setAuthEmail] = useState(() => localStorage.getItem('savedLoginEmail') || '')
+const [authPassword, setAuthPassword] = useState(() => localStorage.getItem('savedLoginPassword') || '')
+const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem('rememberLogin') === 'true')
+const [autoLoginTried, setAutoLoginTried] = useState(false)
+const [resetCooldown, setResetCooldown] = useState(0)
+const [splashReady, setSplashReady] = useState(false)
   const [authResetLoading, setAuthResetLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
@@ -1243,6 +1247,13 @@ useEffect(() => {
 
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setSplashReady(true)
+  }, 800)
+
+  return () => clearTimeout(timer)
+}, [])
 
 useEffect(() => {
   if (!isAdminLogsOpen || !isAdminLogsUser) {
@@ -2095,6 +2106,34 @@ setAuthLoading(false)
       subscription.unsubscribe()
     }
   }, [])
+
+useEffect(() => {
+  if (session || autoLoginTried) return
+  if (authMode !== 'signin') return
+
+  const remembered = localStorage.getItem('rememberLogin') === 'true'
+  const email = localStorage.getItem('savedLoginEmail')
+  const password = localStorage.getItem('savedLoginPassword')
+
+  if (!remembered || !email || !password) {
+    setAutoLoginTried(true)
+    setAuthLoading(false)
+    return
+  }
+
+  setAutoLoginTried(true)
+  setAuthLoading(true)
+
+  supabase.auth
+    .signInWithPassword({ email, password })
+    .catch((error) => {
+      console.error('Auto login failed:', error)
+      setAuthError('Η αυτόματη σύνδεση απέτυχε. Συνδέσου ξανά.')
+    })
+    .finally(() => {
+      setAuthLoading(false)
+    })
+}, [session, autoLoginTried, authMode])
 
   useEffect(() => {
     let cancelled = false
@@ -3896,8 +3935,17 @@ if (isMobile) {
       return
     }
 
-    setAuthEmail('')
-    setAuthPassword('')
+if (rememberLogin) {
+  localStorage.setItem('rememberLogin', 'true')
+  localStorage.setItem('savedLoginEmail', email)
+  localStorage.setItem('savedLoginPassword', password)
+} else {
+  localStorage.removeItem('rememberLogin')
+  localStorage.removeItem('savedLoginEmail')
+  localStorage.removeItem('savedLoginPassword')
+  setAuthEmail('')
+  setAuthPassword('')
+}
   }
 
   async function handleSignUp(e) {
@@ -4015,15 +4063,26 @@ async function handleUpdatePassword(e) {
   await supabase.auth.signOut()
 }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    setSession(null)
+ async function handleSignOut() {
+  setAutoLoginTried(true)
+
+  await supabase.auth.signOut()
+  setSession(null)
+
+  if (localStorage.getItem('rememberLogin') === 'true') {
+    setAuthEmail(localStorage.getItem('savedLoginEmail') || '')
+    setAuthPassword(localStorage.getItem('savedLoginPassword') || '')
+    setRememberLogin(true)
+  } else {
     setAuthEmail('')
     setAuthPassword('')
-    setAuthError('')
-    setAuthMessage('')
-    closeShareModal()
+    setRememberLogin(false)
   }
+
+  setAuthError('')
+  setAuthMessage('')
+  closeShareModal()
+}
   async function handleAddList(e) {
     e.preventDefault()
 
@@ -6183,36 +6242,40 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
       .replaceAll("'", '&#39;')
   }
 
-  if (authLoading) {
-    return (
-      <div
+ if (authLoading || !splashReady) {
+  return (
+    <div style={{
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100vh',
+  background: 'var(--bg)',
+  flexDirection: 'column',
+  gap: '20px',
+  animation: 'fadeIn 0.9s ease-out'
+}}>
+      
+      <img
+        src={logo}
+        alt="Brontinos Logo"
         style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg)',
-          color: 'var(--text)',
-          padding: '24px',
+          maxWidth: '240px',
+          width: '75%',
+          height: 'auto',
+          objectFit: 'contain'
         }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '360px',
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: 'var(--shadow)',
-            textAlign: 'center',
-          }}
-        >
-          Φόρτωση...
-        </div>
+      />
+
+      <div style={{
+        fontSize: '14px',
+        color: 'var(--muted)'
+      }}>
+        Σύνδεση...
       </div>
-    )
-  }
+
+    </div>
+  )
+}
 
   if (!session || authMode === 'update-password') {
     return (
@@ -6280,6 +6343,56 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   />
 )}
 
+{authMode === 'signin' && (
+  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '8px' }}>
+    <input
+      type="checkbox"
+      checked={rememberLogin}
+      onChange={(e) => {
+        const checked = e.target.checked
+        setRememberLogin(checked)
+
+        if (!checked) {
+          localStorage.removeItem('rememberLogin')
+          localStorage.removeItem('savedLoginEmail')
+          localStorage.removeItem('savedLoginPassword')
+        }
+      }}
+    />
+    Αποθήκευση στοιχείων σύνδεσης
+  </label>
+)}
+
+{authMode === 'signin' && rememberLogin && (
+  <button
+    type="button"
+    style={{
+      background: 'none',
+      border: 'none',
+      padding: 0,
+      marginTop: '6px',
+      color: 'var(--muted)',
+      fontSize: '12px',
+      textDecoration: 'underline',
+      cursor: 'pointer',
+      alignSelf: 'flex-start',
+    }}
+    onClick={() => {
+      localStorage.removeItem('rememberLogin')
+      localStorage.removeItem('savedLoginEmail')
+      localStorage.removeItem('savedLoginPassword')
+
+      setRememberLogin(false)
+      setAuthEmail('')
+      setAuthPassword('')
+
+      setAuthMessage('Τα αποθηκευμένα στοιχεία διαγράφηκαν.')
+      setAuthError('')
+    }}
+  >
+    Διαγραφή αποθηκευμένων στοιχείων
+  </button>
+)}
             {authError && (
               <div style={{ color: 'var(--red)', fontSize: '12px', lineHeight: 1.4 }}>
                 {authError}
