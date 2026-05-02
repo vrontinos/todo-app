@@ -1236,7 +1236,7 @@ useEffect(() => {
 
   const timer = setTimeout(() => {
     checkForUpdates()
-  }, 5000)
+  }, 3000)
 
   return () => clearTimeout(timer)
 }, [])
@@ -2336,12 +2336,27 @@ function handleOffline() {
       await fetchPendingInvites()
     }
   )
-  .subscribe((status) => {
-      if (status === 'SUBSCRIBED') setSyncStatus('synced')
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+.subscribe((status) => {
+  console.log('Realtime status:', status)
+
+  if (status === 'SUBSCRIBED') {
+    markSynced()
+    return
+  }
+
+  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+    console.warn('Realtime warning:', status)
+
+    fetchLists(false)
+      .then(() => {
+        markSynced()
+      })
+      .catch((error) => {
+        console.error('Realtime recovery failed:', error)
         setSyncStatus('error')
-      }
-    })
+      })
+  }
+})
 
   return () => {
     supabase.removeChannel(channel)
