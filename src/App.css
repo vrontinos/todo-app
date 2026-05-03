@@ -392,7 +392,14 @@ html, body {
 }
 
 .add-button {
-  padding: 8px 11px;
+  width: var(--plus-width-tasks-web, 36px);
+  min-width: var(--plus-width-tasks-web, 36px);
+  height: var(--plus-height-tasks-web, 32px);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--plus-size-tasks-web, 12px);
 }
 
 .list-container,
@@ -966,7 +973,7 @@ input.round-checkbox:checked::after {
 .note-item {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 7px;
   padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -2752,5 +2759,79 @@ textarea {
 
 .sidebar .task-search-input {
   width: calc(100% - 9px) !important;
+}
+
+
+/* =========================
+   PLUS BUTTON CONTROL
+   Web + Mobile
+   ========================= */
+
+:root {
+  /* WEB */
+  --plus-size-lists-web: 12px;
+  --plus-size-tasks-web: 12px;
+  --plus-width-lists-web: 36px;
+  --plus-width-tasks-web: 36px;
+  --plus-height-lists-web: 32px;
+  --plus-height-tasks-web: 32px;
+
+  /* MOBILE */
+  --plus-size-lists-mobile: 14px;
+  --plus-size-tasks-mobile: 14px;
+  --plus-width-lists-mobile: 40px;
+  --plus-width-tasks-mobile: 40px;
+  --plus-height-lists-mobile: 34px;
+  --plus-height-tasks-mobile: 34px;
+}
+
+/* WEB */
+@media (min-width: 1025px) {
+  .add-list-button {
+    width: var(--plus-width-lists-web);
+    min-width: var(--plus-width-lists-web);
+    height: var(--plus-height-lists-web);
+    font-size: var(--plus-size-lists-web);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .add-button {
+    width: var(--plus-width-tasks-web);
+    min-width: var(--plus-width-tasks-web);
+    height: var(--plus-height-tasks-web);
+    font-size: var(--plus-size-tasks-web);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* MOBILE */
+@media (max-width: 1024px) {
+  .add-list-button {
+    width: var(--plus-width-lists-mobile);
+    min-width: var(--plus-width-lists-mobile);
+    height: var(--plus-height-lists-mobile);
+    font-size: var(--plus-size-lists-mobile);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .add-button {
+    width: var(--plus-width-tasks-mobile);
+    min-width: var(--plus-width-tasks-mobile);
+    height: var(--plus-height-tasks-mobile);
+    font-size: var(--plus-size-tasks-mobile);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
