@@ -467,7 +467,7 @@ useEffect(() => {
               className="task-notes-count"
               title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
             >
-              <span className="task-notes-icon">📝</span>
+              <img src="/note.png" className="task-notes-icon" alt="" />
               <span>{task.notes_count}</span>
             </span>
           )}
@@ -690,7 +690,7 @@ function SwipeableNoteItem({
         onTouchCancel={handleTouchCancel}
         title={isMobile ? 'Swipe αριστερά για διαγραφή • Κλικ για επεξεργασία' : 'Κλικ για επεξεργασία • Δεξί κλικ για μενού'}
       >
-        <span className="note-dash" aria-hidden="true">🔹</span>
+        <img src="/note.png" className="note-icon" alt="" />
 
         {isEditing ? (
           <textarea
@@ -6692,7 +6692,6 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 
 </div>
 
-  <div className="sidebar-scroll-area">
     <div className={`sync-indicator ${syncStatus}`}>
       <span className="sync-dot" />
       <span>{syncText}</span>
@@ -6739,6 +6738,8 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
     </div>
   </div>
 )}
+  <div className="sidebar-scroll-area">
+
 
             {loadingLists ? (
               <p>Φόρτωση...</p>
@@ -7427,10 +7428,12 @@ style={
   activeTask
     ? isMobile
       ? {
-          display: mobileView === 'details' ? 'flex' : 'none',
-          width: '100%',
-          minWidth: '100%',
-        }
+    display: mobileView === 'details' ? 'flex' : 'none',
+    width: '100%',
+    minWidth: '100%',
+    height: '100%',
+    minHeight: '100%',
+  }
       : { width: `${detailsWidth}px`, minWidth: `${detailsWidth}px` }
     : isMobile
       ? { display: 'none' }
@@ -7441,10 +7444,7 @@ style={
 {activeTask && (
   <>
     <div className="details-panel">
-  <div
-    className="details-panel-header"
-    style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '56px' : '0px' }}
-  >
+<div className="details-panel-header">
 {!editingTaskTitle ? (
   isMobile ? (
     <div
@@ -7563,20 +7563,6 @@ style={
     title="Κλικ για μετονομασία"
   />
 )}
-        <div className="details-controls">
-          <button
-            className="details-close"
-            onClick={() => {
-              setActiveTask(null)
-              setTaskNotes([])
-              setEditingTaskTitle(false)
-              setEditingNoteId(null)
-              setEditingNoteValue('')
-            }}
-          >
-            ✕
-          </button>
-        </div>
       </div>
 
       <textarea
@@ -8157,7 +8143,7 @@ style={
 
               {(noteCountsByTask[activeDraggedTask.id] || 0) > 0 && (
                 <span className="task-notes-count">
-                  <span className="task-notes-icon">📝</span>
+                  <img src="/note.png" className="task-notes-icon" alt="" />
                   <span>{noteCountsByTask[activeDraggedTask.id] || 0}</span>
                 </span>
               )}

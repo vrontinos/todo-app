@@ -6,7 +6,9 @@ import App from './App.jsx'
 import './App.css'
 
 async function showDesktopVersion() {
-  if (!isTauri()) return
+  const isMobile = window.innerWidth <= 1024
+
+if (!isTauri() || isMobile) return
 
   try {
     const version = await getVersion()
