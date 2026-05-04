@@ -7088,7 +7088,7 @@ style={
     <div className="main-fixed-header">
 <div
   className="main-header"
-  style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '32px' : '0px' }}
+  style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '10px' : '0px' }}
 >
         {editingListName ? (
           <input
