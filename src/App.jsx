@@ -2,6 +2,8 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { enable } from '@tauri-apps/plugin-autostart'
 import logo from './assets/logo.png'
+
+
 import taskCompleteSoundFile from './assets/sounds/task-complete.mp3'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors } from '@dnd-kit/core'
@@ -1177,9 +1179,10 @@ const userMenuRef = useRef(null)
 // UI ZOOM (desktop only)
 const [uiScale, setUiScale] = useState(() => {
   const saved = localStorage.getItem('ui-scale')
-  return saved ? parseFloat(saved) : 1
-})
+  if (saved) return parseFloat(saved)
 
+  return window.__TAURI_INTERNALS__ ? 1.1 : 1
+})
 const zoomIn = () => setUiScale((s) => Math.min(s + 0.1, 1.6))
 const zoomOut = () => setUiScale((s) => Math.max(s - 0.1, 0.7))
 const zoomReset = () => setUiScale(1)
