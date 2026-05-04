@@ -257,6 +257,73 @@ html, body {
   background: var(--hover);
 }
 
+/* =========================
+   SIDEBAR ROW SCALE ALIGNMENT
+   Sync indicator = list rows
+   ========================= */
+@media (min-width: 1025px) {
+  .sidebar {
+    --sidebar-row-font: calc(12px * var(--ui-scale));
+    --sidebar-row-padding: calc(8px * var(--ui-scale));
+    --sidebar-row-gap: calc(8px * var(--ui-scale));
+    --sidebar-icon-space: calc(13px * var(--ui-scale));
+    --sidebar-dot-size: calc(8px * var(--ui-scale));
+  }
+
+.list-button,
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--sidebar-row-padding);
+  gap: var(--sidebar-row-gap);
+  font-size: var(--sidebar-row-font) !important;
+  line-height: 1.2;
+}
+
+.sync-indicator {
+  gap: calc(var(--sidebar-row-gap) + 0px);
+}
+
+  .list-grip,
+  .sync-dot {
+    width: var(--sidebar-icon-space);
+    min-width: var(--sidebar-icon-space);
+    height: var(--sidebar-icon-space);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .sync-dot {
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .sync-dot::before {
+  content: '';
+  display: block; /* 👈 ΑΥΤΟ ΛΕΙΠΕΙ */
+  width: var(--sidebar-dot-size);
+  height: var(--sidebar-dot-size);
+  border-radius: 999px;
+  background: var(--text-soft);
+}
+
+  .sync-indicator.synced .sync-dot::before {
+    background: var(--green);
+  }
+
+  .sync-indicator.saving .sync-dot::before,
+  .sync-indicator.syncing .sync-dot::before,
+  .sync-indicator.connecting .sync-dot::before {
+    background: #eab308;
+  }
+
+  .sync-indicator.error .sync-dot::before {
+    background: var(--red);
+  }
+}
 .task-search-box {
   margin-bottom: 4px;
 }
@@ -276,7 +343,7 @@ html, body {
 .task-search-clear {
   position: absolute;
   top: 50%;
-  right: 14px;
+  right: 6px;
   width: 22px;
   height: 22px;
   border: none;
@@ -1473,7 +1540,7 @@ input.round-checkbox:checked::after {
   .mobile-floating-back {
     display: block;
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 1px);
+    top: calc(env(safe-area-inset-top, 0px) + 4px);
     left: calc(env(safe-area-inset-left, 0px) + 12px);
     z-index: 9999;
     background: transparent;
@@ -1638,6 +1705,14 @@ input.round-checkbox:checked::after {
 @media (max-width: 768px) {
   .details-drawer.mobile-screen .details-close {
     display: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .details-task-title-input {
+    min-height: 44px;
+    overflow-y: hidden !important;
+    height: auto !important;
   }
 }
 
@@ -1969,7 +2044,7 @@ input.round-checkbox:checked::after {
 .mobile-search-header-text {
   font-size: 13px;
   color: var(--text-soft);
-  margin-top: 8px;
+  margin-top: 28px;
   margin-bottom: 8px;
 }
 
@@ -2003,6 +2078,11 @@ input.round-checkbox:checked::after {
     display: none;
   }
 }
+@media (max-width: 1024px) {
+  .mobile-search-fixed-header {
+    padding-top: 32px;
+  }
+}
 
 .details-bottom-area {
   display: flex;
@@ -2013,6 +2093,12 @@ input.round-checkbox:checked::after {
   padding-top: 0;
   background: var(--panel);
   border-top: 1px solid var(--border);
+}
+
+.task-updated-box {
+  padding: 10px 0 0 0;
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
+  background: transparent;
 }
 
 @media (max-width: 1024px) {
@@ -2082,7 +2168,7 @@ input.round-checkbox:checked::after {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0px 10px 10px 10px;
+  padding: 10px;
   padding-bottom: 10px;
 }
 
@@ -2460,6 +2546,28 @@ textarea {
   }
 }
 
+/* MOBILE: μην το πειράζουμε */
+@media (max-width: 1024px) {
+  .task-timer-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+}
+
+.task-timer {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-flag-row {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+}
+
 @media (min-width: 1025px) {
   .task-item {
     overflow: visible;
@@ -2565,12 +2673,25 @@ textarea {
   }
 }
 
+@media (max-width: 1024px) {
+  .details-panel-header {
+    margin-top: calc(env(safe-area-inset-top, 0px) + 40px);
+  }
+
   .task-notes-icon {
     width: 22px;
     height: 22px;
     flex: 0 0 22px;
     transform: scale(0.75);
     transform-origin: center;
+  }
+}
+@media (max-width: 1024px) {
+  .task-notes-count {
+    grid-column: 1;
+    grid-row:3;
+    margin-left: 4px;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -2610,7 +2731,15 @@ textarea {
 
   filter: brightness(0) saturate(100%) invert(34%) sepia(98%) saturate(747%) hue-rotate(202deg) brightness(95%) contrast(95%);
 }
+@media (max-width: 1024px) {
+  .task-updated-box {
+    padding-bottom: 0;
+  }
 
+  .details-bottom-area {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
 @media (min-width: 1025px) {
   .details-panel {
     position: relative;
@@ -2737,6 +2866,40 @@ textarea {
     justify-content: center;
   }
 }
+/* =========================
+   DESKTOP UI ZOOM
+   ========================= */
+@media (min-width: 1025px) {
+  :root {
+    --ui-scale: 1;
+  }
+
+  body {
+    font-size: calc(var(--font-main) * var(--ui-scale));
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    font-size: calc(var(--font-main) * var(--ui-scale));
+  }
+
+.task-title,
+.list-name-text,
+.sync-indicator,
+.task-timer,
+.task-notes-count,
+.task-list-label,
+.context-menu-item {
+  font-size: calc(1em * var(--ui-scale));
+}
+}
+
+.desktop-zoom-controls {
+  display: flex;
+  gap: 6px;
+}
 
 @media (max-width: 1024px) {
   .desktop-zoom-controls {
@@ -2779,6 +2942,25 @@ textarea {
 @media (max-width: 1024px) {
   .details-task-timer {
     font-size: 12px;
+  }
+}
+
+/* =========================
+   EXACT MATCH WITH LISTS + ZOOM (DESKTOP)
+   ========================= */
+@media (min-width: 1025px) {
+  .task-item {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+
+  .task-title {
+    font-size: inherit !important;
+  }
+
+  .details-task-title,
+  .details-task-title-readonly-web {
+    font-size: calc(12px * var(--ui-scale)) !important;
+    font-weight: 500;
   }
 }
 
@@ -2880,7 +3062,7 @@ textarea {
       "title title";
     width: 100%;
     align-items: start;
-    gap: 0px 8px;
+    gap: 10px 8px;
     padding-top: 0;
   }
 
@@ -2897,6 +3079,19 @@ textarea {
   }
 }
 
+@media (max-width: 1024px) {
+  .main-fixed-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0px);
+  }
+
+  .main-header {
+    align-items: flex-start;
+  }
+
+  .main-title-text-block {
+    margin-top: 0;
+  }
+}
 
 /* =========================
    USER EMAIL CLICKABLE UX
@@ -3004,164 +3199,5 @@ textarea {
 
   .sync-indicator.error .sync-dot::before {
     background: var(--red);
-  }
-}
-
-.sidebar-user-row .user-menu-wrap {
-  flex: 0 1 auto !important;
-  width: fit-content !important;
-  max-width: calc(100% - 54px);
-}
-
-.sidebar-user-row .user-menu-trigger {
-  width: auto !important;
-  max-width: 100%;
-  display: inline-flex !important;
-  align-items: center;
-}
-
-@media (min-width: 1025px) {
-  .list-count-badge {
-    min-width: calc(14px * var(--ui-scale));
-    height: calc(17px * var(--ui-scale));
-    padding: 0 calc(2px * var(--ui-scale));
-  }
-}
-
-@media (min-width: 1025px) {
-  .inline-sort-box,
-  .inline-sort-label,
-  .inline-sort-box select,
-  .task-sort-box,
-  .task-sort-box select,
-  .task-actions-trigger,
-  .print-button {
-    font-size: var(--font-small) !important;
-  }
-
-  .task-actions-trigger {
-    width: 32px !important;
-    height: 32px !important;
-  }
-
-  .print-button {
-    padding: 7px 10px !important;
-  }
-}
-
-/* =========================
-   DESKTOP / APP ZOOM SYSTEM
-   ΜΟΝΟ αυτά κάνουν zoom:
-   - Ονόματα λιστών
-   - Ονόματα εργασιών
-   - Τίτλος εργασίας στις σημειώσεις/details
-   - Κείμενο σημειώσεων
-   ========================= */
-
-@media (min-width: 1025px) {
-  :root {
-    --ui-scale: 1;
-  }
-
-  /* Ονόματα λιστών αριστερά */
-  .list-name-text {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-
-  /* Ονόματα εργασιών */
-  .task-title {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-
-  /* Τίτλος εργασίας μέσα στο panel σημειώσεων/details */
-  .details-task-title,
-  .details-task-title-input,
-  .details-task-title-readonly-web {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-
-  /* Κείμενο σημειώσεων */
-  .note-text,
-  .note-item span,
-  .note-inline-input {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-}
-
-/* Sync indicator spacing - stable, no zoom */
-.sync-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  min-width: 8px;
-  flex-shrink: 0;
-}
-
-.sync-indicator {
-  margin-bottom: 8px;
-}
-
-@media (min-width: 1025px) {
-  .note-item {
-    gap: 9px;          /* ίδιο με task */
-    padding: 8px 9px;  /* ίδιο με task */
-  }
-}
-
-@media (max-width: 1024px) {
-  .main-fixed-header.mobile-search-fixed-header {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 24px) !important;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-
-  .main-fixed-header.mobile-search-fixed-header .mobile-search-screen {
-    padding-top: 0 !important;
-  }
-}
-
-/* === CLEAN MOBILE BASELINE === */
-@media (max-width: 1024px) {
-
-  .main-fixed-header {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 0px);
-  }
-
-  .main-title-text-block {
-    margin-top: 8px;
-  }
-
-  .mobile-task-title-readonly,
-  .mobile-task-title-editor {
-    margin: 0;
-  }
-
-  .mobile-search-header-text {
-    margin-top: 0;
-  }
-}
-.sidebar-top {
-  display: flex;
-  justify-content: flex-start !important;
-  gap: 10px;
-  overflow: hidden;
-}
-
-.sidebar-top > h2 {
-  flex-shrink: 0;
-}
-
-.sidebar-top > div {
-  flex-shrink: 0;
-}
-
-@media (max-width: 1024px) {
-  .mobile-task-view {
-    padding-top: 16px;
   }
 }
