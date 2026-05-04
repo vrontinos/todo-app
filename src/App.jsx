@@ -1300,6 +1300,10 @@ useEffect(() => {
 }, [uiScale])
 
 useEffect(() => {
+  setIsUserMenuOpen(false)
+}, [session?.user?.email])
+
+useEffect(() => {
   const timer = setTimeout(() => {
     setSplashReady(true)
   }, 800)
@@ -6750,7 +6754,10 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 <button
   type="button"
   className="user-menu-logout"
-  onClick={handleSignOut}
+  onClick={() => {
+    setIsUserMenuOpen(false)
+    handleSignOut()
+  }}
 >
   Έξοδος
 </button>
