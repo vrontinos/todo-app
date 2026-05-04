@@ -3003,3 +3003,21 @@ textarea {
 .user-menu-logout:hover {
   background: var(--red-hover) !important;
 }
+
+/* =========================
+   USER EMAIL SIZE CONTROL
+   ========================= */
+
+/* DESKTOP / WEB */
+@media (min-width: 1025px) {
+  .user-menu-trigger {
+    font-size: 15px; /* άλλαξε το όσο θες */
+  }
+}
+
+/* MOBILE */
+@media (max-width: 1024px) {
+  .user-menu-trigger {
+    font-size: 16px; /* μεγαλύτερο για mobile */
+  }
+}
