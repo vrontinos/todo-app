@@ -3022,24 +3022,3 @@ textarea {
   }
 }
 
-/* =========================
-   MOBILE: TASK TEXT BELOW ACTIONS
-   ========================= */
-@media (max-width: 1024px) {
-  .task-item {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  /* Πάνω σειρά (checkbox + κουμπιά) */
-  .task-item > *:not(.task-text-block) {
-    display: flex;
-    align-items: center;
-  }
-
-  /* Το block με τίτλο + ταξινόμηση πάει κάτω */
-  .task-text-block {
-    margin-top: 6px;
-    width: 100%;
-  }
-}
