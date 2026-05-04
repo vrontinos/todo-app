@@ -1,3 +1,7 @@
+html {
+  font-size: 14px;
+}
+
 :root {
   --bg: #f3f3f3;
   --panel: #ffffff;
