@@ -1142,6 +1142,7 @@ const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem('r
 const [autoLoginTried, setAutoLoginTried] = useState(false)
 const [resetCooldown, setResetCooldown] = useState(0)
 const [splashReady, setSplashReady] = useState(false)
+const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [authResetLoading, setAuthResetLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [authMessage, setAuthMessage] = useState('')
@@ -1154,6 +1155,8 @@ const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [isTouchDevice, setIsTouchDevice] = useState(() => getIsTouchDevice())
+
+const userMenuRef = useRef(null)
 
   const mobileSelectionClearedDuringDragRef = useRef(false)
   const [mobileView, setMobileView] = useState(() => {
@@ -1302,6 +1305,20 @@ useEffect(() => {
   }, 800)
 
   return () => clearTimeout(timer)
+}, [])
+
+useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+      setIsUserMenuOpen(false)
+    }
+  }
+
+  document.addEventListener('mousedown', handleClickOutside)
+
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside)
+  }
 }, [])
 
 useEffect(() => {
@@ -6712,17 +6729,33 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
     </button>
   )}
 
-  <button className="theme-toggle" onClick={handleSignOut}>
-    Έξοδος
-  </button>
+
 </div>
 
   </div>
 </div>
 
 <div className="sidebar-user-row">
-  <div className="sidebar-user-email">
-    {session.user.email}
+  <div className="user-menu-wrap" ref={userMenuRef}>
+    <button
+      type="button"
+      className="user-menu-trigger"
+      onClick={() => setIsUserMenuOpen((v) => !v)}
+    >
+      {session.user.email}
+    </button>
+
+    {isUserMenuOpen && (
+      <div className="user-menu-dropdown">
+<button
+  type="button"
+  className="user-menu-logout"
+  onClick={handleSignOut}
+>
+  Έξοδος
+</button>
+      </div>
+    )}
   </div>
 
   {isMobile && (

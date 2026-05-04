@@ -2913,3 +2913,93 @@ textarea {
     font-size: 12px;
   }
 }
+
+/* =========================
+   EXACT MATCH WITH LISTS + ZOOM (DESKTOP)
+   ========================= */
+@media (min-width: 1025px) {
+  .task-item {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+
+  .task-title {
+    font-size: inherit !important;
+  }
+
+  .details-task-title,
+  .details-task-title-readonly-web {
+    font-size: calc(12px * var(--ui-scale)) !important;
+    font-weight: 500;
+  }
+}
+
+.user-menu-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-menu-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-family: var(--font-family-main);
+  font-size: var(--font-small);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-trigger:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.user-menu-dropdown button {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-family-main);
+  font-size: var(--font-small);
+  text-align: left;
+}
+
+.user-menu-dropdown button:hover {
+  background: var(--hover);
+}
+
+.user-menu-logout {
+  width: 100%;
+  padding: 8px 10px;
+  border: none !important;
+  border-radius: var(--radius-sm);
+  background: var(--red) !important;
+  color: #fff !important;
+  font-family: var(--font-family-main);
+  font-size: var(--font-small);
+  text-align: left;
+}
+
+.user-menu-logout:hover {
+  background: var(--red-hover) !important;
+}
