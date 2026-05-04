@@ -3038,12 +3038,26 @@ textarea {
   .main-title-text-block {
     grid-area: title;
     width: 100%;
-    margin-top: 2px;
+    margin-top: 8px;
   }
 
   .task-actions-menu-wrap {
     grid-area: menu;
     justify-self: end;
     align-self: start;
+  }
+}
+
+@media (max-width: 1024px) {
+  .main-fixed-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0px);
+  }
+
+  .main-header {
+    align-items: flex-start;
+  }
+
+  .main-title-text-block {
+    margin-top: 0;
   }
 }
