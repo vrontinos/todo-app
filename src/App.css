@@ -3161,11 +3161,7 @@ textarea {
 }
 
 @media (max-width: 1024px) {
-  .mobile-task-title-readonly,
-  .mobile-task-title-editor {
-    margin-top: 40px !important;
-    position: relative;
-    top: 0 !important;
-    transform: none !important;
+  .mobile-task-view {
+    padding-top: 16px;
   }
 }
