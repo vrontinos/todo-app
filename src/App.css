@@ -3022,3 +3022,28 @@ textarea {
   }
 }
 
+@media (max-width: 1024px) {
+  .main-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "spacer menu"
+      "title title";
+    width: 100%;
+    align-items: start;
+    gap: 10px 8px;
+    padding-top: 0;
+  }
+
+  .main-title-text-block {
+    grid-area: title;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .task-actions-menu-wrap {
+    grid-area: menu;
+    justify-self: end;
+    align-self: start;
+  }
+}
