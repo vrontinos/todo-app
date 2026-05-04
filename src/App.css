@@ -1977,7 +1977,7 @@ input.round-checkbox:checked::after {
 .mobile-search-header-text {
   font-size: 13px;
   color: var(--text-soft);
-  margin-top: 28px;
+  margin-top: 8px;
   margin-bottom: 8px;
 }
 
