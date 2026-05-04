@@ -6751,7 +6751,10 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 </div>
 
 <div className="sidebar-user-row">
-  <div className="user-menu-wrap" ref={userMenuRef}>
+  <div
+  className={`user-menu-wrap ${isUserMenuOpen ? 'open' : ''}`}
+  ref={userMenuRef}
+>
     <button
       type="button"
       className="user-menu-trigger"
