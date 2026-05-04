@@ -21,9 +21,9 @@
   --danger-bg: #fee2e2;
   --muted-bg: #f9fafb;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-  --font-main: 11.2px;
+  --font-main: 14px;
   --font-family-main: 'Inter', 'Roboto', Arial, sans-serif;
-  --font-small: 9.8px;
+  --font-small: 12px;
   --font-title: 19px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -708,7 +708,7 @@ html, body {
   overflow-wrap: break-word;
   word-break: normal;
   line-height: 1.35;
-  font-size: 10px;
+   font-size: 0.95rem;
 }
 
 .task-title.completed {
@@ -2479,7 +2479,7 @@ textarea {
   display: inline-flex;
   width: fit-content;
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 0.8rem;
   line-height: 1.2;
 }
 
@@ -2596,7 +2596,7 @@ textarea {
 
 @media (min-width: 1025px) {
   .list-name-text {
-    font-size: 11px;
+        font-size: 0.95rem;
   }
 }
 
@@ -2836,4 +2836,31 @@ textarea {
     justify-content: center;
   }
 }
+/* =========================
+   DESKTOP UI ZOOM
+   ========================= */
+@media (min-width: 1025px) {
+  :root {
+    --ui-scale: 1;
+  }
 
+  body {
+    font-size: calc(var(--font-main) * var(--ui-scale));
+  }
+
+  input,
+  textarea,
+  button,
+  select {
+    font-size: calc(var(--font-main) * var(--ui-scale));
+  }
+
+  .task-title,
+  .list-name-text,
+  .task-timer,
+  .task-notes-count,
+  .task-list-label,
+  .context-menu-item {
+    font-size: calc(1em * var(--ui-scale));
+  }
+}

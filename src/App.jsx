@@ -1115,6 +1115,26 @@ const getEventBadgeStyle = (eventType) => {
 
 function App() {
 
+
+async function confirmAction(message) {
+  try {
+    if (window.__TAURI_INTERNALS__) {
+      const dialog = await import('@tauri-apps/plugin-dialog')
+
+      const ok = await dialog.confirm(message, {
+        title: 'Επιβεβαίωση',
+        kind: 'warning',
+      })
+
+      return ok === true
+    }
+  } catch (error) {
+    console.error('Tauri confirm failed:', error)
+  }
+
+  return window.confirm(message)
+}
+
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
 
@@ -1131,6 +1151,7 @@ const [splashReady, setSplashReady] = useState(false)
   const [authMessage, setAuthMessage] = useState('')
   const [appVersion, setAppVersion] = useState('')
 
+
   const [isTaskActionsMenuOpen, setIsTaskActionsMenuOpen] = useState(false)
 const [isMobileSortMenuOpen, setIsMobileSortMenuOpen] = useState(false)
 const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
@@ -1142,6 +1163,17 @@ const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
   const [mobileView, setMobileView] = useState(() => {
   return localStorage.getItem('lastMobileView') || 'lists'
 })
+
+// UI ZOOM (desktop only)
+const [uiScale, setUiScale] = useState(() => {
+  const saved = localStorage.getItem('ui-scale')
+  return saved ? parseFloat(saved) : 1
+})
+
+const zoomIn = () => setUiScale((s) => Math.min(s + 0.1, 1.6))
+const zoomOut = () => setUiScale((s) => Math.max(s - 0.1, 0.7))
+const zoomReset = () => setUiScale(1)
+
 const [mobileDirection, setMobileDirection] = useState('forward')
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light')
@@ -1262,6 +1294,11 @@ useEffect(() => {
 }, [])
 
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
+
+useEffect(() => {
+  document.documentElement.style.setProperty('--ui-scale', uiScale)
+  localStorage.setItem('ui-scale', uiScale)
+}, [uiScale])
 
 useEffect(() => {
   const timer = setTimeout(() => {
@@ -2603,7 +2640,7 @@ function isOwnRecentTaskMutation(taskId, updatedAt) {
   async function handleLeaveList(list) {
     if (!list?.id || !session?.user?.id || isOffline) return
 
-    const confirmed = window.confirm('Να αποχωρήσεις από αυτή τη λίστα;')
+    const confirmed = await confirmAction('Να αποχωρήσεις από αυτή τη λίστα;')
     if (!confirmed) return
 
     const { error } = await supabase
@@ -3482,7 +3519,7 @@ function snapshotTaskEverywhere(taskId) {
 
     if (validInviteIds.length === 0 || isOffline) return
 
-    const confirmed = window.confirm('Θέλεις να απορρίψεις αυτή την πρόσκληση;')
+    const confirmed = await confirmAction('Θέλεις να απορρίψεις αυτή την πρόσκληση;')
     if (!confirmed) return
 
     const loadingKey = validInviteIds.join(',')
@@ -3709,7 +3746,7 @@ async function fetchShareDetails(list) {
   async function handleRemoveSharedUser(member) {
     if (!shareModalList?.id || !member?.user_id || isOffline) return
 
-    if (!window.confirm(`Να αφαιρεθεί ο χρήστης "${member.email}" από τη λίστα;`)) {
+    if (!(await confirmAction(`Να αφαιρεθεί ο χρήστης "${member.email}" από τη λίστα;`))) {
       return
     }
 
@@ -4340,7 +4377,7 @@ function scheduleRealtimeRefresh(kind, runner, delay = 120) {
   const originalContent = String(originalNote.content || '').trim()
 
   if (!content) {
-    const shouldDelete = window.confirm('Να διαγραφεί η σημείωση;')
+    const shouldDelete = await confirmAction('Να διαγραφεί η σημείωση;')
 
     if (shouldDelete) {
       await handleDeleteNote(noteId, true)
@@ -4399,7 +4436,7 @@ function scheduleRealtimeRefresh(kind, runner, delay = 120) {
   async function handleDeleteList(list) {
     if (list?.owner_user_id !== session?.user?.id) return
     if (!list || isOffline) return
-    if (!window.confirm(`Να διαγραφεί η λίστα "${list.name}";`)) return
+    if (!(await confirmAction(`Να διαγραφεί η λίστα "${list.name}";`))) return
 
 markSaving()
 
@@ -4470,7 +4507,7 @@ setSelectedLists((prev) => prev.filter((id) => id !== list.id))
     const safeLists = (targetLists || []).filter(Boolean)
     if (safeLists.length === 0 || !session?.user?.id || isOffline) return
 
-    if (!window.confirm(`Να αποχωρήσεις από ${safeLists.length} επιλεγμένες λίστες;`)) return
+    if (!(await confirmAction(`Να αποχωρήσεις από ${safeLists.length} επιλεγμένες λίστες;`))) return
 
     const idsToLeave = safeLists.map((list) => list.id)
 
@@ -4523,7 +4560,7 @@ setSelectedLists((prev) => prev.filter((id) => id !== list.id))
     const safeLists = (targetLists || []).filter(Boolean)
     if (safeLists.length === 0 || isOffline) return
 
-    if (!window.confirm(`Να διαγραφούν ${safeLists.length} επιλεγμένες λίστες;`)) return
+    if (!(await confirmAction(`Να διαγραφούν ${safeLists.length} επιλεγμένες λίστες;`))) return
 
     const idsToDelete = safeLists.map((list) => list.id)
 
@@ -5512,7 +5549,7 @@ async function handleToggleWeighing(task, event) {
         ? 'Να διαγραφεί η επιλεγμένη εργασία;'
         : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
 
-    if (!window.confirm(label)) return
+    if (!(await confirmAction(label))) return
 
 const oldTasks = [...tasks]
 const idsToDelete = [...selectedTasks]
@@ -5599,7 +5636,7 @@ async function handleCompleteSelectedTasks() {
       ? 'Να ολοκληρωθεί η επιλεγμένη εργασία;'
       : `Να ολοκληρωθούν ${incompleteSelectedTasks.length} επιλεγμένες εργασίες;`
 
-  if (!window.confirm(label)) return
+  if (!(await confirmAction(label))) return
 
   const now = new Date().toISOString()
   const oldTasks = [...tasks]
@@ -5705,7 +5742,7 @@ async function handleUncompleteSelectedTasks() {
       ? 'Να γίνει άρση ολοκλήρωσης της επιλεγμένης εργασίας;'
       : `Να γίνει άρση ολοκλήρωσης ${completedSelectedTasks.length} επιλεγμένων εργασιών;`
 
-  if (!window.confirm(label)) return
+  if (!(await confirmAction(label))) return
 
   const now = new Date().toISOString()
   const oldTasks = [...tasks]
@@ -5793,7 +5830,7 @@ const { error: firstError } = await supabase
   const task = allTasks.find((t) => t.id === taskId)
 
   if (!skipConfirm) {
-    if (!window.confirm(`Να διαγραφεί η εργασία "${task?.title || ''}";`)) return
+    if (!(await confirmAction(`Να διαγραφεί η εργασία "${task?.title || ''}";`))) return
   }
 
   const oldTasks = [...tasks]
@@ -6139,7 +6176,7 @@ const { error: firstError } = await supabase
 
 async function handleDeleteNote(noteId, skipConfirm = false) {
   if (isOffline) return
-  if (!skipConfirm && !window.confirm('Να διαγραφεί η σημείωση;')) return
+  if (!skipConfirm && !(await confirmAction('Να διαγραφεί η σημείωση;'))) return
 
   const oldNotes = [...taskNotes]
   const oldNoteCounts = { ...noteCountsByTask }
@@ -6636,42 +6673,57 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   }
 >
   <div className="sidebar-fixed-header">
-    <div className="sidebar-top">
-      <h2>Λίστες</h2>
+  <div className="sidebar-top">
+  <h2>Λίστες</h2>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-  <div style={{ display: 'flex', gap: '6px' }}>
-    <button
-  className="theme-toggle"
-  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
->
-  {theme === 'light' ? 'Dark' : 'Light'}
-</button>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+<div style={{ display: 'flex', gap: '6px' }}>
+  {!isMobile && (
+    <>
+      <button className="theme-toggle" type="button" onClick={zoomOut}>
+        −
+      </button>
 
-{isAdminLogsUser && (
+      <button className="theme-toggle" type="button" onClick={zoomReset}>
+        {Math.round(uiScale * 100)}%
+      </button>
+
+      <button className="theme-toggle" type="button" onClick={zoomIn}>
+        +
+      </button>
+    </>
+  )}
+
   <button
     className="theme-toggle"
-    type="button"
-   onClick={() => {
-  setAdminLogsSearch('')
-  setAdminLogsResults([])
-  setAdminLogsError('')
-  setAdminLogsDateFrom('')
-  setAdminLogsDateTo('')
-  setIsAdminLogsOpen(true)
-}}
+    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
   >
-    Logs
+    {theme === 'light' ? 'Dark' : 'Light'}
   </button>
-)}
 
-<button className="theme-toggle" onClick={handleSignOut}>
-  Έξοδος
-</button>
-  </div>
+  {isAdminLogsUser && (
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={() => {
+        setAdminLogsSearch('')
+        setAdminLogsResults([])
+        setAdminLogsError('')
+        setAdminLogsDateFrom('')
+        setAdminLogsDateTo('')
+        setIsAdminLogsOpen(true)
+      }}
+    >
+      Logs
+    </button>
+  )}
 
+  <button className="theme-toggle" onClick={handleSignOut}>
+    Έξοδος
+  </button>
 </div>
 
+  </div>
 </div>
 
 <div className="sidebar-user-row">
