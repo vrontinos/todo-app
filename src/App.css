@@ -2641,7 +2641,7 @@ textarea {
 
 @media (max-width: 1024px) {
   .details-panel-header {
-    margin-top: calc(env(safe-area-inset-top, 0px) + 30px);
+    margin-top: calc(env(safe-area-inset-top, 0px) + 40px);
   }
 
   .task-notes-icon {
