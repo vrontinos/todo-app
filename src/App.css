@@ -257,73 +257,6 @@ html, body {
   background: var(--hover);
 }
 
-/* =========================
-   SIDEBAR ROW SCALE ALIGNMENT
-   Sync indicator = list rows
-   ========================= */
-@media (min-width: 1025px) {
-  .sidebar {
-    --sidebar-row-font: calc(12px * var(--ui-scale));
-    --sidebar-row-padding: calc(8px * var(--ui-scale));
-    --sidebar-row-gap: calc(8px * var(--ui-scale));
-    --sidebar-icon-space: calc(13px * var(--ui-scale));
-    --sidebar-dot-size: calc(8px * var(--ui-scale));
-  }
-
-.list-button,
-.sync-indicator {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: var(--sidebar-row-padding);
-  gap: var(--sidebar-row-gap);
-  font-size: var(--sidebar-row-font) !important;
-  line-height: 1.2;
-}
-
-.sync-indicator {
-  gap: calc(var(--sidebar-row-gap) + 0px);
-}
-
-  .list-grip,
-  .sync-dot {
-    width: var(--sidebar-icon-space);
-    min-width: var(--sidebar-icon-space);
-    height: var(--sidebar-icon-space);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .sync-dot {
-    background: transparent;
-    border-radius: 0;
-  }
-
-  .sync-dot::before {
-  content: '';
-  display: block; /* 👈 ΑΥΤΟ ΛΕΙΠΕΙ */
-  width: var(--sidebar-dot-size);
-  height: var(--sidebar-dot-size);
-  border-radius: 999px;
-  background: var(--text-soft);
-}
-
-  .sync-indicator.synced .sync-dot::before {
-    background: var(--green);
-  }
-
-  .sync-indicator.saving .sync-dot::before,
-  .sync-indicator.syncing .sync-dot::before,
-  .sync-indicator.connecting .sync-dot::before {
-    background: #eab308;
-  }
-
-  .sync-indicator.error .sync-dot::before {
-    background: var(--red);
-  }
-}
 .task-search-box {
   margin-bottom: 4px;
 }
@@ -2866,41 +2799,6 @@ textarea {
     justify-content: center;
   }
 }
-/* =========================
-   DESKTOP UI ZOOM
-   ========================= */
-@media (min-width: 1025px) {
-  :root {
-    --ui-scale: 1;
-  }
-
-  body {
-    font-size: calc(var(--font-main) * var(--ui-scale));
-  }
-
-  input,
-  textarea,
-  button,
-  select {
-    font-size: calc(var(--font-main) * var(--ui-scale));
-  }
-
-.task-title,
-.list-name-text,
-.sync-indicator,
-.task-timer,
-
-.list-count-badge,
-.task-list-label,
-.context-menu-item {
-  font-size: calc(1em * var(--ui-scale));
-}
-}
-
-.desktop-zoom-controls {
-  display: flex;
-  gap: 6px;
-}
 
 @media (max-width: 1024px) {
   .desktop-zoom-controls {
@@ -2943,25 +2841,6 @@ textarea {
 @media (max-width: 1024px) {
   .details-task-timer {
     font-size: 12px;
-  }
-}
-
-/* =========================
-   EXACT MATCH WITH LISTS + ZOOM (DESKTOP)
-   ========================= */
-@media (min-width: 1025px) {
-  .task-item {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-
-  .task-title {
-    font-size: inherit !important;
-  }
-
-  .details-task-title,
-  .details-task-title-readonly-web {
-    font-size: calc(12px * var(--ui-scale)) !important;
-    font-weight: 500;
   }
 }
 
@@ -3242,5 +3121,69 @@ textarea {
 
   .print-button {
     padding: 7px 10px !important;
+  }
+}
+
+/* =========================
+   DESKTOP / APP ZOOM SYSTEM
+   ΜΟΝΟ αυτά κάνουν zoom:
+   - Ονόματα λιστών
+   - Ονόματα εργασιών
+   - Τίτλος εργασίας στις σημειώσεις/details
+   - Κείμενο σημειώσεων
+   ========================= */
+
+@media (min-width: 1025px) {
+  :root {
+    --ui-scale: 1;
+  }
+
+  /* Ονόματα λιστών αριστερά */
+  .list-name-text {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+
+  /* Ονόματα εργασιών */
+  .task-title {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+
+  /* Τίτλος εργασίας μέσα στο panel σημειώσεων/details */
+  .details-task-title,
+  .details-task-title-input,
+  .details-task-title-readonly-web {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+
+  /* Κείμενο σημειώσεων */
+  .note-text,
+  .note-item span,
+  .note-inline-input {
+    font-size: calc(12px * var(--ui-scale)) !important;
+  }
+}
+
+/* Sync indicator spacing - stable, no zoom */
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  flex-shrink: 0;
+}
+
+.sync-indicator {
+  margin-bottom: 8px;
+}
+
+@media (min-width: 1025px) {
+  .note-item {
+    gap: 9px;          /* ίδιο με task */
+    padding: 8px 9px;  /* ίδιο με task */
   }
 }
