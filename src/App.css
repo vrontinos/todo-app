@@ -1107,7 +1107,7 @@ input.round-checkbox:checked::after {
 
 .task-updated-label,
 .task-updated-value {
-  font-size: var(--font-small);
+  font-size: 10px;
 }
 
 .task-updated-label {
@@ -2874,26 +2874,10 @@ textarea {
     --ui-scale: 1;
   }
 
-  body {
-    font-size: calc(var(--font-main) * var(--ui-scale));
+  .list-name-text,
+  .task-title {
+    font-size: calc(0.95rem * var(--ui-scale)) !important;
   }
-
-  input,
-  textarea,
-  button,
-  select {
-    font-size: calc(var(--font-main) * var(--ui-scale));
-  }
-
-.task-title,
-.list-name-text,
-.sync-indicator,
-.task-timer,
-.task-notes-count,
-.task-list-label,
-.context-menu-item {
-  font-size: calc(1em * var(--ui-scale));
-}
 }
 
 .desktop-zoom-controls {
@@ -2933,7 +2917,7 @@ textarea {
 .details-task-timer {
   grid-area: timer;
   color: var(--text-soft);
-  font-size: var(--font-small);
+  font-size: 11px;
   line-height: 1.2;
   text-align: right;
   white-space: nowrap;
@@ -2945,24 +2929,6 @@ textarea {
   }
 }
 
-/* =========================
-   EXACT MATCH WITH LISTS + ZOOM (DESKTOP)
-   ========================= */
-@media (min-width: 1025px) {
-  .task-item {
-    font-size: calc(12px * var(--ui-scale)) !important;
-  }
-
-  .task-title {
-    font-size: inherit !important;
-  }
-
-  .details-task-title,
-  .details-task-title-readonly-web {
-    font-size: calc(12px * var(--ui-scale)) !important;
-    font-weight: 500;
-  }
-}
 
 .user-menu-wrap {
   position: relative;
@@ -3098,7 +3064,8 @@ textarea {
    ========================= */
 
 .user-menu-trigger {
-  display: flex;
+  display: inline-flex;
+  width: fit-content;
   align-items: center;
   gap: 6px;
 
