@@ -185,10 +185,9 @@ button,
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
-
 .app.is-resizing {
   cursor: col-resize;
   user-select: none;
