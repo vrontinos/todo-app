@@ -2127,6 +2127,7 @@ input.round-checkbox:checked::after {
   .mobile-task-title-editor {
     width: 100%;
     margin: 0;
+    margin-top: 10px;
     padding: 9px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -3144,4 +3145,18 @@ textarea {
   .mobile-search-header-text {
     margin-top: 0;
   }
+}
+.sidebar-top {
+  display: flex;
+  justify-content: flex-start !important;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.sidebar-top > h2 {
+  flex-shrink: 0;
+}
+
+.sidebar-top > div {
+  flex-shrink: 0;
 }

@@ -6733,7 +6733,9 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   >
     {mobileView === 'tasks' && selectedTasks.length > 0 ? '×' : '‹'}
   </button>
-)}<div
+)}
+
+<div
   className={`sidebar ${
   isMobile
     ? `mobile-screen ${
@@ -6751,11 +6753,11 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
       : { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }
   }
 >
-  <div className="sidebar-fixed-header">
-  <div className="sidebar-top">
-  <h2>Λίστες</h2>
+<div className="sidebar-fixed-header">
+<div className="sidebar-top">
+  
 
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
 <div style={{ display: 'flex', gap: '6px' }}>
   <div className="desktop-zoom-controls">
   <button className="theme-toggle" type="button" onClick={zoomOut}>
