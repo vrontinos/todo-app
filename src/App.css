@@ -1641,14 +1641,6 @@ input.round-checkbox:checked::after {
   }
 }
 
-@media (max-width: 1024px) {
-  .details-task-title-input {
-    min-height: 44px;
-    overflow-y: hidden !important;
-    height: auto !important;
-  }
-}
-
 .task-actions-menu-wrap {
   position: relative;
 }
@@ -2474,28 +2466,6 @@ textarea {
   }
 }
 
-/* MOBILE: μην το πειράζουμε */
-@media (max-width: 1024px) {
-  .task-timer-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 6px;
-}
-
-.task-timer {
-  flex: 1;
-  min-width: 0;
-}
-
-.task-flag-row {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-}
-
 @media (min-width: 1025px) {
   .task-item {
     overflow: visible;
@@ -2601,24 +2571,12 @@ textarea {
   }
 }
 
-@media (max-width: 1024px) {
-  .details-panel-header {
-    margin-top: calc(env(safe-area-inset-top, 0px) + 40px);
-  }
-
   .task-notes-icon {
     width: 22px;
     height: 22px;
     flex: 0 0 22px;
     transform: scale(0.75);
     transform-origin: center;
-  }
-}
-@media (max-width: 1024px) {
-  .task-notes-count {
-    grid-column: 1;
-    grid-row:3;
-    margin-left: 4px;
   }
 }
 
@@ -2659,15 +2617,7 @@ textarea {
 
   filter: brightness(0) saturate(100%) invert(34%) sepia(98%) saturate(747%) hue-rotate(202deg) brightness(95%) contrast(95%);
 }
-@media (max-width: 1024px) {
-  .task-updated-box {
-    padding-bottom: 0;
-  }
 
-  .details-bottom-area {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-}
 @media (min-width: 1025px) {
   .details-panel {
     position: relative;
@@ -2954,19 +2904,6 @@ textarea {
   }
 }
 
-@media (max-width: 1024px) {
-  .main-fixed-header {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 0px);
-  }
-
-  .main-header {
-    align-items: flex-start;
-  }
-
-  .main-title-text-block {
-    margin-top: 0;
-  }
-}
 
 /* =========================
    USER EMAIL CLICKABLE UX
@@ -3192,5 +3129,26 @@ textarea {
 
   .main-fixed-header.mobile-search-fixed-header .mobile-search-screen {
     padding-top: 0 !important;
+  }
+}
+
+/* === CLEAN MOBILE BASELINE === */
+@media (max-width: 1024px) {
+
+  .main-fixed-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0px);
+  }
+
+  .main-title-text-block {
+    margin-top: 8px;
+  }
+
+  .mobile-task-title-readonly,
+  .mobile-task-title-editor {
+    margin: 0;
+  }
+
+  .mobile-search-header-text {
+    margin-top: 0;
   }
 }
