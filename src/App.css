@@ -2889,7 +2889,7 @@ textarea {
 .list-name-text,
 .sync-indicator,
 .task-timer,
-.task-notes-count,
+
 .list-count-badge,
 .task-list-label,
 .context-menu-item {
@@ -3221,5 +3221,26 @@ textarea {
     min-width: calc(14px * var(--ui-scale));
     height: calc(17px * var(--ui-scale));
     padding: 0 calc(2px * var(--ui-scale));
+  }
+}
+
+@media (min-width: 1025px) {
+  .inline-sort-box,
+  .inline-sort-label,
+  .inline-sort-box select,
+  .task-sort-box,
+  .task-sort-box select,
+  .task-actions-trigger,
+  .print-button {
+    font-size: var(--font-small) !important;
+  }
+
+  .task-actions-trigger {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .print-button {
+    padding: 7px 10px !important;
   }
 }
