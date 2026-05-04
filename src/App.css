@@ -2015,12 +2015,6 @@ input.round-checkbox:checked::after {
   border-top: 1px solid var(--border);
 }
 
-.task-updated-box {
-  padding: 10px 0 0 0;
-      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
-  background: transparent;
-}
-
 @media (max-width: 1024px) {
   .sidebar.mobile-screen {
     display: flex;
@@ -2577,7 +2571,6 @@ textarea {
     flex: 0 0 22px;
     transform: scale(0.75);
     transform-origin: center;
-  }
 }
 
 @media (max-width: 1024px) {
