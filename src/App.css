@@ -257,40 +257,73 @@ html, body {
   background: var(--hover);
 }
 
+/* =========================
+   SIDEBAR ROW SCALE ALIGNMENT
+   Sync indicator = list rows
+   ========================= */
+@media (min-width: 1025px) {
+  .sidebar {
+    --sidebar-row-font: calc(12px * var(--ui-scale));
+    --sidebar-row-padding: calc(8px * var(--ui-scale));
+    --sidebar-row-gap: calc(8px * var(--ui-scale));
+    --sidebar-icon-space: calc(13px * var(--ui-scale));
+    --sidebar-dot-size: calc(8px * var(--ui-scale));
+  }
+
+.list-button,
 .sync-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  padding: 7px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--panel-soft);
-  font-size: var(--font-small);
+  width: 100%;
+  padding: var(--sidebar-row-padding);
+  gap: var(--sidebar-row-gap);
+  font-size: var(--sidebar-row-font) !important;
+  line-height: 1.2;
 }
 
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
+.sync-indicator {
+  gap: calc(var(--sidebar-row-gap) + 0px);
+}
+
+  .list-grip,
+  .sync-dot {
+    width: var(--sidebar-icon-space);
+    min-width: var(--sidebar-icon-space);
+    height: var(--sidebar-icon-space);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .sync-dot {
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .sync-dot::before {
+  content: '';
+  display: block; /* 👈 ΑΥΤΟ ΛΕΙΠΕΙ */
+  width: var(--sidebar-dot-size);
+  height: var(--sidebar-dot-size);
   border-radius: 999px;
   background: var(--text-soft);
 }
 
-.sync-indicator.synced .sync-dot {
-  background: var(--green);
-}
+  .sync-indicator.synced .sync-dot::before {
+    background: var(--green);
+  }
 
-.sync-indicator.saving .sync-dot,
-.sync-indicator.syncing .sync-dot,
-.sync-indicator.connecting .sync-dot {
-  background: #eab308;
-}
+  .sync-indicator.saving .sync-dot::before,
+  .sync-indicator.syncing .sync-dot::before,
+  .sync-indicator.connecting .sync-dot::before {
+    background: #eab308;
+  }
 
-.sync-indicator.error .sync-dot {
-  background: var(--red);
+  .sync-indicator.error .sync-dot::before {
+    background: var(--red);
+  }
 }
-
 .task-search-box {
   margin-bottom: 4px;
 }
@@ -2412,6 +2445,7 @@ input.round-checkbox:checked::after {
   }
 
   .sidebar.mobile-screen .sidebar-fixed-header,
+  .sidebar.mobile-screen .sync-indicator,
   .sidebar.mobile-screen .sidebar-scroll-area,
   .sidebar.mobile-screen .add-list-form-bottom,
   .main.mobile-screen .main-fixed-header,
@@ -2744,10 +2778,6 @@ textarea {
   }
 }
 
-.sidebar .sync-indicator {
-  width: calc(100% - 9px) !important;
-  max-width: calc(100% - 9px) !important;
-}
 
 .sidebar .task-search-input {
   width: calc(100% - 9px) !important;
@@ -2855,14 +2885,15 @@ textarea {
     font-size: calc(var(--font-main) * var(--ui-scale));
   }
 
-  .task-title,
-  .list-name-text,
-  .task-timer,
-  .task-notes-count,
-  .task-list-label,
-  .context-menu-item {
-    font-size: calc(1em * var(--ui-scale));
-  }
+.task-title,
+.list-name-text,
+.sync-indicator,
+.task-timer,
+.task-notes-count,
+.task-list-label,
+.context-menu-item {
+  font-size: calc(1em * var(--ui-scale));
+}
 }
 
 .desktop-zoom-controls {
@@ -3095,4 +3126,78 @@ textarea {
 /* όταν είναι ανοιχτό */
 .user-menu-wrap.open .user-menu-trigger::after {
   transform: rotate(180deg);
+}
+
+.sidebar-fixed-header {
+  align-items: stretch;
+}
+
+.sync-indicator {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+.sync-dot {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.sync-indicator.synced .sync-dot {
+  background: var(--green);
+}
+
+.sync-indicator.saving .sync-dot,
+.sync-indicator.syncing .sync-dot,
+.sync-indicator.connecting .sync-dot {
+  background: #eab308;
+}
+
+.sync-indicator.error .sync-dot {
+  background: var(--red);
+}
+
+@media (max-width: 1024px) {
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sync-dot {
+    width: 13px;
+    min-width: 13px;
+    height: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .sync-dot::before {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--text-soft);
+  }
+
+  .sync-indicator.synced .sync-dot::before {
+    background: var(--green);
+  }
+
+  .sync-indicator.saving .sync-dot::before,
+  .sync-indicator.syncing .sync-dot::before,
+  .sync-indicator.connecting .sync-dot::before {
+    background: #eab308;
+  }
+
+  .sync-indicator.error .sync-dot::before {
+    background: var(--red);
+  }
 }
