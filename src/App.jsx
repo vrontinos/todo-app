@@ -1093,6 +1093,17 @@ const getEventBadgeStyle = (eventType) => {
                             <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.3, fontWeight: 400, color: textColor, overflowWrap: 'anywhere' }}>
                               {log.description || log.event_type}
                             </div>
+<div
+  style={{
+    marginTop: 4,
+    fontSize: 10,
+    fontWeight: 600,
+    color: mutedColor,
+    overflowWrap: 'anywhere'
+  }}
+>
+  Χρήστης: {log.actor_email || '-'}
+</div>
                           </div>
                         )
                       })}
