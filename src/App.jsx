@@ -7086,10 +7086,10 @@ style={
   <>
 
     <div className="main-fixed-header">
-  <div
-    className="main-header"
-    style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '56px' : '0px' }}
-  >
+<div
+  className="main-header"
+  style={{ paddingLeft: isMobile && mobileView !== 'lists' ? '42px' : '0px' }}
+>
         {editingListName ? (
           <input
             className="list-title-input"
