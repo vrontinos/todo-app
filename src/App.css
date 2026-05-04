@@ -259,31 +259,27 @@ html, body {
 
 /* =========================
    SIDEBAR ROW SCALE ALIGNMENT
-   Sync indicator = list rows
+   Zoom only list names, not sync indicator
    ========================= */
 @media (min-width: 1025px) {
   .sidebar {
-    --sidebar-row-font: calc(12px * var(--ui-scale));
-    --sidebar-row-padding: calc(8px * var(--ui-scale));
-    --sidebar-row-gap: calc(8px * var(--ui-scale));
-    --sidebar-icon-space: calc(13px * var(--ui-scale));
-    --sidebar-dot-size: calc(8px * var(--ui-scale));
+    --sidebar-row-font: 12px;
+    --sidebar-row-padding: 8px;
+    --sidebar-row-gap: 8px;
+    --sidebar-icon-space: 13px;
+    --sidebar-dot-size: 8px;
   }
 
-.list-button,
-.sync-indicator {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: var(--sidebar-row-padding);
-  gap: var(--sidebar-row-gap);
-  font-size: var(--sidebar-row-font) !important;
-  line-height: 1.2;
-}
-
-.sync-indicator {
-  gap: calc(var(--sidebar-row-gap) + 0px);
-}
+  .list-button,
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: var(--sidebar-row-padding);
+    gap: var(--sidebar-row-gap);
+    font-size: var(--sidebar-row-font) !important;
+    line-height: 1.2;
+  }
 
   .list-grip,
   .sync-dot {
@@ -302,13 +298,13 @@ html, body {
   }
 
   .sync-dot::before {
-  content: '';
-  display: block; /* 👈 ΑΥΤΟ ΛΕΙΠΕΙ */
-  width: var(--sidebar-dot-size);
-  height: var(--sidebar-dot-size);
-  border-radius: 999px;
-  background: var(--text-soft);
-}
+    content: '';
+    display: block;
+    width: var(--sidebar-dot-size);
+    height: var(--sidebar-dot-size);
+    border-radius: 999px;
+    background: var(--text-soft);
+  }
 
   .sync-indicator.synced .sync-dot::before {
     background: var(--green);
@@ -323,8 +319,7 @@ html, body {
   .sync-indicator.error .sync-dot::before {
     background: var(--red);
   }
-}
-.task-search-box {
+}.task-search-box {
   margin-bottom: 4px;
 }
 
