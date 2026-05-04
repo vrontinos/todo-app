@@ -6678,21 +6678,19 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
 <div style={{ display: 'flex', gap: '6px' }}>
-  {!isMobile && (
-    <>
-      <button className="theme-toggle" type="button" onClick={zoomOut}>
-        −
-      </button>
+  <div className="desktop-zoom-controls">
+  <button className="theme-toggle" type="button" onClick={zoomOut}>
+    −
+  </button>
 
-      <button className="theme-toggle" type="button" onClick={zoomReset}>
-        {Math.round(uiScale * 100)}%
-      </button>
+  <button className="theme-toggle" type="button" onClick={zoomReset}>
+    {Math.round(uiScale * 100)}%
+  </button>
 
-      <button className="theme-toggle" type="button" onClick={zoomIn}>
-        +
-      </button>
-    </>
-  )}
+  <button className="theme-toggle" type="button" onClick={zoomIn}>
+    +
+  </button>
+</div>
 
   <button
     className="theme-toggle"

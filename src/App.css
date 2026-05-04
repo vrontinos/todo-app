@@ -2864,3 +2864,14 @@ textarea {
     font-size: calc(1em * var(--ui-scale));
   }
 }
+
+.desktop-zoom-controls {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 1024px) {
+  .desktop-zoom-controls {
+    display: none !important;
+  }
+}
