@@ -2563,10 +2563,11 @@ textarea {
     row-gap: 0px;
   }
 
-  .task-title {
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
+.task-title {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-top: 4px;
+}
 
   .task-timer-row {
     display: contents;
