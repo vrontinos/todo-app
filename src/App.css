@@ -2013,7 +2013,7 @@ input.round-checkbox:checked::after {
 }
 @media (max-width: 1024px) {
   .mobile-search-fixed-header {
-    padding-top: 32px;
+    padding-top: 8px;
   }
 }
 
