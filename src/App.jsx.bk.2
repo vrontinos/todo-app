@@ -2364,19 +2364,29 @@ function handleOffline() {
 useEffect(() => {
   const userId = session?.user?.id
 
-  if (!userId) {
-    const existingChannel = realtimeChannelRef.current
+  async function cleanupRealtimeChannel() {
+    const channel = realtimeChannelRef.current
 
     realtimeChannelRef.current = null
     realtimeChannelUserIdRef.current = null
 
-    if (existingChannel) {
-      existingChannel.unsubscribe().catch((error) => {
-        console.warn('Realtime unsubscribe failed:', error)
-      })
-      supabase.removeChannel(existingChannel)
+    if (!channel) return
+
+    try {
+      await channel.unsubscribe()
+    } catch (error) {
+      console.warn('Realtime unsubscribe failed:', error)
     }
 
+    try {
+      await supabase.removeChannel(channel)
+    } catch (error) {
+      console.warn('Realtime removeChannel failed:', error)
+    }
+  }
+
+  if (!userId) {
+    void cleanupRealtimeChannel()
     return
   }
 
@@ -2387,182 +2397,172 @@ useEffect(() => {
     return
   }
 
-  if (realtimeChannelRef.current) {
-    const oldChannel = realtimeChannelRef.current
-
-    realtimeChannelRef.current = null
-    realtimeChannelUserIdRef.current = null
-
-    oldChannel.unsubscribe().catch((error) => {
-      console.warn('Realtime old channel unsubscribe failed:', error)
-    })
-    supabase.removeChannel(oldChannel)
-  }
+  void cleanupRealtimeChannel()
 
   const channel = supabase
     .channel(`live-sync-all-${userId}`)
-
     .on(
-  'postgres_changes',
-  { event: '*', schema: 'public', table: 'tasks' },
-  async (payload) => {
-  const currentSelectedList = selectedListRef.current
-  const currentActiveTask = activeTaskRef.current
-  const isEditingNote = editingNoteIdRef.current !== null
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'tasks' },
+      async (payload) => {
+        const currentSelectedList = selectedListRef.current
+        const currentActiveTask = activeTaskRef.current
+        const isEditingNote = editingNoteIdRef.current !== null
 
-  const changedByCurrentUser =
-    payload?.new?.updated_by === userId ||
-    payload?.old?.updated_by === userId
+        const changedByCurrentUser =
+          payload?.new?.updated_by === userId ||
+          payload?.old?.updated_by === userId
 
-  const shouldIgnoreOwnReorderBurst =
-    changedByCurrentUser &&
-    Date.now() < suppressOwnTaskRealtimeUntilRef.current
+        const shouldIgnoreOwnReorderBurst =
+          changedByCurrentUser &&
+          Date.now() < suppressOwnTaskRealtimeUntilRef.current
 
-  if (shouldIgnoreOwnReorderBurst) {
-    return
-  }
+        if (shouldIgnoreOwnReorderBurst) {
+          return
+        }
 
-  const incomingTask = payload?.new || payload?.old
+        const incomingTask = payload?.new || payload?.old
 
-  if (
-    incomingTask &&
-    isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
-  ) {
-    clearTaskMutation(incomingTask.id)
-    return
-  }
+        if (
+          incomingTask &&
+          isOwnRecentTaskMutation(incomingTask.id, incomingTask.updated_at)
+        ) {
+          clearTaskMutation(incomingTask.id)
+          return
+        }
 
-  if (payload?.eventType === 'DELETE') {
-    scheduleRealtimeRefresh('tasks', async () => {
-      await fetchAllTasks(false)
+        if (payload?.eventType === 'DELETE') {
+          scheduleRealtimeRefresh('tasks', async () => {
+            await fetchAllTasks(false)
 
-      if (currentSelectedList?.id) {
-        await fetchTasks(currentSelectedList.id, false, false)
+            if (currentSelectedList?.id) {
+              await fetchTasks(currentSelectedList.id, false, false)
+            }
+
+            if (
+              currentActiveTask?.id &&
+              !isEditingNote &&
+              String(payload?.old?.id || payload?.new?.id || '') === String(currentActiveTask.id)
+            ) {
+              setActiveTask(null)
+              setTaskNotes([])
+              setEditingTaskTitle(false)
+              setEditingNoteId(null)
+              setEditingNoteValue('')
+            }
+          }, 0)
+
+          return
+        }
+
+        applyTaskRealtimePayload(payload)
+
+        if (
+          currentActiveTask?.id &&
+          !isEditingNote &&
+          (
+            String(payload?.new?.id || '') === String(currentActiveTask.id) ||
+            String(payload?.old?.id || '') === String(currentActiveTask.id)
+          )
+        ) {
+          await fetchNotes(currentActiveTask.id, false)
+        }
       }
-
-      if (
-        currentActiveTask?.id &&
-        !isEditingNote &&
-        String(payload?.old?.id || payload?.new?.id || '') === String(currentActiveTask.id)
-      ) {
-        setActiveTask(null)
-        setTaskNotes([])
-        setEditingTaskTitle(false)
-        setEditingNoteId(null)
-        setEditingNoteValue('')
-      }
-    }, 0)
-
-    return
-  }
-
-  applyTaskRealtimePayload(payload)
-
-  if (
-    currentActiveTask?.id &&
-    !isEditingNote &&
-    (
-      String(payload?.new?.id || '') === String(currentActiveTask.id) ||
-      String(payload?.old?.id || '') === String(currentActiveTask.id)
     )
-  ) {
-    await fetchNotes(currentActiveTask.id, false)
-  }
-}
-)
-.on(
-  'postgres_changes',
-  { event: '*', schema: 'public', table: 'task_notes' },
-  async (payload) => {
-    const currentActiveTask = activeTaskRef.current
-    const isEditingNote = editingNoteIdRef.current !== null
-
-    const incomingNote = payload.new || payload.old
-
-    if (
-      incomingNote &&
-      isOwnRecentNoteMutation(incomingNote.id, incomingNote.updated_at)
-    ) {
-      clearNoteMutation(incomingNote.id)
-      return
-    }
-
-    const eventType = payload.eventType
-    const changedTaskId = payload.new?.task_id || payload.old?.task_id
-
-    if (eventType === 'INSERT' && changedTaskId) {
-      setNoteCountsByTask((prev) => ({
-        ...prev,
-        [changedTaskId]: (prev[changedTaskId] || 0) + 1,
-      }))
-    }
-
-    if (eventType === 'DELETE') {
-      await fetchTaskNoteCounts(false)
-    }
-
-    if (currentActiveTask?.id === changedTaskId && !isEditingNote) {
-      applyNoteRealtimePayload(payload)
-    }
-
-    if (eventType === 'DELETE' && currentActiveTask?.id && !isEditingNote) {
-      await fetchNotes(currentActiveTask.id, false)
-    }
-  }
-)
-
     .on(
-    'postgres_changes',
-    { event: '*', schema: 'public', table: 'lists' },
-    async () => {
-      scheduleRealtimeRefresh('lists', async () => {
-        setSyncStatus('syncing')
-        await fetchLists(false)
-        setSyncStatus('synced')
-      })
-    }
-  )
-  .on(
-    'postgres_changes',
-    { event: '*', schema: 'public', table: 'list_invites' },
-    async () => {
-      await fetchPendingInvites()
-    }
-  )
-.subscribe((status) => {
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'task_notes' },
+      async (payload) => {
+        const currentActiveTask = activeTaskRef.current
+        const isEditingNote = editingNoteIdRef.current !== null
 
-  if (status === 'SUBSCRIBED') {
-    markSynced()
-    return
-  }
+        const incomingNote = payload.new || payload.old
 
-  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        if (
+          incomingNote &&
+          isOwnRecentNoteMutation(incomingNote.id, incomingNote.updated_at)
+        ) {
+          clearNoteMutation(incomingNote.id)
+          return
+        }
 
+        const eventType = payload.eventType
+        const changedTaskId = payload.new?.task_id || payload.old?.task_id
 
-    fetchLists(false)
-      .then(() => {
+        if (eventType === 'INSERT' && changedTaskId) {
+          setNoteCountsByTask((prev) => ({
+            ...prev,
+            [changedTaskId]: (prev[changedTaskId] || 0) + 1,
+          }))
+        }
+
+        if (eventType === 'DELETE') {
+          await fetchTaskNoteCounts(false)
+        }
+
+        if (currentActiveTask?.id === changedTaskId && !isEditingNote) {
+          applyNoteRealtimePayload(payload)
+        }
+
+        if (eventType === 'DELETE' && currentActiveTask?.id && !isEditingNote) {
+          await fetchNotes(currentActiveTask.id, false)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'lists' },
+      async () => {
+        scheduleRealtimeRefresh('lists', async () => {
+          setSyncStatus('syncing')
+          await fetchLists(false)
+          setSyncStatus('synced')
+        })
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'list_invites' },
+      async () => {
+        await fetchPendingInvites()
+      }
+    )
+    .subscribe((status) => {
+      if (realtimeChannelRef.current !== channel) return
+
+      if (status === 'SUBSCRIBED') {
         markSynced()
-      })
-      .catch((error) => {
-        console.error('Realtime recovery failed:', error)
-        setSyncStatus('error')
-      })
-  }
-})
+        return
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        fetchLists(false)
+          .then(() => {
+            markSynced()
+          })
+          .catch((error) => {
+            console.error('Realtime recovery failed:', error)
+            setSyncStatus('error')
+          })
+      }
+    })
 
   realtimeChannelRef.current = channel
   realtimeChannelUserIdRef.current = userId
 
   return () => {
-    if (realtimeChannelRef.current === channel) {
-      realtimeChannelRef.current = null
-      realtimeChannelUserIdRef.current = null
-    }
+    if (realtimeChannelRef.current !== channel) return
 
-    channel.unsubscribe().catch((error) => {
+    realtimeChannelRef.current = null
+    realtimeChannelUserIdRef.current = null
+
+    void channel.unsubscribe().catch((error) => {
       console.warn('Realtime unsubscribe failed:', error)
     })
-    supabase.removeChannel(channel)
+
+    void supabase.removeChannel(channel).catch((error) => {
+      console.warn('Realtime removeChannel failed:', error)
+    })
   }
 }, [session?.user?.id])
 

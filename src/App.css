@@ -3187,8 +3187,4 @@ textarea {
     padding: 8px 9px;  /* ίδιο με task */
   }
 }
-@media (max-width: 1024px) {
-  .main-title-text-block {
-    margin-top: -14px !important;
-  }
-}
+
