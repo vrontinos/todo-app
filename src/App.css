@@ -3033,14 +3033,17 @@ textarea {
     align-items: start;
     gap: 10px 8px;
     padding-top: 0;
+
+    /* 👇 αυτό μετακινεί όλο το title/sort block αριστερά */
+    margin-left: -10px !important;
+    width: calc(100% + 10px) !important;
   }
 
-.main-title-text-block {
-  grid-area: title;
-  width: 100%;
-  margin-top: 8px;
-  margin-left: -15px; /* 👈 αυτό το μετακινεί αριστερά */
-}
+  .main-title-text-block {
+    grid-area: title;
+    width: 100%;
+    margin-top: 8px;
+  }
 
   .task-actions-menu-wrap {
     grid-area: menu;
