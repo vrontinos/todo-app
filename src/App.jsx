@@ -1169,6 +1169,29 @@ const [isMobileTaskMoveMenuOpen, setIsMobileTaskMoveMenuOpen] = useState(false)
 
 const userMenuRef = useRef(null)
 
+useEffect(() => {
+  function handleUserMenuOutsideClick(e) {
+    if (!isUserMenuOpen) return
+
+    if (
+      userMenuRef.current &&
+      !userMenuRef.current.contains(e.target)
+    ) {
+      setIsUserMenuOpen(false)
+    }
+  }
+
+  document.addEventListener('mousedown', handleUserMenuOutsideClick)
+  document.addEventListener('touchstart', handleUserMenuOutsideClick)
+
+  return () => {
+    document.removeEventListener('mousedown', handleUserMenuOutsideClick)
+    document.removeEventListener('touchstart', handleUserMenuOutsideClick)
+  }
+}, [isUserMenuOpen])
+
+
+
   const mobileSelectionClearedDuringDragRef = useRef(false)
   const [mobileView, setMobileView] = useState(() => {
   return localStorage.getItem('lastMobileView') || 'lists'

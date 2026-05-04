@@ -280,7 +280,7 @@ html, body {
     align-items: center;
     width: 100%;
     padding: var(--sidebar-row-padding);
-    gap: var(--sidebar-row-gap);
+    gap: 4px; /* ή 3px αν το θες πιο tight */
     font-size: var(--sidebar-row-font) !important;
     line-height: 1.2;
   }
@@ -2931,13 +2931,15 @@ textarea {
 
 .user-menu-wrap {
   position: relative;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .user-menu-trigger {
-  display: block;
-  width: 100%;
+  display: inline-block;
+  width: fit-content;
   padding: 0;
   border: none;
   background: transparent;
@@ -3131,13 +3133,13 @@ textarea {
   .sync-indicator {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 5px;
   }
 
   .sync-dot {
-    width: 13px;
-    min-width: 13px;
-    height: 13px;
+    width: 10px;
+    min-width: 10px;
+    height: 10px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
