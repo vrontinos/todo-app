@@ -457,11 +457,7 @@ useEffect(() => {
           <span className={`task-title ${task.completed ? 'completed' : ''}`}>
             {task.title}
           </span>
-<div className="task-timer-row">
-  <span className="task-timer">
-    Χρόνος Ολοκλήρωσης: {formatTaskTimer(getTaskTimerSeconds(task))}
-  </span>
-</div>
+
           {task.notes_count > 0 && (
             <span
               className="task-notes-count"
@@ -7681,14 +7677,20 @@ style={
     </div>
 
     <div className="details-bottom-area">
-      <div className="task-updated-box">
-        <span className="task-updated-label">Τελευταία αλλαγή</span>
-        <span className="task-updated-value">
-          {formatDateTime(activeTask.updated_at)}
-          {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
-        </span>
-      </div>
+  <div className="task-updated-box">
+    <div className="task-updated-left">
+      <span className="task-updated-label">Τελευταία αλλαγή</span>
+      <span className="task-updated-value">
+        {formatDateTime(activeTask.updated_at)}
+        {lastEditorEmail ? ` • από ${lastEditorEmail}` : ''}
+      </span>
     </div>
+
+    <span className="details-task-timer">
+      Χρόνος Ολοκλήρωσης: {formatTaskTimer(getTaskTimerSeconds(activeTask))}
+    </span>
+  </div>
+</div>
   </>
 )}
         </div>

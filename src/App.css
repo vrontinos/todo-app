@@ -2875,3 +2875,41 @@ textarea {
     display: none !important;
   }
 }
+
+.task-updated-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label timer"
+    "value value";
+  align-items: end;
+  gap: 4px 12px;
+}
+
+.task-updated-left {
+  display: contents;
+}
+
+.task-updated-label {
+  grid-area: label;
+}
+
+.task-updated-value {
+  grid-area: value;
+  min-width: 0;
+}
+
+.details-task-timer {
+  grid-area: timer;
+  color: var(--text-soft);
+  font-size: var(--font-small);
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .details-task-timer {
+    font-size: 12px;
+  }
+}
