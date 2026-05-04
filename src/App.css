@@ -3035,12 +3035,12 @@ textarea {
     padding-top: 0;
   }
 
-.main-title-text-block {
-  grid-area: title;
-  width: 100%;
-  margin-top: 8px;
-  margin-left: -6px; /* 👈 αυτό το μετακινεί αριστερά */
-}
+  .main-title-text-block {
+    grid-area: title;
+    width: 100%;
+    margin-top: 8px;
+    transform: translateX(-6px); /* 👈 αυτό δουλεύει */
+  }
 
   .task-actions-menu-wrap {
     grid-area: menu;
