@@ -6209,6 +6209,7 @@ async function handleShareTasksAsImage() {
   document.body.appendChild(exportNode)
 
   try {
+    await new Promise((r) => setTimeout(r, 100))
     const dataUrl = await toPng(exportNode, {
       cacheBust: true,
       pixelRatio: 2,
