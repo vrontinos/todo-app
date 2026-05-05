@@ -609,6 +609,9 @@ html, body {
   background: var(--panel-2);
 }
 
+:root:not([data-theme='dark']) .main {
+  background: #e6f0ff;
+}
 .main-fixed-header {
   flex-shrink: 0;
 }
