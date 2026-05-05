@@ -2915,12 +2915,14 @@ textarea {
 }
 
 .details-task-timer {
-  order: -1;
+  order: 0;
   color: var(--text-soft);
   font-size: 11px;
   line-height: 1.2;
   text-align: left;
   white-space: nowrap;
+
+  margin-top: 6px; /* 👈 αυτό */
 }
 
 @media (max-width: 1024px) {
@@ -3229,3 +3231,4 @@ margin-top: 0px;
     padding-top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
   }
 }
+
