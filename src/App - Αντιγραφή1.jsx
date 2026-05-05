@@ -2309,11 +2309,12 @@ useEffect(() => {
     function handleOnline() {
       setIsOffline(false)
       if (session?.user?.id) {
-setSyncStatus('syncing')
-fetchLists(false)
-fetchAllTasks(false)
+        setSyncStatus('syncing')
+        fetchLists(false)
+        fetchAllTasks(false)
+        fetchTaskNoteCounts(false)
 
-const currentSelectedList = selectedListRef.current
+        const currentSelectedList = selectedListRef.current
         const currentActiveTask = activeTaskRef.current
 
         if (currentSelectedList?.id) {
