@@ -3226,6 +3226,6 @@ margin-top: 0px;
 
 @media (max-width: 1024px) {
   .main-fixed-header.mobile-search-fixed-header {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 58px) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
   }
 }
