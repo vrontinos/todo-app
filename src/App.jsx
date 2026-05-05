@@ -6148,6 +6148,37 @@ const { error: firstError } = await supabase
     markSynced()
   }
 
+async function handleShareTasks() {
+  if (!selectedList) return
+
+  const shareTasks = visibleTasks.filter((task) => !task.completed)
+
+  const shareText = [
+    `Λίστα: ${selectedList.name || 'Εργασίες'}`,
+    '',
+    shareTasks.length > 0
+      ? shareTasks.map((task) => `☐ ${task.title || ''}`).join('\n')
+      : 'Δεν υπάρχουν μη ολοκληρωμένες εργασίες.',
+  ].join('\n')
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: selectedList.name || 'Εργασίες',
+        text: shareText,
+      })
+      return
+    }
+
+    await navigator.clipboard.writeText(shareText)
+    window.alert('Η λίστα αντιγράφηκε.')
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      console.error('Σφάλμα κοινοποίησης:', error)
+    }
+  }
+}
+
   async function handlePrintTasks() {
   const browserTitle = 'To Do ΒΡΟΝΤΙΝΟΣ ΜΙΚΕ'
   const pageHeading = taskSearch.trim()
@@ -7381,31 +7412,45 @@ style={
     </button>
   </div>
 )}
-        <div className="task-actions-section">
-          <button
-            type="button"
-            className="task-actions-menu-button"
-            onClick={() => {
-              setIsTaskActionsMenuOpen(false)
-              setIsMobileSortMenuOpen(true)
-            }}
-          >
-            Ταξινόμηση
-          </button>
-        </div>
 
-        <div className="task-actions-section">
-          <button
-            type="button"
-            className="task-actions-menu-button"
-            onClick={() => {
-              setIsTaskActionsMenuOpen(false)
-              handlePrintTasks()
-            }}
-          >
-            Εκτύπωση
-          </button>
-        </div>
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      setIsMobileSortMenuOpen(true)
+    }}
+  >
+    Ταξινόμηση
+  </button>
+</div>
+
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      handleShareTasks()
+    }}
+  >
+    Κοινοποίηση
+  </button>
+</div>
+
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      handlePrintTasks()
+    }}
+  >
+    Εκτύπωση
+  </button>
+</div>
 
         {selectedTasks.length > 0 && (
           <div className="task-actions-section">
