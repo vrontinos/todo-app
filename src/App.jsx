@@ -6160,8 +6160,11 @@ async function handleShareTasksAsImage() {
 
   const exportNode = document.createElement('div')
   exportNode.style.position = 'fixed'
-  exportNode.style.left = '0'
-  exportNode.style.opacity = '0'
+exportNode.style.left = '0'
+exportNode.style.top = '0'
+exportNode.style.opacity = '1'
+exportNode.style.zIndex = '-1'
+exportNode.style.pointerEvents = 'none'
   exportNode.style.top = '0'
   exportNode.style.width = '900px'
   exportNode.style.padding = '28px'
@@ -6242,10 +6245,14 @@ link.href = url
 link.download = `${selectedList.name || 'tasks'}.png`
 link.click()
 URL.revokeObjectURL(url)
-  } catch (error) {
-    console.error('Σφάλμα κοινοποίησης εικόνας:', error)
-    window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
-  } finally {
+} catch (error) {
+  if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
+    return
+  }
+
+  console.error('Σφάλμα κοινοποίησης εικόνας:', error)
+  window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
+} finally {
     exportNode.remove()
   }
 }
