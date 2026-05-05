@@ -2894,17 +2894,15 @@ textarea {
 }
 
 .task-updated-box {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "label timer"
-    "value value";
-  align-items: end;
-  gap: 4px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .task-updated-left {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .task-updated-label {
@@ -2917,11 +2915,11 @@ textarea {
 }
 
 .details-task-timer {
-  grid-area: timer;
+  order: -1;
   color: var(--text-soft);
   font-size: 11px;
   line-height: 1.2;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
 }
 
@@ -3170,5 +3168,49 @@ textarea {
 
   .sync-indicator.error .sync-dot::before {
     background: var(--red);
+  }
+}
+
+/* =========================
+   DESKTOP TASK ACTIONS MENU
+   ========================= */
+@media (min-width: 1025px) {
+  .desktop-task-actions-menu {
+    display: block;
+  }
+
+  .desktop-task-actions-dropdown {
+    right: 0;
+  }
+
+  .desktop-sort-host {
+    position: relative;
+  }
+
+  .desktop-sort-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+.desktop-sort-submenu {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: calc(100% + 0px);
+    z-index: 130;
+    min-width: 240px;
+    padding: 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+
+  .desktop-sort-host:hover .desktop-sort-submenu {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 }

@@ -7644,30 +7644,106 @@ style={
 </div>
       )}
 
-        <div className="main-actions">
+<div className="main-actions">
   {!isMobile && (
-    <div className="task-sort-box">
-      <label htmlFor="sortMode">Ταξινόμηση</label>
-
-      <select
-        id="sortMode"
-        value={currentSortMode}
-        onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
+    <div className="task-actions-menu-wrap desktop-task-actions-menu">
+      <button
+        type="button"
+        className="task-actions-trigger"
+        onClick={() => {
+          setIsTaskActionsMenuOpen((prev) => !prev)
+        }}
+        aria-label="Ενέργειες λίστας"
+        aria-expanded={isTaskActionsMenuOpen}
       >
-        <option value="created">Σειρά καταχώρησης</option>
-        <option value="alpha">Αλφαβητική</option>
-        <option value="manual">Χειροκίνητη</option>
-      </select>
+        ⋮
+      </button>
+
+      {isTaskActionsMenuOpen && (
+        <div className="task-actions-dropdown desktop-task-actions-dropdown">
+          <div className="task-actions-section desktop-sort-host">
+            <button
+              type="button"
+              className="task-actions-menu-button desktop-sort-button"
+            >
+              <span>Ταξινόμηση</span>
+              <span className="submenu-arrow">›</span>
+            </button>
+
+            <div className="desktop-sort-submenu">
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'created' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Σειρά καταχώρησης</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'created' ? '✓' : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'alpha' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Αλφαβητική</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'alpha' ? '✓' : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'manual' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Χειροκίνητη</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'manual' ? '✓' : ''}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button"
+              onClick={() => {
+                setIsTaskActionsMenuOpen(false)
+                handleShareTasksAsImage()
+              }}
+            >
+              Κοινοποίηση
+            </button>
+          </div>
+
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button"
+              onClick={() => {
+                setIsTaskActionsMenuOpen(false)
+                handlePrintTasks()
+              }}
+            >
+              Εκτύπωση
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )}
-
-
-
-{!isMobile && (
-  <button className="print-button" onClick={handlePrintTasks}>
-    Εκτύπωση
-  </button>
-)}
 </div>
       </div>
     </div>
