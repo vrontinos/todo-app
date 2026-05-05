@@ -9,7 +9,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import './App.css'
-
+import { toPng } from 'html-to-image'
 import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { checkForUpdates } from './tauriUpdates'
@@ -6148,39 +6148,95 @@ const { error: firstError } = await supabase
     markSynced()
   }
 
-async function handleShareTasks() {
+async function handleShareTasksAsImage() {
   if (!selectedList) return
 
   const shareTasks = visibleTasks.filter((task) => !task.completed)
 
-if (shareTasks.length === 0) {
-  alert('Δεν υπάρχουν μη ολοκληρωμένες εργασίες για κοινοποίηση')
-  return
-}
+  if (shareTasks.length === 0) {
+    window.alert('Δεν υπάρχουν μη ολοκληρωμένες εργασίες για κοινοποίηση.')
+    return
+  }
 
-  const shareText = [
-    `Λίστα: ${selectedList.name || 'Εργασίες'}`,
-    '',
-    shareTasks.length > 0
-      ? shareTasks.map((task) => `☐ ${task.title || ''}`).join('\n')
-      : 'Δεν υπάρχουν μη ολοκληρωμένες εργασίες.',
-  ].join('\n')
+  const exportNode = document.createElement('div')
+  exportNode.style.position = 'fixed'
+  exportNode.style.left = '-10000px'
+  exportNode.style.top = '0'
+  exportNode.style.width = '900px'
+  exportNode.style.padding = '28px'
+  exportNode.style.background = '#e6f0ff'
+  exportNode.style.fontFamily = "'Inter', 'Roboto', Arial, sans-serif"
+  exportNode.style.color = '#111827'
+
+  exportNode.innerHTML = `
+    <div style="
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 18px;
+    ">
+      ${selectedList.name || 'Εργασίες'}
+    </div>
+
+    <div style="
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    ">
+      ${shareTasks
+        .map(
+          (task) => `
+            <div style="
+              padding: 12px 14px;
+              border: 1px solid #d1d5db;
+              border-radius: 10px;
+              background: #ffffff;
+              font-size: 16px;
+              line-height: 1.45;
+              white-space: pre-wrap;
+              word-break: break-word;
+            ">
+              ${String(task.title || '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')}
+            </div>
+          `
+        )
+        .join('')}
+    </div>
+  `
+
+  document.body.appendChild(exportNode)
 
   try {
-    if (navigator.share) {
+    const dataUrl = await toPng(exportNode, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#e6f0ff',
+    })
+
+    const blob = await (await fetch(dataUrl)).blob()
+    const file = new File([blob], `${selectedList.name || 'tasks'}.png`, {
+      type: 'image/png',
+    })
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
       await navigator.share({
         title: selectedList.name || 'Εργασίες',
-        text: shareText,
+        files: [file],
       })
       return
     }
 
-    await navigator.clipboard.writeText(shareText)
-    window.alert('Η λίστα αντιγράφηκε.')
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = `${selectedList.name || 'tasks'}.png`
+    link.click()
   } catch (error) {
-    if (error?.name !== 'AbortError') {
-      console.error('Σφάλμα κοινοποίησης:', error)
-    }
+    console.error('Σφάλμα κοινοποίησης εικόνας:', error)
+    window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
+  } finally {
+    exportNode.remove()
   }
 }
 
@@ -7437,7 +7493,7 @@ style={
     className="task-actions-menu-button"
     onClick={() => {
       setIsTaskActionsMenuOpen(false)
-      handleShareTasks()
+      handleShareTasksAsImage()
     }}
   >
     Κοινοποίηση
