@@ -6153,6 +6153,11 @@ async function handleShareTasks() {
 
   const shareTasks = visibleTasks.filter((task) => !task.completed)
 
+if (shareTasks.length === 0) {
+  alert('Δεν υπάρχουν μη ολοκληρωμένες εργασίες για κοινοποίηση')
+  return
+}
+
   const shareText = [
     `Λίστα: ${selectedList.name || 'Εργασίες'}`,
     '',
