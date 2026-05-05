@@ -9,7 +9,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import './App.css'
-import { toBlob } from 'html-to-image'
+
 import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { checkForUpdates } from './tauriUpdates'
@@ -6158,105 +6158,139 @@ async function handleShareTasksAsImage() {
     return
   }
 
-  const exportNode = document.createElement('div')
-  exportNode.style.position = 'fixed'
-exportNode.style.left = '0'
-exportNode.style.top = '0'
-exportNode.style.opacity = '1'
-exportNode.style.zIndex = '-1'
-exportNode.style.pointerEvents = 'none'
-  exportNode.style.top = '0'
-  exportNode.style.width = '900px'
-  exportNode.style.padding = '28px'
-  exportNode.style.background = '#e6f0ff'
-  exportNode.style.fontFamily = "'Inter', 'Roboto', Arial, sans-serif"
-  exportNode.style.color = '#111827'
+  const scale = 2
+  const width = 900
+  const padding = 32
+  const cardPadding = 16
+  const gap = 12
+  const titleFontSize = 26
+  const taskFontSize = 18
+  const lineHeight = 28
+  const maxTextWidth = width - padding * 2 - cardPadding * 2
 
-  exportNode.innerHTML = `
-    <div style="
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 18px;
-    ">
-      ${selectedList.name || 'Εργασίες'}
-    </div>
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
 
-    <div style="
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    ">
-      ${shareTasks
-        .map(
-          (task) => `
-            <div style="
-              padding: 12px 14px;
-              border: 1px solid #d1d5db;
-              border-radius: 10px;
-              background: #ffffff;
-              font-size: 16px;
-              line-height: 1.45;
-              white-space: pre-wrap;
-              word-break: break-word;
-            ">
-              ${String(task.title || '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')}
-            </div>
-          `
-        )
-        .join('')}
-    </div>
-  `
+  ctx.font = `${taskFontSize}px Inter, Roboto, Arial, sans-serif`
 
-  document.body.appendChild(exportNode)
+  function wrapText(text, maxWidth) {
+    const words = String(text || '').split(/\s+/)
+    const lines = []
+    let line = ''
 
-  try {
-    await new Promise((r) => setTimeout(r, 100))
-await new Promise((r) => requestAnimationFrame(() => r()))
+    words.forEach((word) => {
+      const testLine = line ? `${line} ${word}` : word
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        lines.push(line)
+        line = word
+      } else {
+        line = testLine
+      }
+    })
 
-const blob = await toBlob(exportNode, {
-  cacheBust: true,
-  pixelRatio: 2,
-  backgroundColor: '#e6f0ff',
-})
+    if (line) lines.push(line)
+    return lines
+  }
 
-if (!blob) {
-  throw new Error('Δεν δημιουργήθηκε εικόνα.')
-}
+  const wrappedTasks = shareTasks.map((task) => ({
+    title: task.title || '',
+    lines: wrapText(task.title || '', maxTextWidth),
+  }))
 
-    const blob = await (await fetch(dataUrl)).blob()
+  const totalHeight =
+    padding +
+    titleFontSize +
+    24 +
+    wrappedTasks.reduce(
+      (sum, task) => sum + cardPadding * 2 + task.lines.length * lineHeight + gap,
+      0
+    ) +
+    padding
+
+  canvas.width = width * scale
+  canvas.height = totalHeight * scale
+  canvas.style.width = `${width}px`
+  canvas.style.height = `${totalHeight}px`
+
+  ctx.scale(scale, scale)
+
+  ctx.fillStyle = '#e6f0ff'
+  ctx.fillRect(0, 0, width, totalHeight)
+
+  ctx.fillStyle = '#111827'
+  ctx.font = `700 ${titleFontSize}px Inter, Roboto, Arial, sans-serif`
+  ctx.fillText(selectedList.name || 'Εργασίες', padding, padding + titleFontSize)
+
+  let y = padding + titleFontSize + 24
+
+  wrappedTasks.forEach((task) => {
+    const cardHeight = cardPadding * 2 + task.lines.length * lineHeight
+
+    ctx.fillStyle = '#ffffff'
+    ctx.strokeStyle = '#d1d5db'
+    ctx.lineWidth = 1
+
+    const radius = 10
+    const x = padding
+    const cardWidth = width - padding * 2
+
+    ctx.beginPath()
+    ctx.moveTo(x + radius, y)
+    ctx.lineTo(x + cardWidth - radius, y)
+    ctx.quadraticCurveTo(x + cardWidth, y, x + cardWidth, y + radius)
+    ctx.lineTo(x + cardWidth, y + cardHeight - radius)
+    ctx.quadraticCurveTo(x + cardWidth, y + cardHeight, x + cardWidth - radius, y + cardHeight)
+    ctx.lineTo(x + radius, y + cardHeight)
+    ctx.quadraticCurveTo(x, y + cardHeight, x, y + cardHeight - radius)
+    ctx.lineTo(x, y + radius)
+    ctx.quadraticCurveTo(x, y, x + radius, y)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.fillStyle = '#111827'
+    ctx.font = `400 ${taskFontSize}px Inter, Roboto, Arial, sans-serif`
+
+    task.lines.forEach((line, index) => {
+      ctx.fillText(line, x + cardPadding, y + cardPadding + taskFontSize + index * lineHeight)
+    })
+
+    y += cardHeight + gap
+  })
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) {
+      window.alert('Δεν ήταν δυνατή η δημιουργία εικόνας.')
+      return
+    }
+
     const file = new File([blob], `${selectedList.name || 'tasks'}.png`, {
       type: 'image/png',
     })
 
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({
-        title: selectedList.name || 'Εργασίες',
-        files: [file],
-      })
-      return
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: selectedList.name || 'Εργασίες',
+          files: [file],
+        })
+        return
+      }
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${selectedList.name || 'tasks'}.png`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') return
+
+      console.error('Σφάλμα κοινοποίησης εικόνας:', error)
+      window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
     }
-
-const url = URL.createObjectURL(blob)
-const link = document.createElement('a')
-link.href = url
-link.download = `${selectedList.name || 'tasks'}.png`
-link.click()
-URL.revokeObjectURL(url)
-} catch (error) {
-  if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') {
-    return
-  }
-
-  console.error('Σφάλμα κοινοποίησης εικόνας:', error)
-  window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
-} finally {
-    exportNode.remove()
-  }
+  }, 'image/png')
 }
-
   async function handlePrintTasks() {
   const browserTitle = 'To Do ΒΡΟΝΤΙΝΟΣ ΜΙΚΕ'
   const pageHeading = taskSearch.trim()
