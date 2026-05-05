@@ -6160,7 +6160,8 @@ async function handleShareTasksAsImage() {
 
   const exportNode = document.createElement('div')
   exportNode.style.position = 'fixed'
-  exportNode.style.left = '-10000px'
+  exportNode.style.left = '0'
+  exportNode.style.opacity = '0'
   exportNode.style.top = '0'
   exportNode.style.width = '900px'
   exportNode.style.padding = '28px'
