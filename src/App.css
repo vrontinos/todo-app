@@ -3180,7 +3180,8 @@ textarea {
   }
 
   .desktop-task-actions-dropdown {
-    right: 0;
+top: 100%;
+margin-top: 0px;
   }
 
   .desktop-sort-host {
@@ -3213,4 +3214,12 @@ textarea {
     flex-direction: column;
     gap: 6px;
   }
+}
+
+.bulk-progress {
+  margin: 4px 0 6px 0;
+  padding-left: 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-soft);
 }

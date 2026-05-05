@@ -5307,11 +5307,7 @@ await saveTaskPositions(reorderedTasks)
     if (lines.length <= 1) return
 
     event.preventDefault()
-markSaving()
-setBulkProgress({
-  action: 'Προσθήκη',
-  total: lines.length,
-})
+    markSaving()
 
     const maxPosition =
       tasks.length > 0 ? Math.max(...tasks.map((t) => t.position || 0)) : 0
@@ -5363,7 +5359,6 @@ if (error) {
     prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
   )
 
-  setBulkProgress(null)
   setSyncStatus('error')
   return
 }
@@ -5384,7 +5379,6 @@ setTasks((prev) => {
 
 setAllTasks(insertedTasks)
 
-setBulkProgress(null)
 markSynced()
   }
 
