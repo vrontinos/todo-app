@@ -9,7 +9,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import './App.css'
-import { toPng } from 'html-to-image'
+import { toBlob } from 'html-to-image'
 import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { checkForUpdates } from './tauriUpdates'
@@ -6211,11 +6211,17 @@ async function handleShareTasksAsImage() {
 
   try {
     await new Promise((r) => setTimeout(r, 100))
-    const dataUrl = await toPng(exportNode, {
-      cacheBust: true,
-      pixelRatio: 2,
-      backgroundColor: '#e6f0ff',
-    })
+await new Promise((r) => requestAnimationFrame(() => r()))
+
+const blob = await toBlob(exportNode, {
+  cacheBust: true,
+  pixelRatio: 2,
+  backgroundColor: '#e6f0ff',
+})
+
+if (!blob) {
+  throw new Error('Δεν δημιουργήθηκε εικόνα.')
+}
 
     const blob = await (await fetch(dataUrl)).blob()
     const file = new File([blob], `${selectedList.name || 'tasks'}.png`, {
@@ -6230,10 +6236,12 @@ async function handleShareTasksAsImage() {
       return
     }
 
-    const link = document.createElement('a')
-    link.href = dataUrl
-    link.download = `${selectedList.name || 'tasks'}.png`
-    link.click()
+const url = URL.createObjectURL(blob)
+const link = document.createElement('a')
+link.href = url
+link.download = `${selectedList.name || 'tasks'}.png`
+link.click()
+URL.revokeObjectURL(url)
   } catch (error) {
     console.error('Σφάλμα κοινοποίησης εικόνας:', error)
     window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
