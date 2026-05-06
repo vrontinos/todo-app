@@ -5571,6 +5571,62 @@ async function handleToggleStore(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
+if (selectedTasks.length > 0) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.is_store)
+
+  const ids = selectedData.map((t) => t.id)
+
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_store: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_store: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_store: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk καταστήματος:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
+
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
 
@@ -5615,6 +5671,60 @@ async function handleToggleSkroutz(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
+if (selectedTasks.length > 0) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.is_skroutz)
+  const ids = selectedData.map((t) => t.id)
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_skroutz: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_skroutz: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_skroutz: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk Skroutz:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
+
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
 
@@ -5658,6 +5768,60 @@ async function handleToggleWeighing(task, event) {
   event.preventDefault()
   event.stopPropagation()
   if (isOffline || !task) return
+
+if (selectedTasks.length > 0) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.needs_weighing)
+  const ids = selectedData.map((t) => t.id)
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            needs_weighing: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            needs_weighing: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      needs_weighing: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk ογκομέτρησης:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
 
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
