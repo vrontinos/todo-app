@@ -342,7 +342,7 @@ html, body {
 .task-search-clear {
   position: absolute;
   top: 50%;
-  right: 6px;
+  right: 14px;
   width: 22px;
   height: 22px;
   border: none;
