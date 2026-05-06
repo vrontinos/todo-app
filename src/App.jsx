@@ -5571,7 +5571,7 @@ async function handleToggleStore(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 0) {
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
   const selectedData = allTasks.filter((t) =>
     selectedTasks.includes(t.id)
   )
@@ -5671,7 +5671,7 @@ async function handleToggleSkroutz(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 0) {
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
   const selectedData = allTasks.filter((t) =>
     selectedTasks.includes(t.id)
   )
@@ -5769,7 +5769,7 @@ async function handleToggleWeighing(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 0) {
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
   const selectedData = allTasks.filter((t) =>
     selectedTasks.includes(t.id)
   )
