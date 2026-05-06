@@ -3253,3 +3253,12 @@ margin-top: 0px;
   }
 }
 
+@media (min-width: 1025px) {
+  .list-count-badge {
+    min-width: 18px;
+    height: 20px;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+}
+
