@@ -474,7 +474,7 @@ useEffect(() => {
                   <div className="task-flag-row">
                 <button
           type="button"
-          className={`weight-toggle ${task.is_store ? 'on' : ''}`}
+          className={`weight-toggle store-toggle ${task.is_store ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
@@ -491,7 +491,7 @@ useEffect(() => {
 
         <button
           type="button"
-          className={`weight-toggle ${task.is_skroutz ? 'on' : ''}`}
+          className={`weight-toggle skroutz-toggle ${task.is_skroutz ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
@@ -508,7 +508,7 @@ useEffect(() => {
 
         <button
           type="button"
-          className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
+          className={`weight-toggle weighing-toggle ${task.needs_weighing ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
