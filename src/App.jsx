@@ -5382,7 +5382,13 @@ setTasks((prev) => {
   )
 })
 
-setAllTasks(insertedTasks)
+setAllTasks((prev) => {
+  const withoutTemps = prev.filter(
+    (task) => !tempTasks.some((temp) => temp.id === task.id)
+  )
+
+  return [...withoutTemps, ...insertedTasks]
+})
 
 setBulkProgress(null)
 markSynced()
