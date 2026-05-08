@@ -226,7 +226,7 @@ function SortableTaskItem({
 const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
   useSortable({
     id: getTaskDndId(task.id),
-    disabled: isOffline || isSearchMode || isSwiping,
+    disabled: isOffline || isSwiping,
   })
 
 const safeListeners = listeners || {}
