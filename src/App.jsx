@@ -6375,10 +6375,10 @@ async function handleShareTasksAsImage() {
     return lines
   }
 
-  const wrappedTasks = shareTasks.map((task) => ({
-    title: task.title || '',
-    lines: wrapText(task.title || '', maxTextWidth),
-  }))
+const wrappedTasks = shareTasks.map((task) => ({
+  title: task.title || '',
+  lines: wrapText(`•  ${task.title || ''}`, maxTextWidth),
+}))
 
   const totalHeight =
     padding +
