@@ -2769,8 +2769,8 @@ textarea {
 .task-text-block {
   position: relative;
   grid-template-columns: 1fr auto;
-  padding-right: 112px;
-  padding-bottom: 22px;
+  padding-right: 0;
+  padding-bottom: 28px;
 }
 }
 
