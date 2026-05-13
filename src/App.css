@@ -2289,6 +2289,10 @@ background: rgba(34, 197, 94, 0.18);
 	transition: opacity 160ms ease;
   }
 
+.task-swipe-shell.task-swipe-active .task-swipe-delete-bg {
+  opacity: 1;
+}
+
   .task-swipe-delete-icon {
     font-size: 22px;
     line-height: 1;

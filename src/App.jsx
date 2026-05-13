@@ -387,7 +387,7 @@ useEffect(() => {
     ref={setNodeRef}
     data-task-id={String(task.id)}
     style={style}
-    className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${isSwiping ? 'task-swipe-active' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
+className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${Math.abs(swipeOffset) > 0 ? 'task-swipe-active' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
   >
       {swipeEnabled && (
         <div className="task-swipe-delete-bg" aria-hidden="true">
