@@ -2307,13 +2307,24 @@ background: rgba(34, 197, 94, 0.18);
     transform: scale(1.08);
   }
 
-  .task-swipe-content {
-    position: relative;
-    z-index: 1;
-    background: var(--panel);
-    will-change: transform, opacity;
-  }
+.task-swipe-content {
+  position: relative;
+  z-index: 1;
+  background: var(--panel);
+  will-change: transform, opacity;
+}
 
+.task-swipe-content.task-weighing-active {
+  background: rgba(239, 68, 68, 0.14) !important;
+}
+
+.task-swipe-content.task-item-selected {
+  background: #d6d6d6 !important;
+}
+
+.task-swipe-content.task-weighing-active.task-item-selected {
+  background: #d1b2b2 !important;
+}
   .task-item.task-item-swiping {
     background: var(--panel);
   }
