@@ -2757,12 +2757,14 @@ textarea {
   }
 
   /* 3. flags δεξιά */
-  .task-flag-row {
-    grid-column: 2;
-    grid-row: 3;
-    justify-self: end;
-    align-self: center;
-  }
+.task-flag-row {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: end;
+  align-self: center;
+  min-width: 108px;
+  justify-content: flex-end;
+}
 
   /* 4. grid layout */
   .task-text-block {
