@@ -387,7 +387,7 @@ useEffect(() => {
     ref={setNodeRef}
     data-task-id={String(task.id)}
     style={style}
-className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${Math.abs(swipeOffset) > 0 ? 'task-swipe-active' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
+className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
   >
       {swipeEnabled && (
         <div className="task-swipe-delete-bg" aria-hidden="true">
@@ -403,7 +403,7 @@ className={`task-item task-swipe-content ${
 } ${
   isSwiping ? 'task-item-swiping' : ''
 } ${
-  task.needs_weighing ? 'task-weighing-active' : ''
+  !isDragging && task.needs_weighing ? 'task-weighing-active' : ''
 }`}
         style={contentStyle}
                 onClick={(event) => {
@@ -8778,7 +8778,9 @@ style={
             <DragOverlay zIndex={9999}>
         {activeDraggedTask ? (
           <div
-            className={`task-item ${isMobile ? 'mobile-drag-overlay' : ''}`}
+            className={`task-item ${
+  activeDraggedTask.needs_weighing ? 'task-weighing-active' : ''
+} ${isMobile ? 'mobile-drag-overlay' : ''}`}
             style={{
               pointerEvents: 'none',
               boxShadow: 'var(--shadow)',
@@ -8808,14 +8810,34 @@ style={
               )}
             </div>
 
-            <button
-              type="button"
-              className={`weight-toggle ${activeDraggedTask.needs_weighing ? 'on' : ''}`}
-              aria-hidden="true"
-              tabIndex={-1}
-            >
-              ⚖
-            </button>
+            <div className="task-flag-row">
+  <button
+    type="button"
+    className={`weight-toggle store-toggle ${activeDraggedTask.is_store ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/store.png" alt="Κατάστημα" className="flag-icon" />
+  </button>
+
+  <button
+    type="button"
+    className={`weight-toggle skroutz-toggle ${activeDraggedTask.is_skroutz ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/skroutz.png" alt="Skroutz" className="flag-icon" />
+  </button>
+
+  <button
+    type="button"
+    className={`weight-toggle weighing-toggle ${activeDraggedTask.needs_weighing ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/scale.png" alt="Ογκομέτρηση" className="flag-icon" />
+  </button>
+</div>
           </div>
         ) : activeDraggedList ? (
           <div
