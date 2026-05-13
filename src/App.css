@@ -492,6 +492,10 @@ html, body {
   color: var(--text);
 }
 
+.task-item.task-item-selected {
+  background: var(--hover) !important;
+}
+
 .list-button {
   display: flex;
   align-items: center;
@@ -522,9 +526,16 @@ html, body {
   background: var(--hover);
   border-color: var(--border);
 }
-.task-item.task-item-selected {
-  background: var(--selected);
-  border-color: var(--selected-border);
+.task-item.task-weighing-active.task-item-selected {
+  background: rgba(239, 68, 68, 0.26) !important;
+  border-color: #ef4444 !important;
+  box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.55);
+}
+
+.task-item.task-weighing-active.task-item-selected {
+  background: color-mix(in srgb, rgba(239, 68, 68, 0.14) 70%, var(--hover)) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
 }
 
 
