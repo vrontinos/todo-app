@@ -517,6 +517,11 @@ html, body {
   border-color: var(--selected-border);
 }
 
+.task-item.task-weighing-active {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border-color: rgba(239, 68, 68, 0.28) !important;
+}
+
 .list-button.active {
   background: var(--hover);
   border-color: var(--border);

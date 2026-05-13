@@ -396,7 +396,15 @@ useEffect(() => {
       )}
 
             <div
-        className={`task-item task-swipe-content ${isSelected ? 'task-item-selected' : ''} ${isActive ? 'task-item-active' : ''} ${isSwiping ? 'task-item-swiping' : ''}`}
+className={`task-item task-swipe-content ${
+  isSelected ? 'task-item-selected' : ''
+} ${
+  isActive ? 'task-item-active' : ''
+} ${
+  isSwiping ? 'task-item-swiping' : ''
+} ${
+  task.needs_weighing ? 'task-weighing-active' : ''
+}`}
         style={contentStyle}
                 onClick={(event) => {
           if (longPressTriggeredRef.current) {
