@@ -515,12 +515,12 @@ html, body {
 }
 
 .task-item.task-weighing-active {
-  background: rgba(239, 68, 68, 0.14) !important;
+  background: color-mix(in srgb, var(--panel) 86%, #ef4444 14%) !important;
   border-color: rgba(239, 68, 68, 0.28) !important;
 }
 
 .task-item.task-weighing-active:not(.task-item-selected):not(.task-item-swiping):not(:hover) {
-  background: rgba(239, 68, 68, 0.14) !important;
+  background: color-mix(in srgb, var(--panel) 86%, #ef4444 14%) !important;
   border-color: rgba(239, 68, 68, 0.28) !important;
 }
 
@@ -2315,7 +2315,7 @@ background: rgba(34, 197, 94, 0.18);
 }
 
 .task-swipe-content.task-weighing-active {
-  background: rgba(239, 68, 68, 0.14) !important;
+  background: color-mix(in srgb, var(--panel) 86%, #ef4444 14%) !important;
 }
 
 .task-swipe-content.task-item-selected {
