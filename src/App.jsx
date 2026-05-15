@@ -1828,6 +1828,7 @@ function restoreTaskScrollSnapshot(snapshot) {
   const currentSortModeRef = useRef('created')
   const currentSortDirectionRef = useRef('asc')
   const skipNextMobileHistoryPushRef = useRef(false)
+  const lastVisibilitySyncRef = useRef(0)
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
   const LAST_MOBILE_VIEW_KEY = 'lastMobileView'
@@ -2667,7 +2668,14 @@ useEffect(() => {
 useEffect(() => {
 function handleVisibilityChange() {
       if (document.visibilityState === 'visible' && session?.user?.id) {
-        setSyncStatus('syncing')
+  const now = Date.now()
+
+  if (now - lastVisibilitySyncRef.current < 60000) {
+    return
+  }
+
+  lastVisibilitySyncRef.current = now
+  setSyncStatus('syncing')
 
         const currentSelectedList = selectedListRef.current
         const currentActiveTask = activeTaskRef.current
