@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "To Do Vrontinos",
-  "version": "1.0.85",
+  "version": "1.0.86",
   "identifier": "com.vrontinos.todo",
   "build": {
     "beforeDevCommand": "npm run dev",
