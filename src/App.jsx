@@ -2683,8 +2683,6 @@ function handleVisibilityChange() {
 
         Promise.all([
   fetchLists(false),
-  fetchAllTasks(false),
-  fetchTaskNoteCounts(false),
   currentSelectedList?.id
     ? fetchTasks(currentSelectedList.id, false, false)
     : Promise.resolve(),
