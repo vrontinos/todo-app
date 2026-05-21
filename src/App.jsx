@@ -4024,11 +4024,8 @@ function applyTaskRealtimePayload(payload) {
     const exists = prev.some((t) => t.id === changedTaskId)
     if (exists) {
       return prev.map((t) => {
-        if (t.id !== changedTaskId) return t
-        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
-          return { ...t, ...task }
-        }
-        return t
+if (t.id !== changedTaskId) return t
+return { ...t, ...task }
       })
     }
     return [...prev, task]
@@ -4042,10 +4039,7 @@ function applyTaskRealtimePayload(payload) {
         if (t.id !== changedTaskId) return t
         found = true
 
-        if (new Date(task.updated_at) >= new Date(t.updated_at || 0)) {
-          return { ...t, ...task }
-        }
-        return t
+        return { ...t, ...task }
       })
 
       if (!found) {
@@ -4070,10 +4064,7 @@ function applyTaskRealtimePayload(payload) {
 
   setActiveTask((prev) => {
     if (!prev || prev.id !== changedTaskId) return prev
-    if (new Date(task.updated_at) >= new Date(prev.updated_at || 0)) {
-      return { ...prev, ...task }
-    }
-    return prev
+    return { ...prev, ...task }
   })
 }
 

@@ -226,7 +226,7 @@ function SortableTaskItem({
 const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
   useSortable({
     id: getTaskDndId(task.id),
-    disabled: isOffline || isSearchMode || isSwiping,
+    disabled: isOffline || isSwiping,
   })
 
 const safeListeners = listeners || {}
@@ -387,7 +387,7 @@ useEffect(() => {
     ref={setNodeRef}
     data-task-id={String(task.id)}
     style={style}
-    className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
+className={`task-swipe-shell ${swipeEnabled ? 'task-swipe-enabled' : ''} ${swipePassedThreshold ? 'task-swipe-threshold' : ''}`}
   >
       {swipeEnabled && (
         <div className="task-swipe-delete-bg" aria-hidden="true">
@@ -396,7 +396,15 @@ useEffect(() => {
       )}
 
             <div
-        className={`task-item task-swipe-content ${isSelected ? 'task-item-selected' : ''} ${isActive ? 'task-item-active' : ''} ${isSwiping ? 'task-item-swiping' : ''}`}
+className={`task-item task-swipe-content ${
+  isSelected ? 'task-item-selected' : ''
+} ${
+  isActive ? 'task-item-active' : ''
+} ${
+  isSwiping ? 'task-item-swiping' : ''
+} ${
+  !isDragging && task.needs_weighing ? 'task-weighing-active' : ''
+}`}
         style={contentStyle}
                 onClick={(event) => {
           if (longPressTriggeredRef.current) {
@@ -474,7 +482,7 @@ useEffect(() => {
                   <div className="task-flag-row">
                 <button
           type="button"
-          className={`weight-toggle ${task.is_store ? 'on' : ''}`}
+          className={`weight-toggle store-toggle ${task.is_store ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
@@ -491,7 +499,7 @@ useEffect(() => {
 
         <button
           type="button"
-          className={`weight-toggle ${task.is_skroutz ? 'on' : ''}`}
+          className={`weight-toggle skroutz-toggle ${task.is_skroutz ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
@@ -508,7 +516,7 @@ useEffect(() => {
 
         <button
           type="button"
-          className={`weight-toggle ${task.needs_weighing ? 'on' : ''}`}
+          className={`weight-toggle weighing-toggle ${task.needs_weighing ? 'on' : ''}`}
           onPointerDown={(e) => {
             e.stopPropagation()
           }}
@@ -1144,6 +1152,7 @@ async function confirmAction(message) {
 
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [bulkProgress, setBulkProgress] = useState(null)
 
   const [authMode, setAuthMode] = useState('signin')
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
@@ -1819,6 +1828,7 @@ function restoreTaskScrollSnapshot(snapshot) {
   const currentSortModeRef = useRef('created')
   const currentSortDirectionRef = useRef('asc')
   const skipNextMobileHistoryPushRef = useRef(false)
+  const lastVisibilitySyncRef = useRef(0)
 
   const LAST_SELECTED_LIST_KEY = 'lastSelectedListId'
   const LAST_MOBILE_VIEW_KEY = 'lastMobileView'
@@ -2309,12 +2319,11 @@ useEffect(() => {
     function handleOnline() {
       setIsOffline(false)
       if (session?.user?.id) {
-        setSyncStatus('syncing')
-        fetchLists(false)
-        fetchAllTasks(false)
-        fetchTaskNoteCounts(false)
+setSyncStatus('syncing')
+fetchLists(false)
+fetchAllTasks(false)
 
-        const currentSelectedList = selectedListRef.current
+const currentSelectedList = selectedListRef.current
         const currentActiveTask = activeTaskRef.current
 
         if (currentSelectedList?.id) {
@@ -2659,7 +2668,14 @@ useEffect(() => {
 useEffect(() => {
 function handleVisibilityChange() {
       if (document.visibilityState === 'visible' && session?.user?.id) {
-        setSyncStatus('syncing')
+  const now = Date.now()
+
+  if (now - lastVisibilitySyncRef.current < 60000) {
+    return
+  }
+
+  lastVisibilitySyncRef.current = now
+  setSyncStatus('syncing')
 
         const currentSelectedList = selectedListRef.current
         const currentActiveTask = activeTaskRef.current
@@ -2667,8 +2683,6 @@ function handleVisibilityChange() {
 
         Promise.all([
   fetchLists(false),
-  fetchAllTasks(false),
-  fetchTaskNoteCounts(false),
   currentSelectedList?.id
     ? fetchTasks(currentSelectedList.id, false, false)
     : Promise.resolve(),
@@ -5307,7 +5321,11 @@ await saveTaskPositions(reorderedTasks)
     if (lines.length <= 1) return
 
     event.preventDefault()
-    markSaving()
+markSaving()
+setBulkProgress({
+  action: 'Προσθήκη',
+  total: lines.length,
+})
 
     const maxPosition =
       tasks.length > 0 ? Math.max(...tasks.map((t) => t.position || 0)) : 0
@@ -5359,6 +5377,7 @@ if (error) {
     prev.filter((task) => !tempTasks.some((temp) => temp.id === task.id))
   )
 
+  setBulkProgress(null)
   setSyncStatus('error')
   return
 }
@@ -5377,8 +5396,15 @@ setTasks((prev) => {
   )
 })
 
-setAllTasks(insertedTasks)
+setAllTasks((prev) => {
+  const withoutTemps = prev.filter(
+    (task) => !tempTasks.some((temp) => temp.id === task.id)
+  )
 
+  return [...withoutTemps, ...insertedTasks]
+})
+
+setBulkProgress(null)
 markSynced()
   }
 
@@ -5565,6 +5591,62 @@ async function handleToggleStore(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.is_store)
+
+  const ids = selectedData.map((t) => t.id)
+
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_store: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_store: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_store: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk καταστήματος:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
+
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
 
@@ -5609,6 +5691,60 @@ async function handleToggleSkroutz(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.is_skroutz)
+  const ids = selectedData.map((t) => t.id)
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_skroutz: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            is_skroutz: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      is_skroutz: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk Skroutz:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
+
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
 
@@ -5652,6 +5788,60 @@ async function handleToggleWeighing(task, event) {
   event.preventDefault()
   event.stopPropagation()
   if (isOffline || !task) return
+
+if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+  const selectedData = allTasks.filter((t) =>
+    selectedTasks.includes(t.id)
+  )
+
+  const shouldEnable = selectedData.some((t) => !t.needs_weighing)
+  const ids = selectedData.map((t) => t.id)
+  const now = new Date().toISOString()
+
+  markSaving()
+
+  setTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            needs_weighing: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  setAllTasks((prev) =>
+    prev.map((t) =>
+      ids.includes(t.id)
+        ? {
+            ...t,
+            needs_weighing: shouldEnable,
+            updated_at: now,
+          }
+        : t
+    )
+  )
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({
+      needs_weighing: shouldEnable,
+      updated_at: now,
+      updated_by: session?.user?.id || null,
+    })
+    .in('id', ids)
+
+  if (error) {
+    console.error('Σφάλμα bulk ογκομέτρησης:', error)
+    setSyncStatus('error')
+    return
+  }
+
+  markSynced()
+  return
+}
 
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
@@ -5725,12 +5915,16 @@ setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
       setEditingNoteValue('')
     }
 
-    markSaving()
+markSaving()
+setBulkProgress({
+  action: 'Διαγραφή',
+  total: idsToDelete.length,
+})
 
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .in('id', idsToDelete)
+const { error } = await supabase
+  .from('tasks')
+  .delete()
+  .in('id', idsToDelete)
 
     if (error) {
   console.error('Σφάλμα διαγραφής:', error)
@@ -5740,12 +5934,14 @@ setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
   })
 
   setTasks(oldTasks)
-  setSyncStatus('error')
-  return
+setBulkProgress(null)
+setSyncStatus('error')
+return
 }
 
-    closeContextMenu()
-    markSynced()
+setBulkProgress(null)
+closeContextMenu()
+markSynced()
   }
 
 const selectedTasksData = allTasks.filter((t) =>
@@ -6149,6 +6345,149 @@ const { error: firstError } = await supabase
     markSynced()
   }
 
+async function handleShareTasksAsImage() {
+  if (!selectedList) return
+
+  const shareTasks = visibleTasks.filter((task) => !task.completed)
+
+  if (shareTasks.length === 0) {
+    window.alert('Δεν υπάρχουν μη ολοκληρωμένες εργασίες για κοινοποίηση.')
+    return
+  }
+
+  const scale = 2
+  const width = 900
+  const padding = 32
+  const cardPadding = 16
+  const gap = 12
+  const titleFontSize = 26
+  const taskFontSize = 18
+  const lineHeight = 28
+  const maxTextWidth = width - padding * 2 - cardPadding * 2
+
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+
+  ctx.font = `${taskFontSize}px Inter, Roboto, Arial, sans-serif`
+
+  function wrapText(text, maxWidth) {
+    const words = String(text || '').split(/\s+/)
+    const lines = []
+    let line = ''
+
+    words.forEach((word) => {
+      const testLine = line ? `${line} ${word}` : word
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        lines.push(line)
+        line = word
+      } else {
+        line = testLine
+      }
+    })
+
+    if (line) lines.push(line)
+    return lines
+  }
+
+const wrappedTasks = shareTasks.map((task) => ({
+  title: task.title || '',
+  lines: wrapText(`•  ${task.title || ''}`, maxTextWidth),
+}))
+
+  const totalHeight =
+    padding +
+    titleFontSize +
+    24 +
+    wrappedTasks.reduce(
+      (sum, task) => sum + cardPadding * 2 + task.lines.length * lineHeight + gap,
+      0
+    ) +
+    padding
+
+  canvas.width = width * scale
+  canvas.height = totalHeight * scale
+  canvas.style.width = `${width}px`
+  canvas.style.height = `${totalHeight}px`
+
+  ctx.scale(scale, scale)
+
+  ctx.fillStyle = '#e6f0ff'
+  ctx.fillRect(0, 0, width, totalHeight)
+
+  ctx.fillStyle = '#111827'
+  ctx.font = `700 ${titleFontSize}px Inter, Roboto, Arial, sans-serif`
+  ctx.fillText(selectedList.name || 'Εργασίες', padding, padding + titleFontSize)
+
+  let y = padding + titleFontSize + 24
+
+  wrappedTasks.forEach((task) => {
+    const cardHeight = cardPadding * 2 + task.lines.length * lineHeight
+
+    ctx.fillStyle = '#ffffff'
+    ctx.strokeStyle = '#d1d5db'
+    ctx.lineWidth = 1
+
+    const radius = 10
+    const x = padding
+    const cardWidth = width - padding * 2
+
+    ctx.beginPath()
+    ctx.moveTo(x + radius, y)
+    ctx.lineTo(x + cardWidth - radius, y)
+    ctx.quadraticCurveTo(x + cardWidth, y, x + cardWidth, y + radius)
+    ctx.lineTo(x + cardWidth, y + cardHeight - radius)
+    ctx.quadraticCurveTo(x + cardWidth, y + cardHeight, x + cardWidth - radius, y + cardHeight)
+    ctx.lineTo(x + radius, y + cardHeight)
+    ctx.quadraticCurveTo(x, y + cardHeight, x, y + cardHeight - radius)
+    ctx.lineTo(x, y + radius)
+    ctx.quadraticCurveTo(x, y, x + radius, y)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    ctx.fillStyle = '#111827'
+    ctx.font = `400 ${taskFontSize}px Inter, Roboto, Arial, sans-serif`
+
+    task.lines.forEach((line, index) => {
+      ctx.fillText(line, x + cardPadding, y + cardPadding + taskFontSize + index * lineHeight)
+    })
+
+    y += cardHeight + gap
+  })
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) {
+      window.alert('Δεν ήταν δυνατή η δημιουργία εικόνας.')
+      return
+    }
+
+    const file = new File([blob], `${selectedList.name || 'tasks'}.png`, {
+      type: 'image/png',
+    })
+
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: selectedList.name || 'Εργασίες',
+          files: [file],
+        })
+        return
+      }
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${selectedList.name || 'tasks'}.png`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') return
+
+      console.error('Σφάλμα κοινοποίησης εικόνας:', error)
+      window.alert('Δεν ήταν δυνατή η κοινοποίηση εικόνας.')
+    }
+  }, 'image/png')
+}
   async function handlePrintTasks() {
   const browserTitle = 'To Do ΒΡΟΝΤΙΝΟΣ ΜΙΚΕ'
   const pageHeading = taskSearch.trim()
@@ -6916,10 +7255,16 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 
 </div>
 
-    <div className={`sync-indicator ${syncStatus}`}>
-      <span className="sync-dot" />
-      <span>{syncText}</span>
-    </div>
+{bulkProgress && (
+  <div className="bulk-progress">
+    {bulkProgress.action} {bulkProgress.total} εργασιών...
+  </div>
+)}
+
+<div className={`sync-indicator ${syncStatus}`}>
+  <span className="sync-dot" />
+  <span>{syncText}</span>
+</div>
 
     {isOffline && (
       <div
@@ -7382,31 +7727,45 @@ style={
     </button>
   </div>
 )}
-        <div className="task-actions-section">
-          <button
-            type="button"
-            className="task-actions-menu-button"
-            onClick={() => {
-              setIsTaskActionsMenuOpen(false)
-              setIsMobileSortMenuOpen(true)
-            }}
-          >
-            Ταξινόμηση
-          </button>
-        </div>
 
-        <div className="task-actions-section">
-          <button
-            type="button"
-            className="task-actions-menu-button"
-            onClick={() => {
-              setIsTaskActionsMenuOpen(false)
-              handlePrintTasks()
-            }}
-          >
-            Εκτύπωση
-          </button>
-        </div>
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      setIsMobileSortMenuOpen(true)
+    }}
+  >
+    Ταξινόμηση
+  </button>
+</div>
+
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      handleShareTasksAsImage()
+    }}
+  >
+    Κοινοποίηση
+  </button>
+</div>
+
+<div className="task-actions-section">
+  <button
+    type="button"
+    className="task-actions-menu-button"
+    onClick={() => {
+      setIsTaskActionsMenuOpen(false)
+      handlePrintTasks()
+    }}
+  >
+    Εκτύπωση
+  </button>
+</div>
 
         {selectedTasks.length > 0 && (
           <div className="task-actions-section">
@@ -7488,30 +7847,106 @@ style={
 </div>
       )}
 
-        <div className="main-actions">
+<div className="main-actions">
   {!isMobile && (
-    <div className="task-sort-box">
-      <label htmlFor="sortMode">Ταξινόμηση</label>
-
-      <select
-        id="sortMode"
-        value={currentSortMode}
-        onChange={(e) => updateCurrentListSort({ mode: e.target.value })}
+    <div className="task-actions-menu-wrap desktop-task-actions-menu">
+      <button
+        type="button"
+        className="task-actions-trigger"
+        onClick={() => {
+          setIsTaskActionsMenuOpen((prev) => !prev)
+        }}
+        aria-label="Ενέργειες λίστας"
+        aria-expanded={isTaskActionsMenuOpen}
       >
-        <option value="created">Σειρά καταχώρησης</option>
-        <option value="alpha">Αλφαβητική</option>
-        <option value="manual">Χειροκίνητη</option>
-      </select>
+        ⋮
+      </button>
+
+      {isTaskActionsMenuOpen && (
+        <div className="task-actions-dropdown desktop-task-actions-dropdown">
+          <div className="task-actions-section desktop-sort-host">
+            <button
+              type="button"
+              className="task-actions-menu-button desktop-sort-button"
+            >
+              <span>Ταξινόμηση</span>
+              <span className="submenu-arrow">›</span>
+            </button>
+
+            <div className="desktop-sort-submenu">
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'created' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Σειρά καταχώρησης</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'created' ? '✓' : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'alpha' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Αλφαβητική</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'alpha' ? '✓' : ''}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="task-actions-menu-button mobile-sort-option"
+                onClick={() => {
+                  updateCurrentListSort({ mode: 'manual' })
+                  setIsTaskActionsMenuOpen(false)
+                }}
+              >
+                <span>Χειροκίνητη</span>
+                <span className="mobile-sort-check">
+                  {currentSortMode === 'manual' ? '✓' : ''}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button"
+              onClick={() => {
+                setIsTaskActionsMenuOpen(false)
+                handleShareTasksAsImage()
+              }}
+            >
+              Κοινοποίηση
+            </button>
+          </div>
+
+          <div className="task-actions-section">
+            <button
+              type="button"
+              className="task-actions-menu-button"
+              onClick={() => {
+                setIsTaskActionsMenuOpen(false)
+                handlePrintTasks()
+              }}
+            >
+              Εκτύπωση
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )}
-
-
-
-{!isMobile && (
-  <button className="print-button" onClick={handlePrintTasks}>
-    Εκτύπωση
-  </button>
-)}
 </div>
       </div>
     </div>
@@ -8349,7 +8784,9 @@ style={
             <DragOverlay zIndex={9999}>
         {activeDraggedTask ? (
           <div
-            className={`task-item ${isMobile ? 'mobile-drag-overlay' : ''}`}
+            className={`task-item ${
+  activeDraggedTask.needs_weighing ? 'task-weighing-active' : ''
+} ${isMobile ? 'mobile-drag-overlay' : ''}`}
             style={{
               pointerEvents: 'none',
               boxShadow: 'var(--shadow)',
@@ -8379,14 +8816,34 @@ style={
               )}
             </div>
 
-            <button
-              type="button"
-              className={`weight-toggle ${activeDraggedTask.needs_weighing ? 'on' : ''}`}
-              aria-hidden="true"
-              tabIndex={-1}
-            >
-              ⚖
-            </button>
+            <div className="task-flag-row">
+  <button
+    type="button"
+    className={`weight-toggle store-toggle ${activeDraggedTask.is_store ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/store.png" alt="Κατάστημα" className="flag-icon" />
+  </button>
+
+  <button
+    type="button"
+    className={`weight-toggle skroutz-toggle ${activeDraggedTask.is_skroutz ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/skroutz.png" alt="Skroutz" className="flag-icon" />
+  </button>
+
+  <button
+    type="button"
+    className={`weight-toggle weighing-toggle ${activeDraggedTask.needs_weighing ? 'on' : ''}`}
+    aria-hidden="true"
+    tabIndex={-1}
+  >
+    <img src="/scale.png" alt="Ογκομέτρηση" className="flag-icon" />
+  </button>
+</div>
           </div>
         ) : activeDraggedList ? (
           <div
