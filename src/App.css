@@ -498,6 +498,16 @@ html, body {
 .task-item.task-weighing-active.task-item-selected {
   background: #d1b2b2 !important;
 }
+
+:root[data-theme='dark'] .task-item.task-item-selected {
+  background: #334155 !important;
+  color: var(--text) !important;
+}
+
+:root[data-theme='dark'] .task-item.task-weighing-active.task-item-selected {
+  background: #4b2f35 !important;
+}
+
 .list-button {
   display: flex;
   align-items: center;
