@@ -8161,18 +8161,10 @@ style={
     }}
     ref={(el) => {
       if (!el) return
-      if (el.textContent !== editingTaskValue) {
+
+      if (document.activeElement !== el && el.textContent !== editingTaskValue) {
         el.textContent = editingTaskValue
       }
-
-      requestAnimationFrame(() => {
-        const selection = window.getSelection()
-        const range = document.createRange()
-        range.selectNodeContents(el)
-        range.collapse(false)
-        selection.removeAllRanges()
-        selection.addRange(range)
-      })
     }}
     title="Κλικ για μετονομασία"
   />
