@@ -1277,6 +1277,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
   const [lastEditorEmail, setLastEditorEmail] = useState('')
+  const [skroutzOrderInfo, setSkroutzOrderInfo] = useState(null)
   const [isAdminLogsOpen, setIsAdminLogsOpen] = useState(false)
   const [adminLogsSearch, setAdminLogsSearch] = useState('')
   const [adminLogsResults, setAdminLogsResults] = useState([])
@@ -1334,6 +1335,40 @@ useEffect(() => {
 
   return () => clearTimeout(timer)
 }, [])
+
+useEffect(() => {
+  let cancelled = false
+
+  async function loadSkroutzOrderInfo() {
+    if (!activeTask?.id || !activeTask?.is_skroutz) {
+      setSkroutzOrderInfo(null)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('skroutz_imported_items')
+      .select('order_code')
+      .eq('task_id', activeTask.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (cancelled) return
+
+    if (error) {
+      console.error(error)
+      setSkroutzOrderInfo(null)
+      return
+    }
+
+    setSkroutzOrderInfo(data?.[0] || null)
+  }
+
+  loadSkroutzOrderInfo()
+
+  return () => {
+    cancelled = true
+  }
+}, [activeTask?.id, activeTask?.is_skroutz])
 
 const isAdminLogsUser = session?.user?.email?.toLowerCase() === ADMIN_LOGS_EMAIL
 
@@ -8272,7 +8307,20 @@ style={
 </div>
     </div>
 
-    <div className="details-bottom-area">
+<div className="details-bottom-area">
+
+  {skroutzOrderInfo?.order_code && (
+    <div className="skroutz-order-box">
+      <span className="skroutz-order-label">
+        📦 Παραγγελία Skroutz
+      </span>
+
+      <span className="skroutz-order-value">
+        {skroutzOrderInfo.order_code}
+      </span>
+    </div>
+  )}
+
   <div className="task-updated-box">
     <div className="task-updated-left">
       <span className="task-updated-label">Τελευταία αλλαγή</span>
