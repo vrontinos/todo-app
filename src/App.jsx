@@ -8309,18 +8309,6 @@ style={
 
 <div className="details-bottom-area">
 
-  {skroutzOrderInfo?.order_code && (
-    <div className="skroutz-order-box">
-      <span className="skroutz-order-label">
-        📦 Παραγγελία Skroutz
-      </span>
-
-      <span className="skroutz-order-value">
-        {skroutzOrderInfo.order_code}
-      </span>
-    </div>
-  )}
-
   <div className="task-updated-box">
     <div className="task-updated-left">
       <span className="task-updated-label">Τελευταία αλλαγή</span>
