@@ -479,15 +479,19 @@ className={`task-item task-swipe-content ${
       </span>
     )}
 
-    {task.barcode && (
-      <span
-        className="task-barcode-badge"
-        title={`Barcode: ${task.barcode}`}
-      >
-        <span className="task-barcode-label">Barcode:</span>
-        <span className="task-barcode-value">{task.barcode}</span>
-      </span>
-    )}
+{task.barcode && (
+  <span
+    className="task-barcode-badge"
+    title="Πάτησε για αντιγραφή barcode"
+    onClick={(e) => {
+      e.stopPropagation()
+      navigator.clipboard.writeText(task.barcode)
+    }}
+  >
+    <span className="task-barcode-label">Barcode:</span>
+    <span className="task-barcode-value">{task.barcode}</span>
+  </span>
+)}
   </div>
 )}
           {isSearchMode && (
@@ -7158,10 +7162,19 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
         onDragEnd={handleGlobalDragEnd}
         onDragCancel={handleAnyDragEnd}
       >
-      <div
-        className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
-        ref={appRef}
-      >
+<div
+  className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
+  onMouseDown={(event) => {
+    if (!event.target.closest('.task-barcode-badge')) {
+      window.getSelection()?.removeAllRanges()
+    }
+  }}
+  onTouchStart={(event) => {
+    if (!event.target.closest('.task-barcode-badge')) {
+      window.getSelection()?.removeAllRanges()
+    }
+  }}
+>
 
 {isMobile && mobileView !== 'lists' && (
   <button
