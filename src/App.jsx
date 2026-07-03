@@ -6542,8 +6542,8 @@ function renderBarcodeSvg(value) {
     JsBarcode(svg, String(value), {
       format: "CODE128",
       displayValue: false,
-      width: 1.6,
-      height: 42,
+      width: 0.9,
+      height: 20,
       margin: 0,
     });
 
