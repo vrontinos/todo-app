@@ -13,6 +13,7 @@ import './App.css'
 import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { checkForUpdates } from './tauriUpdates'
+import JsBarcode from "jsbarcode";
 
 const LIST_DND_PREFIX = 'list:'
 const TASK_DND_PREFIX = 'task:'
@@ -466,16 +467,29 @@ className={`task-item task-swipe-content ${
             {task.title}
           </span>
 
-          {task.notes_count > 0 && (
-            <span
-              className="task-notes-count"
-              title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
-            >
-              <img src="/note.png" className="task-notes-icon" alt="" />
-              <span>{task.notes_count}</span>
-            </span>
-          )}
+{(task.notes_count > 0 || task.barcode) && (
+  <div className="task-meta-line">
+    {task.notes_count > 0 && (
+      <span
+        className="task-notes-count"
+        title={task.notes_count === 1 ? '1 σημείωση' : `${task.notes_count} σημειώσεις`}
+      >
+        <img src="/note.png" className="task-notes-icon" alt="" />
+        <span>{task.notes_count}</span>
+      </span>
+    )}
 
+    {task.barcode && (
+      <span
+        className="task-barcode-badge"
+        title={`Barcode: ${task.barcode}`}
+      >
+        <span className="task-barcode-label">Barcode:</span>
+        <span className="task-barcode-value">{task.barcode}</span>
+      </span>
+    )}
+  </div>
+)}
           {isSearchMode && (
             <span className="task-list-label">Λίστα: {task.list_name || '—'}</span>
           )}
@@ -3628,6 +3642,7 @@ async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
         status,
         created_at,
         list_name_snapshot
+        barcode,
       `)
       .eq('invited_email', email)
       .eq('status', 'pending')
@@ -6514,6 +6529,30 @@ const wrappedTasks = shareTasks.map((task) => ({
     }
   }, 'image/png')
 }
+
+function renderBarcodeSvg(value) {
+  if (!value) return "";
+
+  try {
+    const svg = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg"
+    );
+
+    JsBarcode(svg, String(value), {
+      format: "CODE128",
+      displayValue: false,
+      width: 1.6,
+      height: 42,
+      margin: 0,
+    });
+
+    return svg.outerHTML;
+  } catch (err) {
+    console.error(err);
+    return "";
+  }
+}
   async function handlePrintTasks() {
   const browserTitle = 'To Do ΒΡΟΝΤΙΝΟΣ ΜΙΚΕ'
   const pageHeading = taskSearch.trim()
@@ -6531,6 +6570,17 @@ const wrappedTasks = shareTasks.map((task) => ({
         ? `<div style="font-size:11px;color:#666;margin-top:3px;">Ογκομέτρηση</div>`
         : ''
 
+const barcode = task.barcode
+  ? `
+    <div style="margin-top:8px;">
+      ${renderBarcodeSvg(task.barcode)}
+      <div style="font-size:11px;letter-spacing:1px;margin-top:2px;">
+        ${escapeHtml(task.barcode)}
+      </div>
+    </div>
+  `
+  : ''
+
       return `
         <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #ddd;">
           <div style="width:14px;height:14px;border:1.5px solid #444;border-radius:999px;box-sizing:border-box;margin-top:1px;flex-shrink:0;"></div>
@@ -6538,6 +6588,7 @@ const wrappedTasks = shareTasks.map((task) => ({
             <div style="font-size:13px;font-weight:600;">${escapeHtml(task.title || '')}</div>
             ${listLine}
             ${measuring}
+	    ${barcode}
           </div>
         </div>
       `

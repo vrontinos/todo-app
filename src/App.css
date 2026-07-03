@@ -2792,6 +2792,43 @@ textarea {
 
   filter: brightness(0) saturate(100%) invert(34%) sepia(98%) saturate(747%) hue-rotate(202deg) brightness(95%) contrast(95%);
 }
+
+.task-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.task-barcode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  min-width: 0;
+  color: var(--text-soft);
+  line-height: 1.2;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+  user-select: text;
+}
+
+.task-barcode-label {
+  color: var(--text-soft);
+  font-weight: 400;
+  text-transform: none;
+  font-size: 11px;
+}
+
+.task-barcode-value {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1024px) {
   .task-updated-box {
     padding-bottom: 0;

@@ -1,7 +1,7 @@
 {
   "name": "my-app",
   "private": true,
-  "version": "1.0.92",
+  "version": "1.0.93",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -26,6 +26,7 @@
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "html-to-image": "^1.11.13",
+    "jsbarcode": "^3.12.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
