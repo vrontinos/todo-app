@@ -479,19 +479,15 @@ className={`task-item task-swipe-content ${
       </span>
     )}
 
-{task.barcode && (
-  <span
-    className="task-barcode-badge"
-    title="Πάτησε για αντιγραφή barcode"
-    onClick={(e) => {
-      e.stopPropagation()
-      navigator.clipboard.writeText(task.barcode)
-    }}
-  >
-    <span className="task-barcode-label">Barcode:</span>
-    <span className="task-barcode-value">{task.barcode}</span>
-  </span>
-)}
+    {task.barcode && (
+      <span
+        className="task-barcode-badge"
+        title={`Barcode: ${task.barcode}`}
+      >
+        <span className="task-barcode-label">Barcode:</span>
+        <span className="task-barcode-value">{task.barcode}</span>
+      </span>
+    )}
   </div>
 )}
           {isSearchMode && (
@@ -6546,7 +6542,7 @@ function renderBarcodeSvg(value) {
     JsBarcode(svg, String(value), {
       format: "CODE128",
       displayValue: false,
-      width: 0.9,
+      width: 0.8,
       height: 20,
       margin: 0,
     });
@@ -6576,36 +6572,127 @@ function renderBarcodeSvg(value) {
 
 const barcode = task.barcode
   ? `
-    <div style="margin-top:8px;">
+    <div class="print-barcode">
       ${renderBarcodeSvg(task.barcode)}
-      <div style="font-size:11px;letter-spacing:1px;margin-top:2px;">
+      <div class="print-barcode-value">
         ${escapeHtml(task.barcode)}
       </div>
     </div>
   `
   : ''
 
-      return `
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #ddd;">
-          <div style="width:14px;height:14px;border:1.5px solid #444;border-radius:999px;box-sizing:border-box;margin-top:1px;flex-shrink:0;"></div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:600;">${escapeHtml(task.title || '')}</div>
-            ${listLine}
-            ${measuring}
-	    ${barcode}
-          </div>
-        </div>
-      `
+return `
+  <table class="print-task-table">
+    <tr>
+      <td class="print-check-cell">
+        <div class="print-check"></div>
+      </td>
+      <td class="print-task-body">
+        <div class="print-task-title">${escapeHtml(task.title || '')}</div>
+        ${listLine}
+        ${measuring}
+        ${barcode}
+      </td>
+    </tr>
+  </table>
+`
     })
     .join('')
 
-  const html = `
-    <html>
-      <head>
-        <title>${escapeHtml(browserTitle)}</title>
-      </head>
-      <body style="font-family:Arial,sans-serif;padding:20px;">
-        <h1 style="margin-top:0;font-size:18px;">${escapeHtml(pageHeading)}</h1>
+const html = `
+  <html>
+    <head>
+      <title>${escapeHtml(browserTitle)}</title>
+
+<style>
+@page{
+  margin:6mm;
+}
+
+body{
+  font-family:Arial,sans-serif;
+  margin:0;
+  padding:8mm;
+}
+
+h1{
+  margin-top:0;
+  margin-bottom:8px;
+  font-size:18px;
+}
+  .print-task-table{
+    width:100%;
+    border-collapse:collapse;
+    border-bottom:1px solid #ddd;
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+
+  .print-task-table tr,
+  .print-task-table td{
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+
+  .print-check-cell{
+    width:24px;
+    padding:8px 10px 8px 0;
+    vertical-align:top;
+  }
+
+  .print-check{
+    width:14px;
+    height:14px;
+    border:1.5px solid #444;
+    border-radius:999px;
+    box-sizing:border-box;
+    margin-top:1px;
+  }
+
+.print-task-body{
+  padding:7px 0;
+  vertical-align:top;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
+
+.print-task-title{
+  font-size:12px;
+  font-weight:700;
+}
+
+.print-barcode{
+  margin-top:2px;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
+
+.print-barcode-value{
+  font-size:12px;
+  letter-spacing:1px;
+  margin-top:2px;
+}
+
+  @media print{
+    .print-task-table{
+      page-break-inside:avoid !important;
+      break-inside:avoid !important;
+    }
+
+    .print-task-table tr,
+    .print-task-table td,
+    .print-task-body,
+    .print-barcode{
+      page-break-inside:avoid !important;
+      break-inside:avoid !important;
+    }
+  }
+</style>
+
+    </head>
+
+    <body>
+        <h1>${escapeHtml(pageHeading)}</h1>
         ${rows || '<p style="font-size:13px;">Δεν υπάρχουν μη ολοκληρωμένες εργασίες.</p>'}
       </body>
     </html>
@@ -7162,19 +7249,10 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
         onDragEnd={handleGlobalDragEnd}
         onDragCancel={handleAnyDragEnd}
       >
-<div
-  className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
-  onMouseDown={(event) => {
-    if (!event.target.closest('.task-barcode-badge')) {
-      window.getSelection()?.removeAllRanges()
-    }
-  }}
-  onTouchStart={(event) => {
-    if (!event.target.closest('.task-barcode-badge')) {
-      window.getSelection()?.removeAllRanges()
-    }
-  }}
->
+      <div
+        className={`app ${isResizingSidebar || isResizingDetails ? 'is-resizing' : ''}`}
+        ref={appRef}
+      >
 
 {isMobile && mobileView !== 'lists' && (
   <button
