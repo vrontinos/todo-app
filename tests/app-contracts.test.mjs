@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, '..')
 
 const rawApp = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
 const updaterSource = fs.readFileSync(path.join(root, 'src', 'tauriUpdates.js'), 'utf8')
+const supabaseClientSource = fs.readFileSync(path.join(root, 'src', 'supabaseClient.js'), 'utf8')
 const transformed = bulkActionSafetyPatch().transform(rawApp, path.join(root, 'src', 'App.jsx'))?.code
 
 assert.equal(typeof transformed, 'string', 'bulk safety transform must produce App.jsx code')
@@ -86,6 +87,28 @@ test('desktop updater installs before requesting relaunch', () => {
   const relaunchIndex = updaterSource.indexOf('await relaunch()')
   assert.ok(installIndex >= 0, 'updater must install the downloaded update')
   assert.ok(relaunchIndex > installIndex, 'relaunch must happen only after install completes')
+})
+
+test('Supabase auth keeps durable sessions and refreshes tokens', () => {
+  assert.match(supabaseClientSource, /persistSession:\s*true/)
+  assert.match(supabaseClientSource, /autoRefreshToken:\s*true/)
+  assert.match(supabaseClientSource, /detectSessionInUrl:\s*true/)
+})
+
+test('manual sign out blocks immediate remembered auto-login in the same cycle', () => {
+  assert.match(
+    transformed,
+    /async function handleSignOut\(\) \{[\s\S]{0,180}setAutoLoginTried\(true\)[\s\S]{0,180}await supabase\.auth\.signOut\(\)/,
+  )
+})
+
+test('remembered login keeps the email preference independently', () => {
+  assert.match(transformed, /localStorage\.setItem\('rememberLogin', 'true'\)/)
+  assert.match(transformed, /localStorage\.setItem\('savedLoginEmail', email\)/)
+  assert.match(
+    transformed,
+    /localStorage\.getItem\('rememberLogin'\) === 'true'[\s\S]{0,300}localStorage\.getItem\('savedLoginEmail'\)/,
+  )
 })
 
 test('mobile destructive interactions keep offline/search guards', () => {
