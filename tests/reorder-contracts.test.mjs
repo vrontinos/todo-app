@@ -29,7 +29,9 @@ test('list reorder persistence remains offline-safe and restores server state af
   assert.match(source, /if \(isOffline\) return/)
   assert.match(source, /Promise\.all\([\s\S]{0,500}from\('lists'\)[\s\S]{0,220}position: index \+ 1/)
   assert.match(source, /results\.some\(\(result\) => result\.error\)/)
-  assert.match(source, /setSyncStatus\('error'\)[\s\S]{0,160}fetchLists\(\)/)
+  assert.match(source, /if \(hasError\) \{/)
+  assert.match(source, /setSyncStatus\('error'\)/)
+  assert.match(source, /fetchLists\(\)/)
   assert.match(source, /markSynced\(\)/)
 })
 
