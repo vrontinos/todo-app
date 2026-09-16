@@ -3,11 +3,17 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { realtimeLeaseHandoffPatch } from '../scripts/realtime-lease-handoff-patch.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
-const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+const appPath = path.join(root, 'src', 'App.jsx')
+const appSource = fs.readFileSync(appPath, 'utf8')
+const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
+const transformedApp = realtimeLeaseHandoffPatch().transform(appSource, appPath)?.code
+
+assert.equal(typeof transformedApp, 'string', 'realtime lease handoff transform must produce App.jsx code')
 
 test('realtime lease stays scoped to the authenticated user and current tab', () => {
   assert.match(appSource, /const userId = session\.user\.id/)
@@ -52,5 +58,42 @@ test('realtime lease cleanup removes only the lease owned by this tab', () => {
   assert.match(
     appSource,
     /stopRealtime\(\)[\s\S]{0,300}const lease = readLease\(\)[\s\S]{0,180}if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)/,
+  )
+})
+
+test('stopping realtime releases the current tab lease immediately', () => {
+  assert.match(
+    transformedApp,
+    /function stopRealtime\(\)[\s\S]{0,500}const lease = readLease\(\)[\s\S]{0,180}if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)/,
+  )
+})
+
+test('stopping realtime never removes a lease owned by another tab', () => {
+  assert.doesNotMatch(
+    transformedApp,
+    /function stopRealtime\(\)[\s\S]{0,500}localStorage\.removeItem\(leaseKey\)(?![\s\S]{0,80}lease\?\.tabId === tabId)/,
+  )
+  assert.match(
+    transformedApp,
+    /if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)\s*\}/,
+  )
+})
+
+test('realtime lease handoff patch runs before the existing Vite safety patches', () => {
+  assert.match(
+    viteConfigSource,
+    /import \{ realtimeLeaseHandoffPatch \} from '\.\/scripts\/realtime-lease-handoff-patch\.js'/,
+  )
+  assert.match(
+    viteConfigSource,
+    /realtimeLeaseHandoffPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
+  )
+})
+
+test('realtime lease handoff patch fails closed if its expected source contract drifts', () => {
+  const plugin = realtimeLeaseHandoffPatch()
+  assert.throws(
+    () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
+    /Expected block not found/,
   )
 })
