@@ -25,3 +25,11 @@ jobs:
       - run: npm test
       - run: npx eslint scripts/bulk-action-safety-patch.js scripts/safety-preflight.cjs
       - run: npm run build
+
+  tauri-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check Tauri Rust wiring with locked dependencies
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
