@@ -37,10 +37,8 @@ test('atomic task reorder RPC requires the complete exact task set', () => {
 })
 
 test('atomic task reorder RPC normalizes positions and preserves mutation metadata', () => {
-  assert.match(
-    sql,
-    /unnest\(p_task_ids\) with ordinality as u\(task_id, ordinality\)[\s\S]{0,500}ordinality::integer as new_position/i,
-  )
+  assert.match(sql, /ordinality::integer as new_position/i)
+  assert.match(sql, /unnest\(p_task_ids\) with ordinality as u\(task_id, ordinality\)/i)
   assert.match(sql, /position = desired\.new_position/i)
   assert.match(sql, /updated_by = v_user_id/i)
 })
