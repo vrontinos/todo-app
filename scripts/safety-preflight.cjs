@@ -121,6 +121,23 @@ if (!desktopPermissions.includes('process:default')) {
   pass('Desktop process restart capability is enabled')
 }
 
+const viteConfig = readText('vite.config.js')
+const authPatchPath = 'scripts/auth-storage-safety-patch.js'
+const authPatchSource = readText(authPatchPath)
+const authPatchImport = "import { authStorageSafetyPatch } from './scripts/auth-storage-safety-patch.js'"
+
+if (!viteConfig.includes(authPatchImport) || !viteConfig.includes('authStorageSafetyPatch(),')) {
+  fail('Vite must keep the auth storage safety patch enabled')
+} else {
+  pass('Auth storage safety patch is wired into Vite')
+}
+
+if (!authPatchSource.includes("localStorage.removeItem('savedLoginPassword')")) {
+  fail('Auth storage safety patch must scrub legacy savedLoginPassword data')
+} else {
+  pass('Auth storage safety patch scrubs legacy plaintext password data')
+}
+
 const releaseWorkflowPath = '.github/workflows/release.yml'
 const releaseWorkflow = readText(releaseWorkflowPath)
 

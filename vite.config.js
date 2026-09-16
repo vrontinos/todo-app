@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { bulkActionSafetyPatch } from './scripts/bulk-action-safety-patch.js'
+import { authStorageSafetyPatch } from './scripts/auth-storage-safety-patch.js'
 
 const tauriHost = process.env.TAURI_DEV_HOST || '10.5.0.2'
 const isTauriBuild = process.env.TAURI === 'true'
@@ -9,6 +10,7 @@ const isTauriBuild = process.env.TAURI === 'true'
 export default defineConfig({
   plugins: [
     bulkActionSafetyPatch(),
+    authStorageSafetyPatch(),
     react(),
     !isTauriBuild &&
       VitePWA({
