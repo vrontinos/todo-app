@@ -138,6 +138,41 @@ if (!authPatchSource.includes("localStorage.removeItem('savedLoginPassword')")) 
   pass('Auth storage safety patch scrubs legacy plaintext password data')
 }
 
+const inviteFunctionPath = 'supabase/functions/send-list-invite-email/index.ts'
+const inviteFunctionSource = readText(inviteFunctionPath)
+const requiredInviteSecurityMarkers = [
+  "supabase.auth.getUser(token)",
+  ".eq('invited_by_user_id', user.id)",
+  ".eq('invited_email', invitedEmail)",
+  ".eq('status', 'pending')",
+  ".gte('created_at', recentCutoff)",
+  "String(list.owner_user_id) === String(user.id)",
+  'escapeHtml(user.email)',
+  'to: invitedEmail',
+]
+
+for (const marker of requiredInviteSecurityMarkers) {
+  if (!inviteFunctionSource.includes(marker)) {
+    fail(`Invite email function is missing required security marker: ${marker}`)
+  }
+}
+
+if (requiredInviteSecurityMarkers.every((marker) => inviteFunctionSource.includes(marker))) {
+  pass('Invite email function keeps authenticated owner-scoped authorization checks')
+}
+
+if (inviteFunctionSource.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+  fail('Invite email function must not bypass RLS with service-role credentials')
+} else {
+  pass('Invite email function does not use service-role credentials')
+}
+
+if (inviteFunctionSource.includes('const { email, inviterEmail, listNames, appUrl } = await req.json()')) {
+  fail('Invite email function must not trust legacy client-supplied sender identity')
+} else {
+  pass('Invite email sender identity is derived server-side')
+}
+
 const releaseWorkflowPath = '.github/workflows/release.yml'
 const releaseWorkflow = readText(releaseWorkflowPath)
 
