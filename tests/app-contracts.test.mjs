@@ -4,17 +4,22 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bulkActionSafetyPatch } from '../scripts/bulk-action-safety-patch.js'
+import { authStorageSafetyPatch } from '../scripts/auth-storage-safety-patch.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
+const appPath = path.join(root, 'src', 'App.jsx')
 
-const rawApp = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+const rawApp = fs.readFileSync(appPath, 'utf8')
 const updaterSource = fs.readFileSync(path.join(root, 'src', 'tauriUpdates.js'), 'utf8')
 const supabaseClientSource = fs.readFileSync(path.join(root, 'src', 'supabaseClient.js'), 'utf8')
-const transformed = bulkActionSafetyPatch().transform(rawApp, path.join(root, 'src', 'App.jsx'))?.code
+const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
+const bulkTransformed = bulkActionSafetyPatch().transform(rawApp, appPath)?.code
+const transformed = authStorageSafetyPatch().transform(bulkTransformed, appPath)?.code
 
-assert.equal(typeof transformed, 'string', 'bulk safety transform must produce App.jsx code')
+assert.equal(typeof bulkTransformed, 'string', 'bulk safety transform must produce App.jsx code')
+assert.equal(typeof transformed, 'string', 'auth storage transform must produce App.jsx code')
 
 function count(haystack, needle) {
   return haystack.split(needle).length - 1
@@ -95,10 +100,41 @@ test('Supabase auth keeps durable sessions and refreshes tokens', () => {
   assert.match(supabaseClientSource, /detectSessionInUrl:\s*true/)
 })
 
-test('manual sign out blocks immediate remembered auto-login in the same cycle', () => {
+test('auth storage safety patch is wired into the Vite build before React', () => {
+  assert.match(
+    viteConfigSource,
+    /import \{ authStorageSafetyPatch \} from '\.\/scripts\/auth-storage-safety-patch\.js'/,
+  )
+  assert.match(
+    viteConfigSource,
+    /bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
+  )
+})
+
+test('plaintext login password is never read from or written to localStorage', () => {
+  assert.doesNotMatch(transformed, /localStorage\.getItem\('savedLoginPassword'\)/)
+  assert.doesNotMatch(transformed, /localStorage\.setItem\('savedLoginPassword'/)
+  assert.match(transformed, /const \[authPassword, setAuthPassword\] = useState\(''\)/)
+  assert.ok(count(transformed, "localStorage.removeItem('savedLoginPassword')") >= 1)
+})
+
+test('automatic authentication relies on the persisted Supabase session, not a stored password', () => {
+  assert.equal(count(transformed, 'signInWithPassword({'), 1)
+  assert.doesNotMatch(transformed, /Auto login failed:/)
+  assert.match(
+    transformed,
+    /localStorage\.removeItem\('savedLoginPassword'\)[\s\S]{0,220}if \(session \|\| autoLoginTried\) return/,
+  )
+})
+
+test('manual sign out remains explicit and never restores a saved password', () => {
   assert.match(
     transformed,
     /async function handleSignOut\(\) \{[\s\S]{0,180}setAutoLoginTried\(true\)[\s\S]{0,180}await supabase\.auth\.signOut\(\)/,
+  )
+  assert.match(
+    transformed,
+    /localStorage\.getItem\('rememberLogin'\) === 'true'[\s\S]{0,220}setAuthEmail\(localStorage\.getItem\('savedLoginEmail'\) \|\| ''\)[\s\S]{0,120}setAuthPassword\(''\)/,
   )
 })
 
@@ -116,8 +152,16 @@ test('mobile destructive interactions keep offline/search guards', () => {
   assert.match(transformed, /if \(!isTouchInput \|\| isOffline \|\| isSearchMode\) return/)
 })
 
-test('safety transform is fail-closed if its expected source contract drifts', () => {
+test('bulk safety transform is fail-closed if its expected source contract drifts', () => {
   const plugin = bulkActionSafetyPatch()
+  assert.throws(
+    () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
+    /Expected block not found/,
+  )
+})
+
+test('auth storage transform is fail-closed if its expected source contract drifts', () => {
+  const plugin = authStorageSafetyPatch()
   assert.throws(
     () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
     /Expected block not found/,
