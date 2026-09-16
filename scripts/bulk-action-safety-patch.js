@@ -20,7 +20,10 @@ export function bulkActionSafetyPatch() {
       const normalizedId = String(id || '').replaceAll('\\', '/')
       if (!normalizedId.endsWith('/src/App.jsx')) return null
 
-      let next = code
+      // Git may check out source files with CRLF on Windows runners.
+      // Normalize line endings in-memory so the exact-match safety guards work
+      // identically on Windows and Linux without changing application logic.
+      let next = code.replace(/\r\n?/g, '\n')
 
       next = replaceExactlyOnce(
         next,
