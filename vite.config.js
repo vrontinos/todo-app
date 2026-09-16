@@ -4,12 +4,14 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { bulkActionSafetyPatch } from './scripts/bulk-action-safety-patch.js'
 import { authStorageSafetyPatch } from './scripts/auth-storage-safety-patch.js'
 import { realtimeVisibilityRecoveryPatch } from './scripts/realtime-visibility-recovery-patch.js'
+import { realtimeLeaseHandoffPatch } from './scripts/realtime-lease-handoff-patch.js'
 
 const tauriHost = process.env.TAURI_DEV_HOST || '10.5.0.2'
 const isTauriBuild = process.env.TAURI === 'true'
 
 export default defineConfig({
   plugins: [
+    realtimeLeaseHandoffPatch(),
     realtimeVisibilityRecoveryPatch(),
     bulkActionSafetyPatch(),
     authStorageSafetyPatch(),
