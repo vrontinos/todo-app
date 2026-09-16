@@ -22,5 +22,6 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: node scripts/safety-preflight.cjs
+      - run: npm test
       - run: npx eslint scripts/bulk-action-safety-patch.js scripts/safety-preflight.cjs
       - run: npm run build
