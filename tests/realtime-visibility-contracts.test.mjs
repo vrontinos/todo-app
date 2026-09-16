@@ -53,14 +53,14 @@ test('visible recovery also reconciles the complete task collection', () => {
   )
 })
 
-test('visibility recovery patch is wired into the Vite build before React', () => {
+test('visibility recovery patch is wired into the Vite build before existing safety patches', () => {
   assert.match(
     viteConfigSource,
     /import \{ realtimeVisibilityRecoveryPatch \} from '\.\/scripts\/realtime-visibility-recovery-patch\.js'/,
   )
   assert.match(
     viteConfigSource,
-    /authStorageSafetyPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*react\(\)/,
+    /realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
   )
 })
 
