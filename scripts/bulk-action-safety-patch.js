@@ -48,8 +48,6 @@ export function bulkActionSafetyPatch() {
             return
           }`,
         `          if (payload?.eventType === 'DELETE') {
-            // A DELETE payload already contains the task id. Apply it locally instead
-            // of refetching all tasks for every deleted row during bulk operations.
             applyTaskRealtimePayload(payload)
 
             if (
@@ -74,9 +72,15 @@ export function bulkActionSafetyPatch() {
         `          if (eventType === 'DELETE' && currentActiveTask?.id && !isEditingNote) {
             await fetchNotes(currentActiveTask.id, false)
           }`,
-        `          // DELETE for the active task is already applied above. Avoid a
-          // redundant notes refetch for every note removed by a task cascade.`,
-        'note delete redundant refetch'
+        `          if (
+            eventType === 'DELETE' &&
+            currentActiveTask?.id &&
+            String(currentActiveTask.id) === String(changedTaskId) &&
+            !isEditingNote
+          ) {
+            await fetchNotes(currentActiveTask.id, false)
+          }`,
+        'scope note delete refresh to active task'
       )
 
       next = replaceExactlyOnce(
