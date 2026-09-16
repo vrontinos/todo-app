@@ -15,6 +15,11 @@ const rawApp = fs.readFileSync(appPath, 'utf8')
 const updaterSource = fs.readFileSync(path.join(root, 'src', 'tauriUpdates.js'), 'utf8')
 const supabaseClientSource = fs.readFileSync(path.join(root, 'src', 'supabaseClient.js'), 'utf8')
 const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
+const inviteFunctionSource = fs.readFileSync(
+  path.join(root, 'supabase', 'functions', 'send-list-invite-email', 'index.ts'),
+  'utf8',
+)
+const supabaseConfigSource = fs.readFileSync(path.join(root, 'supabase', 'config.toml'), 'utf8')
 const bulkTransformed = bulkActionSafetyPatch().transform(rawApp, appPath)?.code
 const transformed = authStorageSafetyPatch().transform(bulkTransformed, appPath)?.code
 
@@ -144,6 +149,53 @@ test('remembered login keeps the email preference independently', () => {
   assert.match(
     transformed,
     /localStorage\.getItem\('rememberLogin'\) === 'true'[\s\S]{0,300}localStorage\.getItem\('savedLoginEmail'\)/,
+  )
+})
+
+test('invite email caller keeps the existing client payload contract', () => {
+  assert.match(
+    transformed,
+    /functions\.invoke\('send-list-invite-email'[\s\S]{0,500}invitedEmail: email[\s\S]{0,300}listNames: targetListNames[\s\S]{0,200}appUrl: window\.location\.origin/,
+  )
+})
+
+test('invite email function authenticates a real user before any delivery', () => {
+  assert.match(inviteFunctionSource, /req\.headers\.get\('Authorization'\)/)
+  assert.match(inviteFunctionSource, /supabase\.auth\.getUser\(token\)/)
+  assert.match(inviteFunctionSource, /if \(userError \|\| !user\?\.id \|\| !user\.email\)/)
+  assert.doesNotMatch(inviteFunctionSource, /SUPABASE_SERVICE_ROLE_KEY/)
+})
+
+test('invite email authorization is scoped to recent pending invites created by the caller', () => {
+  assert.match(inviteFunctionSource, /\.from\('list_invites'\)/)
+  assert.match(inviteFunctionSource, /\.eq\('invited_by_user_id', user\.id\)/)
+  assert.match(inviteFunctionSource, /\.eq\('invited_email', invitedEmail\)/)
+  assert.match(inviteFunctionSource, /\.eq\('status', 'pending'\)/)
+  assert.match(inviteFunctionSource, /\.gte\('created_at', recentCutoff\)/)
+  assert.match(inviteFunctionSource, /\.from\('lists'\)/)
+  assert.match(inviteFunctionSource, /String\(list\.owner_user_id\) === String\(user\.id\)/)
+})
+
+test('invite email function does not trust client-supplied sender identity or list HTML', () => {
+  assert.match(inviteFunctionSource, /payload\?\.invitedEmail \?\? payload\?\.email/)
+  assert.match(inviteFunctionSource, /escapeHtml\(user\.email\)/)
+  assert.match(inviteFunctionSource, /authorizedListNames[\s\S]{0,300}escapeHtml\(name\)/)
+  assert.match(inviteFunctionSource, /to: invitedEmail/)
+  assert.doesNotMatch(inviteFunctionSource, /const \{ email, inviterEmail, listNames, appUrl \} = await req\.json\(\)/)
+  assert.doesNotMatch(inviteFunctionSource, /<strong>\$\{inviterEmail\}<\/strong>/)
+})
+
+test('invite email link is reduced to a safe http(s) origin', () => {
+  assert.match(inviteFunctionSource, /parsed\.protocol !== 'https:' && parsed\.protocol !== 'http:'/)
+  assert.match(inviteFunctionSource, /return parsed\.origin/)
+  assert.match(inviteFunctionSource, /const appUrl = requestOrigin \|\| payloadAppUrl/)
+  assert.match(inviteFunctionSource, /escapeHtml\(appUrl\)/)
+})
+
+test('stage-one invite hardening deliberately leaves gateway JWT verification unchanged', () => {
+  assert.match(
+    supabaseConfigSource,
+    /\[functions\.send-list-invite-email\][\s\S]{0,160}verify_jwt\s*=\s*false/,
   )
 })
 
