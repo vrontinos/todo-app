@@ -32,7 +32,8 @@ pub fn run() {
                     .args(["--autostart"])
                     .build(),
             )
-            .plugin(tauri_plugin_updater::Builder::new().build());
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
     }
 
     builder

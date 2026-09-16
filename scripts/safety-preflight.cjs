@@ -18,10 +18,20 @@ function readJson(path) {
   }
 }
 
+function readText(path) {
+  try {
+    return fs.readFileSync(path, 'utf8')
+  } catch (error) {
+    fail(`Could not read ${path}: ${error.message}`)
+    return ''
+  }
+}
+
 const pkg = readJson('package.json')
 const tauri = readJson('src-tauri/tauri.conf.json')
+const desktopCapability = readJson('src-tauri/capabilities/desktop.json')
 
-if (!pkg || !tauri) process.exit(1)
+if (!pkg || !tauri || !desktopCapability) process.exit(1)
 
 const semver = /^\d+\.\d+\.\d+$/
 
@@ -81,13 +91,38 @@ if (tauri?.bundle?.windows?.nsis?.installMode !== 'currentUser') {
   pass('NSIS install mode is currentUser')
 }
 
-const releaseWorkflowPath = '.github/workflows/release.yml'
-let releaseWorkflow = ''
-try {
-  releaseWorkflow = fs.readFileSync(releaseWorkflowPath, 'utf8')
-} catch (error) {
-  fail(`Could not read ${releaseWorkflowPath}: ${error.message}`)
+const cargoToml = readText('src-tauri/Cargo.toml')
+const tauriLib = readText('src-tauri/src/lib.rs')
+const desktopPermissions = Array.isArray(desktopCapability.permissions)
+  ? desktopCapability.permissions
+  : []
+
+if (!pkg.dependencies?.['@tauri-apps/plugin-process']) {
+  fail('Frontend process plugin dependency is required for updater relaunch')
+} else {
+  pass('Frontend process plugin dependency is present')
 }
+
+if (!/^tauri-plugin-process\s*=\s*"2"/m.test(cargoToml)) {
+  fail('Rust tauri-plugin-process dependency is required for updater relaunch')
+} else {
+  pass('Rust process plugin dependency is present')
+}
+
+if (!tauriLib.includes('.plugin(tauri_plugin_process::init())')) {
+  fail('Tauri builder must initialize tauri_plugin_process')
+} else {
+  pass('Tauri process plugin is initialized')
+}
+
+if (!desktopPermissions.includes('process:default')) {
+  fail('Desktop capability must include process:default for relaunch')
+} else {
+  pass('Desktop process restart capability is enabled')
+}
+
+const releaseWorkflowPath = '.github/workflows/release.yml'
+const releaseWorkflow = readText(releaseWorkflowPath)
 
 const requiredReleaseMarkers = [
   'v*.*.*',
