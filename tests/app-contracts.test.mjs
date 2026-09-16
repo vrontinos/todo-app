@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
 
 const rawApp = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+const updaterSource = fs.readFileSync(path.join(root, 'src', 'tauriUpdates.js'), 'utf8')
 const transformed = bulkActionSafetyPatch().transform(rawApp, path.join(root, 'src', 'App.jsx'))?.code
 
 assert.equal(typeof transformed, 'string', 'bulk safety transform must produce App.jsx code')
@@ -77,6 +78,14 @@ test('hidden or offline documents do not retain a realtime channel', () => {
 
 test('desktop updater check remains delayed rather than blocking startup', () => {
   assert.match(transformed, /setTimeout\(\(\) => \{\s*checkForUpdates\(\)\s*\}, 3000\)/)
+})
+
+test('desktop updater installs before requesting relaunch', () => {
+  assert.match(updaterSource, /import \{ relaunch \} from '@tauri-apps\/plugin-process'/)
+  const installIndex = updaterSource.indexOf('await update.downloadAndInstall()')
+  const relaunchIndex = updaterSource.indexOf('await relaunch()')
+  assert.ok(installIndex >= 0, 'updater must install the downloaded update')
+  assert.ok(relaunchIndex > installIndex, 'relaunch must happen only after install completes')
 })
 
 test('mobile destructive interactions keep offline/search guards', () => {
