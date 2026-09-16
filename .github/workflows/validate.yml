@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -18,5 +21,6 @@ jobs:
           node-version: "22"
           cache: "npm"
       - run: npm ci
-      - run: npx eslint scripts/bulk-action-safety-patch.js
+      - run: node scripts/safety-preflight.cjs
+      - run: npx eslint scripts/bulk-action-safety-patch.js scripts/safety-preflight.cjs
       - run: npm run build
