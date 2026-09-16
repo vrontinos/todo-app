@@ -38,7 +38,7 @@ test('list reorder persistence remains offline-safe and restores server state af
 test('task reorder remains optimistic before persistence', () => {
   assert.match(
     appSource,
-    /setTasks\(reorderedTasks\)[\s\S]{0,1800}await saveTaskPositions\(reorderedTasks\)/,
+    /setTasks\(sortTasks\(reorderedTasks, 'manual', currentSortDirection\)\)[\s\S]{0,1800}await saveTaskPositions\(reorderedTasks\)/,
   )
   assert.match(
     appSource,
