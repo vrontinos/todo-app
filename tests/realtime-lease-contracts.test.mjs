@@ -15,6 +15,14 @@ const transformedApp = realtimeLeaseHandoffPatch().transform(appSource, appPath)
 
 assert.equal(typeof transformedApp, 'string', 'realtime lease handoff transform must produce App.jsx code')
 
+function getFunctionBlock(source, functionName, nextFunctionName) {
+  const start = source.indexOf(`function ${functionName}()`)
+  const end = source.indexOf(`function ${nextFunctionName}()`, start)
+  assert.ok(start >= 0, `${functionName} must exist`)
+  assert.ok(end > start, `${nextFunctionName} must follow ${functionName}`)
+  return source.slice(start, end)
+}
+
 test('realtime lease stays scoped to the authenticated user and current tab', () => {
   assert.match(appSource, /const userId = session\.user\.id/)
   assert.match(appSource, /const tabId = `\$\{Date\.now\(\)\}-\$\{Math\.random\(\)\}`/)
@@ -62,21 +70,18 @@ test('realtime lease cleanup removes only the lease owned by this tab', () => {
 })
 
 test('stopping realtime releases the current tab lease immediately', () => {
+  const stopRealtimeSource = getFunctionBlock(transformedApp, 'stopRealtime', 'startRealtime')
   assert.match(
-    transformedApp,
-    /function stopRealtime\(\)[\s\S]{0,500}const lease = readLease\(\)[\s\S]{0,180}if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)/,
+    stopRealtimeSource,
+    /const lease = readLease\(\)[\s\S]{0,180}if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)\s*\}/,
   )
 })
 
-test('stopping realtime never removes a lease owned by another tab', () => {
-  assert.doesNotMatch(
-    transformedApp,
-    /function stopRealtime\(\)[\s\S]{0,500}localStorage\.removeItem\(leaseKey\)(?![\s\S]{0,80}lease\?\.tabId === tabId)/,
-  )
-  assert.match(
-    transformedApp,
-    /if \(lease\?\.tabId === tabId\) \{\s*localStorage\.removeItem\(leaseKey\)\s*\}/,
-  )
+test('stopping realtime has no unconditional lease removal path', () => {
+  const stopRealtimeSource = getFunctionBlock(transformedApp, 'stopRealtime', 'startRealtime')
+  const removals = stopRealtimeSource.match(/localStorage\.removeItem\(leaseKey\)/g) || []
+  assert.equal(removals.length, 1)
+  assert.match(stopRealtimeSource, /if \(lease\?\.tabId === tabId\)/)
 })
 
 test('realtime lease handoff patch runs before the existing Vite safety patches', () => {
