@@ -10,9 +10,9 @@ const isTauriBuild = process.env.TAURI === 'true'
 
 export default defineConfig({
   plugins: [
+    realtimeVisibilityRecoveryPatch(),
     bulkActionSafetyPatch(),
     authStorageSafetyPatch(),
-    realtimeVisibilityRecoveryPatch(),
     react(),
     !isTauriBuild &&
       VitePWA({
