@@ -20,14 +20,17 @@ jobs:
           node-version: "22"
           cache: "npm"
 
+      - run: npm ci
+
+      - name: Production safety preflight
+        run: node scripts/safety-preflight.cjs
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-
-      - run: npm ci
 
       - name: Build Tauri app
         env:
