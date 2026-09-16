@@ -66,7 +66,7 @@ function getSafeAppUrl(value: unknown) {
   }
 }
 
-serve(async (req) => {
+export async function handleInviteEmailRequest(req: Request) {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -234,4 +234,8 @@ serve(async (req) => {
     console.error('Invite email function failed:', (error as Error).message)
     return jsonResponse({ error: 'Invite email request failed' }, 500)
   }
-})
+}
+
+if (import.meta.main) {
+  serve(handleInviteEmailRequest)
+}
