@@ -34,7 +34,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check invite email Edge Function
-        run: deno check supabase/functions/send-list-invite-email/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/send-list-invite-email/index.ts
 
   tauri-check:
     runs-on: windows-latest
