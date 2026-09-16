@@ -26,6 +26,16 @@ jobs:
       - run: npx eslint scripts/bulk-action-safety-patch.js scripts/auth-storage-safety-patch.js scripts/safety-preflight.cjs
       - run: npm run build
 
+  edge-function-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check invite email Edge Function
+        run: deno check supabase/functions/send-list-invite-email/index.ts
+
   tauri-check:
     runs-on: windows-latest
     steps:
