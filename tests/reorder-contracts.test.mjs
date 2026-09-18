@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { atomicTaskReorderPatch } from '../scripts/atomic-task-reorder-patch.js'
+import { listReorderOwnerGuardPatch } from '../scripts/list-reorder-owner-guard-patch.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -11,8 +12,10 @@ const root = path.resolve(__dirname, '..')
 const appPath = path.join(root, 'src', 'App.jsx')
 const appSource = fs.readFileSync(appPath, 'utf8')
 const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
-const transformedApp = atomicTaskReorderPatch().transform(appSource, appPath)?.code
+const ownerGuardedApp = listReorderOwnerGuardPatch().transform(appSource, appPath)?.code
+const transformedApp = atomicTaskReorderPatch().transform(ownerGuardedApp, appPath)?.code
 
+assert.equal(typeof ownerGuardedApp, 'string', 'list reorder owner guard transform must produce App.jsx code')
 assert.equal(typeof transformedApp, 'string', 'atomic task reorder transform must produce App.jsx code')
 
 function functionBlock(source, name, nextName) {
@@ -41,6 +44,47 @@ test('list reorder persistence remains offline-safe and restores server state af
   assert.match(source, /markSynced\(\)/)
 })
 
+test('list reorder is disabled unless every visible list belongs to the current user', () => {
+  assert.match(
+    ownerGuardedApp,
+    /function canReorderVisibleLists\(\) \{[\s\S]{0,180}lists\.length > 0[\s\S]{0,180}lists\.every\(\(list\) => list\.owner_user_id === session\?\.user\?\.id\)/,
+  )
+  assert.match(
+    ownerGuardedApp,
+    /useSortable\(\{ id: getListDndId\(list\.id\), disabled: !canReorder \}\)/,
+  )
+  assert.match(
+    ownerGuardedApp,
+    /<SortableListItem[\s\S]{0,120}canReorder=\{canReorderVisibleLists\(\)\}/,
+  )
+})
+
+test('list reorder persistence and drag handlers fail closed when shared lists are visible', () => {
+  const saveSource = functionBlock(ownerGuardedApp, 'saveListPositions', 'saveTaskPositions')
+  const dragStartSource = functionBlock(ownerGuardedApp, 'handleListDragStart', 'handleTaskDragStart')
+  const globalDragSource = functionBlock(ownerGuardedApp, 'handleGlobalDragEnd', 'handleMoveTaskByDrag')
+
+  assert.match(saveSource, /if \(isOffline \|\| !canReorderVisibleLists\(\)\) return/)
+  assert.match(dragStartSource, /if \(!canReorderVisibleLists\(\)\) return/)
+  assert.match(
+    globalDragSource,
+    /if \(activeMeta\.type === 'list' && overMeta\.type === 'list'\) \{\s*if \(!canReorderVisibleLists\(\)\) return/,
+  )
+})
+
+test('task drops onto shared lists remain available before the list owner guard', () => {
+  const listDropSource = functionBlock(ownerGuardedApp, 'handleListDrop', 'handleGlobalDragEnd')
+  const taskMoveIndex = listDropSource.indexOf('await handleMoveDraggedTasksToList(draggedTaskIds, targetListId)')
+  const ownerGuardIndex = listDropSource.indexOf('if (!canReorderVisibleLists())')
+
+  assert.ok(taskMoveIndex >= 0, 'list drop must still move dragged tasks to a target list')
+  assert.ok(ownerGuardIndex > taskMoveIndex, 'owner guard must run only after the task-drop path')
+  assert.match(
+    ownerGuardedApp,
+    /<TaskListDropZone[\s\S]{0,180}disabled=\{isOffline\}/,
+  )
+})
+
 test('task reorder remains optimistic before persistence', () => {
   assert.match(
     appSource,
@@ -66,14 +110,26 @@ test('task reorder persistence uses one atomic RPC and recovers after failure', 
   assert.match(source, /markSynced\(\)/)
 })
 
-test('atomic task reorder patch runs before the existing Vite safety patches', () => {
+test('reorder safety patches run before the existing Vite safety patches', () => {
+  assert.match(
+    viteConfigSource,
+    /import \{ listReorderOwnerGuardPatch \} from '\.\/scripts\/list-reorder-owner-guard-patch\.js'/,
+  )
   assert.match(
     viteConfigSource,
     /import \{ atomicTaskReorderPatch \} from '\.\/scripts\/atomic-task-reorder-patch\.js'/,
   )
   assert.match(
     viteConfigSource,
-    /atomicTaskReorderPatch\(\),\s*realtimeLeaseHandoffPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
+    /listReorderOwnerGuardPatch\(\),\s*atomicTaskReorderPatch\(\),\s*realtimeLeaseHandoffPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
+  )
+})
+
+test('list reorder owner guard patch fails closed if its expected source contract drifts', () => {
+  const plugin = listReorderOwnerGuardPatch()
+  assert.throws(
+    () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
+    /Expected block not found/,
   )
 })
 
