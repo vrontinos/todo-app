@@ -13,7 +13,14 @@ const migrationPath = path.join(
   'migrations',
   '20260916142500_add_atomic_task_reorder_rpc.sql',
 )
+const anonRevokeMigrationPath = path.join(
+  root,
+  'supabase',
+  'migrations',
+  '20260918054149_revoke_anon_from_atomic_task_reorder_rpc.sql',
+)
 const sql = fs.readFileSync(migrationPath, 'utf8')
+const anonRevokeSql = fs.readFileSync(anonRevokeMigrationPath, 'utf8')
 
 test('atomic task reorder RPC remains invoker-safe and authenticated-only', () => {
   assert.match(sql, /create or replace function public\.reorder_tasks_atomic\(/i)
@@ -24,6 +31,7 @@ test('atomic task reorder RPC remains invoker-safe and authenticated-only', () =
   assert.match(sql, /lm\.role in \('owner', 'editor'\)/i)
   assert.match(sql, /revoke all on function public\.reorder_tasks_atomic\(bigint, bigint\[\]\) from public/i)
   assert.match(sql, /grant execute on function public\.reorder_tasks_atomic\(bigint, bigint\[\]\) to authenticated/i)
+  assert.match(anonRevokeSql, /revoke execute on function public\.reorder_tasks_atomic\(bigint, bigint\[\]\) from anon/i)
 })
 
 test('atomic task reorder RPC requires the complete exact task set', () => {
