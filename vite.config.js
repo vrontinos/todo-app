@@ -15,12 +15,12 @@ const isTauriBuild = process.env.TAURI === 'true'
 
 export default defineConfig({
   plugins: [
+    atomicBulkDeletePatch(),
     listReorderOwnerGuardPatch(),
     atomicListReorderPatch(),
     atomicTaskReorderPatch(),
     realtimeLeaseHandoffPatch(),
     realtimeVisibilityRecoveryPatch(),
-    atomicBulkDeletePatch(),
     bulkActionSafetyPatch(),
     authStorageSafetyPatch(),
     react(),
