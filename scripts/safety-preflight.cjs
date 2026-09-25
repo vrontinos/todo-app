@@ -28,10 +28,11 @@ function readText(path) {
 }
 
 const pkg = readJson('package.json')
+const packageLock = readJson('package-lock.json')
 const tauri = readJson('src-tauri/tauri.conf.json')
 const desktopCapability = readJson('src-tauri/capabilities/desktop.json')
 
-if (!pkg || !tauri || !desktopCapability) process.exit(1)
+if (!pkg || !packageLock || !tauri || !desktopCapability) process.exit(1)
 
 const semver = /^\d+\.\d+\.\d+$/
 
@@ -45,6 +46,14 @@ if (pkg.version !== tauri.version) {
   fail(`Version mismatch: package.json=${pkg.version}, tauri.conf.json=${tauri.version}`)
 } else {
   pass(`package.json and Tauri versions match (${pkg.version})`)
+}
+
+if (packageLock.version !== pkg.version || packageLock.packages?.['']?.version !== pkg.version) {
+  fail(
+    `Version mismatch: package.json=${pkg.version}, package-lock.json=${packageLock.version}, package-lock root=${packageLock.packages?.['']?.version}`,
+  )
+} else {
+  pass(`package.json and package-lock versions match (${pkg.version})`)
 }
 
 const refName = String(process.env.GITHUB_REF_NAME || '')
