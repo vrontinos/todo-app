@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { atomicTaskReorderPatch } from '../scripts/atomic-task-reorder-patch.js'
+import { atomicListReorderPatch } from '../scripts/atomic-list-reorder-patch.js'
 import { listReorderOwnerGuardPatch } from '../scripts/list-reorder-owner-guard-patch.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -13,9 +14,11 @@ const appPath = path.join(root, 'src', 'App.jsx')
 const appSource = fs.readFileSync(appPath, 'utf8')
 const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
 const ownerGuardedApp = listReorderOwnerGuardPatch().transform(appSource, appPath)?.code
-const transformedApp = atomicTaskReorderPatch().transform(ownerGuardedApp, appPath)?.code
+const atomicListApp = atomicListReorderPatch().transform(ownerGuardedApp, appPath)?.code
+const transformedApp = atomicTaskReorderPatch().transform(atomicListApp, appPath)?.code
 
 assert.equal(typeof ownerGuardedApp, 'string', 'list reorder owner guard transform must produce App.jsx code')
+assert.equal(typeof atomicListApp, 'string', 'atomic list reorder transform must produce App.jsx code')
 assert.equal(typeof transformedApp, 'string', 'atomic task reorder transform must produce App.jsx code')
 
 function functionBlock(source, name, nextName) {
@@ -33,12 +36,14 @@ test('list reorder remains optimistic before persistence', () => {
   )
 })
 
-test('list reorder persistence remains offline-safe and restores server state after partial failure', () => {
-  const source = functionBlock(appSource, 'saveListPositions', 'saveTaskPositions')
-  assert.match(source, /if \(isOffline\) return/)
-  assert.match(source, /Promise\.all\([\s\S]{0,500}from\('lists'\)[\s\S]{0,220}position: index \+ 1/)
-  assert.match(source, /results\.some\(\(result\) => result\.error\)/)
-  assert.match(source, /if \(hasError\) \{/)
+test('list reorder persistence uses one atomic RPC and restores server state after failure', () => {
+  const source = functionBlock(atomicListApp, 'saveListPositions', 'saveTaskPositions')
+  assert.match(source, /if \(isOffline \|\| !canReorderVisibleLists\(\)\) return/)
+  assert.match(source, /supabase\.rpc\('reorder_lists_atomic', \{/)
+  assert.match(source, /p_list_ids: updatedLists\.map\(\(list\) => list\.id\)/)
+  assert.doesNotMatch(source, /Promise\.all\(/)
+  assert.doesNotMatch(source, /\.from\('lists'\)/)
+  assert.match(source, /if \(error\) \{/)
   assert.match(source, /setSyncStatus\('error'\)/)
   assert.match(source, /fetchLists\(\)/)
   assert.match(source, /markSynced\(\)/)
@@ -117,16 +122,28 @@ test('reorder safety patches run before the existing Vite safety patches', () =>
   )
   assert.match(
     viteConfigSource,
+    /import \{ atomicListReorderPatch \} from '\.\/scripts\/atomic-list-reorder-patch\.js'/,
+  )
+  assert.match(
+    viteConfigSource,
     /import \{ atomicTaskReorderPatch \} from '\.\/scripts\/atomic-task-reorder-patch\.js'/,
   )
   assert.match(
     viteConfigSource,
-    /listReorderOwnerGuardPatch\(\),\s*atomicTaskReorderPatch\(\),\s*realtimeLeaseHandoffPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
+    /listReorderOwnerGuardPatch\(\),\s*atomicListReorderPatch\(\),\s*atomicTaskReorderPatch\(\),\s*realtimeLeaseHandoffPatch\(\),\s*realtimeVisibilityRecoveryPatch\(\),\s*bulkActionSafetyPatch\(\),\s*authStorageSafetyPatch\(\),\s*react\(\)/,
   )
 })
 
 test('list reorder owner guard patch fails closed if its expected source contract drifts', () => {
   const plugin = listReorderOwnerGuardPatch()
+  assert.throws(
+    () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
+    /Expected block not found/,
+  )
+})
+
+test('atomic list reorder patch fails closed if its expected source contract drifts', () => {
+  const plugin = atomicListReorderPatch()
   assert.throws(
     () => plugin.transform('export default function App() { return null }', '/tmp/src/App.jsx'),
     /Expected block not found/,
