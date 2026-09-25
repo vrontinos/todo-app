@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { bulkActionSafetyPatch } from './scripts/bulk-action-safety-patch.js'
+import { atomicBulkDeletePatch } from './scripts/atomic-bulk-delete-patch.js'
 import { authStorageSafetyPatch } from './scripts/auth-storage-safety-patch.js'
 import { realtimeVisibilityRecoveryPatch } from './scripts/realtime-visibility-recovery-patch.js'
 import { realtimeLeaseHandoffPatch } from './scripts/realtime-lease-handoff-patch.js'
@@ -14,6 +15,7 @@ const isTauriBuild = process.env.TAURI === 'true'
 
 export default defineConfig({
   plugins: [
+    atomicBulkDeletePatch(),
     listReorderOwnerGuardPatch(),
     atomicListReorderPatch(),
     atomicTaskReorderPatch(),
