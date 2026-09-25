@@ -3477,7 +3477,30 @@ async function fetchTasksPage(buildQuery) {
 
   const fetchId = ++latestTaskNoteCountsFetchIdRef.current
 
-  const { data, error } = await supabase.from('task_notes').select('task_id')
+  let { data, error } = await supabase.rpc('get_task_note_counts')
+
+  const rpcMissing = error?.code === 'PGRST202'
+
+  if (rpcMissing) {
+    const fallbackResult = await supabase.from('task_notes').select('task_id')
+
+    if (fallbackResult.error) {
+      error = fallbackResult.error
+      data = null
+    } else {
+      const fallbackCounts = {}
+
+      for (const note of fallbackResult.data || []) {
+        fallbackCounts[note.task_id] = (fallbackCounts[note.task_id] || 0) + 1
+      }
+
+      data = Object.entries(fallbackCounts).map(([taskId, noteCount]) => ({
+        task_id: taskId,
+        note_count: noteCount,
+      }))
+      error = null
+    }
+  }
 
   if (fetchId !== latestTaskNoteCountsFetchIdRef.current) {
     return
@@ -3490,8 +3513,9 @@ async function fetchTasksPage(buildQuery) {
   }
 
   const counts = {}
-  for (const note of data || []) {
-    counts[note.task_id] = (counts[note.task_id] || 0) + 1
+
+  for (const row of data || []) {
+    counts[row.task_id] = Number(row.note_count) || 0
   }
 
   setNoteCountsByTask(counts)
