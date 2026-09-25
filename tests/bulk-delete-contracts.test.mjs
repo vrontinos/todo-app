@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename)
 const root = path.resolve(__dirname, '..')
 const appPath = path.join(root, 'src', 'App.jsx')
 const rawApp = fs.readFileSync(appPath, 'utf8')
+const viteConfig = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
 
 const atomicTransformed = atomicBulkDeletePatch().transform(rawApp, appPath)?.code
 assert.equal(typeof atomicTransformed, 'string', 'atomic bulk delete transform must produce App.jsx code')
@@ -37,6 +38,13 @@ test('bulk task delete snapshots and restores both task collections on failure',
   assert.match(
     transformed,
     /console\.error\('Σφάλμα διαγραφής:', error\)[\s\S]{0,500}setTasks\(oldTasks\)[\s\S]{0,160}setAllTasks\(oldAllTasks\)/,
+  )
+})
+
+test('atomic bulk delete patch is wired into Vite before the existing safety chain', () => {
+  assert.match(
+    viteConfig,
+    /atomicBulkDeletePatch\(\),\s*listReorderOwnerGuardPatch\(\),\s*atomicListReorderPatch\(\),\s*atomicTaskReorderPatch\(\),/,
   )
 })
 
