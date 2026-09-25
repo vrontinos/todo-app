@@ -55,9 +55,18 @@ test('bulk task moves are set-based and rollback both task collections on failur
   assert.match(transformed, /setTasks\(oldTasks\)[\s\S]{0,160}setAllTasks\(oldAllTasks\)/)
 })
 
-test('note counters remain derived from task_notes rows', () => {
-  assert.match(transformed, /from\('task_notes'\)\.select\('task_id'\)/)
-  assert.match(transformed, /counts\[note\.task_id\] = \(counts\[note\.task_id\] \|\| 0\) \+ 1/)
+test('note counters prefer server aggregation with legacy fallback when the RPC is unavailable', () => {
+  assert.match(transformed, /supabase\.rpc\('get_task_note_counts'\)/)
+  assert.match(transformed, /const rpcMissing = error\?\.code === 'PGRST202'/)
+  assert.match(
+    transformed,
+    /if \(rpcMissing\) \{[\s\S]{0,500}from\('task_notes'\)\.select\('task_id'\)/,
+  )
+  assert.match(
+    transformed,
+    /fallbackCounts\[note\.task_id\] = \(fallbackCounts\[note\.task_id\] \|\| 0\) \+ 1/,
+  )
+  assert.match(transformed, /counts\[row\.task_id\] = Number\(row\.note_count\) \|\| 0/)
   assert.match(transformed, /setNoteCountsByTask\(counts\)/)
 })
 
