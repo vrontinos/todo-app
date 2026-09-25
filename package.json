@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "test": "node --test tests/app-contracts.test.mjs tests/realtime-visibility-contracts.test.mjs tests/realtime-lease-contracts.test.mjs tests/reorder-contracts.test.mjs tests/db-reorder-contracts.test.mjs tests/db-note-count-contracts.test.mjs",
+    "test": "node --test tests/app-contracts.test.mjs tests/realtime-visibility-contracts.test.mjs tests/realtime-lease-contracts.test.mjs tests/reorder-contracts.test.mjs tests/db-reorder-contracts.test.mjs tests/db-note-count-contracts.test.mjs tests/db-bulk-delete-contracts.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "tauri": "tauri",
