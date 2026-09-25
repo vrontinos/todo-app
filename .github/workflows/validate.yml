@@ -23,7 +23,7 @@ jobs:
       - run: npm ci
       - run: node scripts/safety-preflight.cjs
       - run: npm test
-      - run: npx eslint scripts/bulk-action-safety-patch.js scripts/auth-storage-safety-patch.js scripts/realtime-visibility-recovery-patch.js scripts/realtime-lease-handoff-patch.js scripts/atomic-task-reorder-patch.js scripts/list-reorder-owner-guard-patch.js scripts/safety-preflight.cjs
+      - run: npx eslint scripts/bulk-action-safety-patch.js scripts/auth-storage-safety-patch.js scripts/realtime-visibility-recovery-patch.js scripts/realtime-lease-handoff-patch.js scripts/atomic-task-reorder-patch.js scripts/atomic-list-reorder-patch.js scripts/list-reorder-owner-guard-patch.js scripts/safety-preflight.cjs
       - run: npm run build
 
   edge-function-check:

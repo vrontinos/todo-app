@@ -6,6 +6,7 @@ import { authStorageSafetyPatch } from './scripts/auth-storage-safety-patch.js'
 import { realtimeVisibilityRecoveryPatch } from './scripts/realtime-visibility-recovery-patch.js'
 import { realtimeLeaseHandoffPatch } from './scripts/realtime-lease-handoff-patch.js'
 import { atomicTaskReorderPatch } from './scripts/atomic-task-reorder-patch.js'
+import { atomicListReorderPatch } from './scripts/atomic-list-reorder-patch.js'
 import { listReorderOwnerGuardPatch } from './scripts/list-reorder-owner-guard-patch.js'
 
 const tauriHost = process.env.TAURI_DEV_HOST || '10.5.0.2'
@@ -14,6 +15,7 @@ const isTauriBuild = process.env.TAURI === 'true'
 export default defineConfig({
   plugins: [
     listReorderOwnerGuardPatch(),
+    atomicListReorderPatch(),
     atomicTaskReorderPatch(),
     realtimeLeaseHandoffPatch(),
     realtimeVisibilityRecoveryPatch(),
