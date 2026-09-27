@@ -1354,6 +1354,13 @@ useEffect(() => {
 }, [])
 
 useEffect(() => {
+  if (bulkDeleteNotice?.type !== 'success') return
+
+  const timer = window.setTimeout(() => setBulkDeleteNotice(null), 5000)
+  return () => window.clearTimeout(timer)
+}, [bulkDeleteNotice])
+
+useEffect(() => {
   let cancelled = false
 
   async function loadSkroutzOrderInfo() {
