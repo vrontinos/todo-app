@@ -8,6 +8,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, closestCenter, point
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
+import { deleteTasksInBatches } from './deleteTasksInBatches'
 import './App.css'
 
 import { isTauri } from '@tauri-apps/api/core'
@@ -1167,6 +1168,7 @@ async function confirmAction(message) {
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [bulkProgress, setBulkProgress] = useState(null)
+  const [bulkDeleteNotice, setBulkDeleteNotice] = useState(null)
 
   const [authMode, setAuthMode] = useState('signin')
   const [showCompletedTasks, setShowCompletedTasks] = useState(true)
@@ -1868,6 +1870,7 @@ function restoreTaskScrollSnapshot(snapshot) {
   const listsRealtimeTimerRef = useRef(null)
   const latestListsFetchIdRef = useRef(0)
   const latestAllTasksFetchIdRef = useRef(0)
+  const bulkDeleteInProgressRef = useRef(false)
   const latestTaskNoteCountsFetchIdRef = useRef(0)
   const latestNotesFetchTokenRef = useRef(new Map())
   const activeNotesTaskIdRef = useRef(null)
@@ -3465,11 +3468,12 @@ async function fetchTasksPage(buildQuery) {
   if (error) {
     console.error('Σφάλμα φόρτωσης όλων των εργασιών:', error)
     setSyncStatus('error')
-    return
+    return null
   }
 
   setAllTasks(data || [])
   if (updateStatus) markSynced()
+  return data || []
 }
 
   async function fetchTaskNoteCounts(updateStatus = true) {
@@ -3548,7 +3552,7 @@ const { data, error } = await fetchTasksPage(() =>
     setTasks([])
     setSyncStatus('error')
     setLoadingTasks(false)
-    return
+    return null
   }
 
   const loadedTasks = sortTasks(
@@ -3585,6 +3589,7 @@ if (updateStatus) {
   markSynced()
 }
 
+return loadedTasks
 }
 
 async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
@@ -4078,11 +4083,7 @@ function applyTaskRealtimePayload(payload) {
   const activeEditingNoteId = editingNoteIdRef.current
 
   if (eventType === 'DELETE') {
-    setTasks((prev) => sortTasks(
-      prev.filter((t) => t.id !== changedTaskId),
-      currentSortModeRef.current,
-      currentSortDirectionRef.current
-    ))
+    setTasks((prev) => prev.filter((t) => t.id !== changedTaskId))
 
     setAllTasks((prev) => prev.filter((t) => t.id !== changedTaskId))
     setActiveTask((prev) => (prev?.id === changedTaskId ? null : prev))
@@ -5949,6 +5950,7 @@ if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
 
   async function handleDeleteSelected() {
     if (isOffline) return
+    if (bulkDeleteInProgressRef.current) return
     if (selectedTasks.length === 0) return
 
     const label =
@@ -5957,56 +5959,78 @@ if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
         : `Να διαγραφούν ${selectedTasks.length} επιλεγμένες εργασίες;`
 
     if (!(await confirmAction(label))) return
+    if (bulkDeleteInProgressRef.current) return
 
-const oldTasks = [...tasks]
-const idsToDelete = [...selectedTasks]
+    const idsToDelete = [...selectedTasks]
+    const selectedIdSet = new Set(idsToDelete.map(String))
+    bulkDeleteInProgressRef.current = true
+    setBulkDeleteNotice(null)
+    invalidateTaskViews()
+    markSaving()
+    setBulkProgress({ action: 'Διαγραφή', total: idsToDelete.length, completed: 0 })
 
-idsToDelete.forEach((taskId) => {
-  markTaskMutation(taskId)
-})
+    try {
+      const confirmed = await deleteTasksInBatches(
+        idsToDelete,
+        (batch) => supabase.rpc('delete_tasks_atomic', { p_task_ids: batch }),
+        (batch, completed, total) => {
+          const deletedIds = new Set(batch.map(String))
+          invalidateTaskViews()
+          setTasks((prev) => prev.filter((task) => !deletedIds.has(String(task.id))))
+          setAllTasks((prev) => prev.filter((task) => !deletedIds.has(String(task.id))))
+          setSelectedTasks((prev) => prev.filter((id) => !deletedIds.has(String(id))))
+          setBulkProgress({ action: 'Διαγραφή', total, completed })
 
-invalidateTaskViews()
+          if (activeTaskRef.current && deletedIds.has(String(activeTaskRef.current.id))) {
+            setActiveTask(null)
+            setTaskNotes([])
+            setEditingTaskTitle(false)
+            setEditingNoteId(null)
+            setEditingNoteValue('')
+          }
+        },
+      )
 
-setTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-setAllTasks((prev) => prev.filter((task) => !idsToDelete.includes(task.id)))
-    setSelectedTasks([])
-    setSelectionAnchorId(null)
+      const loadedTasks = await fetchAllTasks(false)
+      const currentListId = selectedListRef.current?.id
+      const loadedList = currentListId ? await fetchTasks(currentListId, false, false) : []
 
-    if (activeTask && idsToDelete.includes(activeTask.id)) {
-      setActiveTask(null)
-      setTaskNotes([])
-      setEditingTaskTitle(false)
-      setEditingNoteId(null)
-      setEditingNoteValue('')
+      if (!loadedTasks || !loadedList || loadedTasks.some((task) => selectedIdSet.has(String(task.id)))) {
+        setSyncStatus('error')
+        setBulkDeleteNotice({
+          type: 'error',
+          text: 'Η βάση επιβεβαίωσε τη διαγραφή, αλλά ο τελικός έλεγχος δεν ολοκληρώθηκε. Ανανέωσε τη σελίδα πριν συνεχίσεις.',
+        })
+        return
+      }
+
+      setSelectionAnchorId(null)
+      setBulkDeleteNotice({ type: 'success', text: `Διαγράφηκαν ${confirmed} εργασίες.` })
+      markSynced()
+    } catch (error) {
+      console.error('Σφάλμα μαζικής διαγραφής:', error)
+      const confirmed = error.confirmed || 0
+      const currentListId = selectedListRef.current?.id
+      const [loadedTasks] = await Promise.all([
+        fetchAllTasks(false),
+        currentListId ? fetchTasks(currentListId, false, false) : Promise.resolve(),
+      ])
+      if (loadedTasks) {
+        const survivingIds = new Set(loadedTasks.map((task) => String(task.id)))
+        setSelectedTasks((prev) => prev.filter((id) => survivingIds.has(String(id))))
+      }
+      setSyncStatus('error')
+      setBulkDeleteNotice({
+        type: 'error',
+        text: loadedTasks
+          ? `Η διαγραφή σταμάτησε. Επιβεβαιώθηκαν ${confirmed} από ${idsToDelete.length} εργασίες. Οι λίστες ανανεώθηκαν από τη βάση· μπορείς να επαναλάβεις τη διαγραφή για όσες απέμειναν.`
+          : `Η διαγραφή σταμάτησε. Επιβεβαιώθηκαν ${confirmed} από ${idsToDelete.length} εργασίες. Δεν ήταν δυνατή η επαλήθευση των υπόλοιπων· ανανέωσε τη σελίδα πριν συνεχίσεις.`,
+      })
+    } finally {
+      setBulkProgress(null)
+      bulkDeleteInProgressRef.current = false
+      closeContextMenu()
     }
-
-markSaving()
-setBulkProgress({
-  action: 'Διαγραφή',
-  total: idsToDelete.length,
-})
-
-const { error } = await supabase
-  .from('tasks')
-  .delete()
-  .in('id', idsToDelete)
-
-    if (error) {
-  console.error('Σφάλμα διαγραφής:', error)
-
-  idsToDelete.forEach((taskId) => {
-    clearTaskMutation(taskId)
-  })
-
-  setTasks(oldTasks)
-setBulkProgress(null)
-setSyncStatus('error')
-return
-}
-
-setBulkProgress(null)
-closeContextMenu()
-markSynced()
   }
 
 const selectedTasksData = allTasks.filter((t) =>
@@ -7449,7 +7473,13 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
 
 {bulkProgress && (
   <div className="bulk-progress">
-    {bulkProgress.action} {bulkProgress.total} εργασιών...
+    {bulkProgress.action} {bulkProgress.completed === undefined ? '' : `${bulkProgress.completed}/`}{bulkProgress.total} εργασιών...
+  </div>
+)}
+
+{bulkDeleteNotice && (
+  <div className={`bulk-delete-notice ${bulkDeleteNotice.type}`} role="status">
+    {bulkDeleteNotice.text}
   </div>
 )}
 

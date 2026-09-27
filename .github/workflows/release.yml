@@ -2,14 +2,20 @@ name: Release Windows App
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*.*.*"
+    paths:
+      - package.json
 
 permissions:
   contents: write
 
 jobs:
   release-windows:
+    # One main-branch release for the v1.0.102 fix; normal tag releases still work.
+    if: github.ref_type == 'tag' || contains(github.event.head_commit.message, '[bulk-delete-v1.0.102]')
     runs-on: windows-latest
 
     steps:
@@ -42,6 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -ne "tag") { $tag = "v1.0.102" }
           $version = $tag.TrimStart("v")
 
           $bundleDir = "src-tauri/target/release/bundle/nsis"
@@ -82,6 +89,8 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.102' }}
+          target_commitish: ${{ github.sha }}
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig

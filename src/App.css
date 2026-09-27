@@ -3322,6 +3322,24 @@ margin-top: 0px;
   color: var(--text-soft);
 }
 
+.bulk-delete-notice {
+  margin: 6px 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.bulk-delete-notice.success {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.bulk-delete-notice.error {
+  color: #7f1d1d;
+  background: #fee2e2;
+}
+
 @media (max-width: 1024px) {
   .main-fixed-header.mobile-search-fixed-header {
     padding-top: calc(env(safe-area-inset-top, 0px) + 20px) !important;
@@ -3358,4 +3376,3 @@ margin-top: 0px;
   font-size: 13px;
   font-weight: 800;
 }
-
