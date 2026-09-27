@@ -15,6 +15,7 @@ const rawApp = fs.readFileSync(appPath, 'utf8')
 const updaterSource = fs.readFileSync(path.join(root, 'src', 'tauriUpdates.js'), 'utf8')
 const supabaseClientSource = fs.readFileSync(path.join(root, 'src', 'supabaseClient.js'), 'utf8')
 const viteConfigSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
+const releaseWorkflowSource = fs.readFileSync(path.join(root, '.github', 'workflows', 'release.yml'), 'utf8')
 const inviteFunctionSource = fs.readFileSync(
   path.join(root, 'supabase', 'functions', 'send-list-invite-email', 'index.ts'),
   'utf8',
@@ -34,6 +35,12 @@ test('bulk task delete calls the bounded RPC helper', () => {
   const section = transformed.split('async function handleDeleteSelected() {')[1].split('const selectedTasksData')[0]
   assert.match(section, /deleteTasksInBatches\([\s\S]{0,350}supabase\.rpc\('delete_tasks_atomic'/)
   assert.doesNotMatch(section, /\.delete\(\)\s*\.in\('id', idsToDelete\)/)
+})
+
+test('Windows v1.0.102 release runs once on its marked main commit and preserves tag releases', () => {
+  assert.match(releaseWorkflowSource, /tags:\s*\n\s*- "v\*\.\*\.\*"/)
+  assert.match(releaseWorkflowSource, /if: github\.ref_type == 'tag' \|\| contains\(github\.event\.head_commit\.message, '\[bulk-delete-v1\.0\.102\]'\)/)
+  assert.match(releaseWorkflowSource, /tag_name: \$\{\{ github\.ref_type == 'tag' && github\.ref_name \|\| 'v1\.0\.102' \}\}/)
 })
 
 test('realtime task DELETE applies local reducer instead of full refetch storm', () => {
