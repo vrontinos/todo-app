@@ -1281,6 +1281,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [newTaskTitle, setNewTaskTitle] = useState('')
 
   const [selectedTasks, setSelectedTasks] = useState([])
+  const selectedTaskIdSet = useMemo(() => new Set(selectedTasks), [selectedTasks])
   const [selectionAnchorId, setSelectionAnchorId] = useState(null)
 
   const [activeTask, setActiveTask] = useState(null)
@@ -3106,8 +3107,11 @@ const syncText = useMemo(() => {
 
     const listMap = new Map(lists.map((list) => [list.id, list.name]))
 
-    return sortTasks(allTasks, 'alpha', 'asc')
-      .filter((task) => (task.title || '').toLowerCase().includes(q))
+    return sortTasks(
+      allTasks.filter((task) => (task.title || '').toLowerCase().includes(q)),
+      'alpha',
+      'asc'
+    )
       .map((task) => ({
         ...task,
         list_name: listMap.get(task.list_id) || '',
@@ -3211,7 +3215,7 @@ const syncText = useMemo(() => {
         const alreadyOnlyIncompleteSelected =
           incompleteIds.length > 0 &&
           selectedTasks.length === incompleteIds.length &&
-          incompleteIds.every((id) => selectedTasks.includes(id))
+          incompleteIds.every((id) => selectedTaskIdSet.has(id))
 
         if (alreadyOnlyIncompleteSelected) {
           setSelectedTasks(allIds)
@@ -4911,7 +4915,7 @@ setSelectedLists((prev) => prev.filter((id) => id !== list.id))
   event.dataTransfer.setData('text/plain', `task:${taskId}`)
 
   const dragIds =
-    selectedTasks.includes(taskId) && selectedTasks.length > 1
+    selectedTaskIdSet.has(taskId) && selectedTasks.length > 1
       ? [...selectedTasks]
       : [taskId]
 
@@ -5108,7 +5112,7 @@ function handleTaskDragOver(event, targetTaskId) {
     }
 
     const dragTaskIds =
-      selectedTasks.includes(activeId) && selectedTasks.length > 1 ? [...selectedTasks] : [activeId]
+      selectedTaskIdSet.has(activeId) && selectedTasks.length > 1 ? [...selectedTasks] : [activeId]
 
     if (overMeta.type === 'list' || overMeta.type === 'task-list-target') {
       await handleMoveDraggedTasksToList(dragTaskIds, overId)
@@ -5657,9 +5661,9 @@ async function handleToggleStore(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+if (selectedTasks.length > 1 && selectedTaskIdSet.has(task.id)) {
   const selectedData = allTasks.filter((t) =>
-    selectedTasks.includes(t.id)
+    selectedTaskIdSet.has(t.id)
   )
 
   const shouldEnable = selectedData.some((t) => !t.is_store)
@@ -5757,9 +5761,9 @@ async function handleToggleSkroutz(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+if (selectedTasks.length > 1 && selectedTaskIdSet.has(task.id)) {
   const selectedData = allTasks.filter((t) =>
-    selectedTasks.includes(t.id)
+    selectedTaskIdSet.has(t.id)
   )
 
   const shouldEnable = selectedData.some((t) => !t.is_skroutz)
@@ -5855,9 +5859,9 @@ async function handleToggleWeighing(task, event) {
   event.stopPropagation()
   if (isOffline || !task) return
 
-if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+if (selectedTasks.length > 1 && selectedTaskIdSet.has(task.id)) {
   const selectedData = allTasks.filter((t) =>
-    selectedTasks.includes(t.id)
+    selectedTaskIdSet.has(t.id)
   )
 
   const shouldEnable = selectedData.some((t) => !t.needs_weighing)
@@ -6033,8 +6037,9 @@ if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
     }
   }
 
-const selectedTasksData = allTasks.filter((t) =>
-  selectedTasks.includes(t.id)
+const selectedTasksData = useMemo(
+  () => allTasks.filter((task) => selectedTaskIdSet.has(task.id)),
+  [allTasks, selectedTaskIdSet]
 )
 
 const hasIncompleteSelected = selectedTasksData.some((t) => !t.completed)
@@ -6950,7 +6955,7 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   event.preventDefault()
   event.stopPropagation()
 
-  if (selectedTasks.length > 1 && selectedTasks.includes(task.id)) {
+  if (selectedTasks.length > 1 && selectedTaskIdSet.has(task.id)) {
     setContextMenu({
       type: 'task_multi',
       x: event.clientX,
@@ -7758,7 +7763,7 @@ style={
   key={`search-task-${task.id}`}
   task={task}
   isActive={activeTask?.id === task.id}
-  isSelected={selectedTasks.includes(task.id)}
+  isSelected={selectedTaskIdSet.has(task.id)}
   isOffline={isOffline}
   isSearchMode={true}
   isTouchDevice={isTouchDevice}
@@ -8233,7 +8238,7 @@ style={
         <SortableTaskItem
   task={task}
   isActive={activeTask?.id === task.id}
-  isSelected={selectedTasks.includes(task.id)}
+  isSelected={selectedTaskIdSet.has(task.id)}
   isOffline={isOffline}
   isSearchMode={Boolean(taskSearch.trim())}
   isTouchDevice={isTouchDevice}
