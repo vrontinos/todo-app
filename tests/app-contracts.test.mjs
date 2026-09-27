@@ -30,8 +30,10 @@ function count(haystack, needle) {
   return haystack.split(needle).length - 1
 }
 
-test('bulk task delete stays a single database delete request', () => {
-  assert.match(transformed, /\.from\('tasks'\)[\s\S]{0,400}\.delete\(\)[\s\S]{0,400}\.in\('id', idsToDelete\)/)
+test('bulk task delete calls the bounded RPC helper', () => {
+  const section = transformed.split('async function handleDeleteSelected() {')[1].split('const selectedTasksData')[0]
+  assert.match(section, /deleteTasksInBatches\([\s\S]{0,350}supabase\.rpc\('delete_tasks_atomic'/)
+  assert.doesNotMatch(section, /\.delete\(\)\s*\.in\('id', idsToDelete\)/)
 })
 
 test('realtime task DELETE applies local reducer instead of full refetch storm', () => {
