@@ -31,7 +31,7 @@ export function realtimeLeaseHandoffPatch() {
     }
   }
 
-  function startRealtime() {`,
+  function reconcileAfterReconnect() {`,
         `    if (channel) {
       const oldChannel = channel
       channel = null
@@ -44,7 +44,7 @@ export function realtimeLeaseHandoffPatch() {
     }
   }
 
-  function startRealtime() {`,
+  function reconcileAfterReconnect() {`,
         'stopRealtime must release only the current tab lease',
       )
 
