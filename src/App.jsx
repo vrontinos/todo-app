@@ -9,6 +9,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import { deleteTasksInBatches } from './deleteTasksInBatches'
+import { mergeNoteSnapshot, mergeTaskSnapshot, upsertTaskRows } from './realtimeSnapshot'
 import './App.css'
 
 import { isTauri } from '@tauri-apps/api/core'
@@ -1290,6 +1291,7 @@ const [mobileDirection, setMobileDirection] = useState('forward')
 
   const [taskNotes, setTaskNotes] = useState([])
   const [notesLoading, setNotesLoading] = useState(false)
+  const [notesLoadError, setNotesLoadError] = useState(false)
   const [newNoteText, setNewNoteText] = useState('')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [editingNoteValue, setEditingNoteValue] = useState('')
@@ -1882,6 +1884,9 @@ function restoreTaskScrollSnapshot(snapshot) {
   const latestTaskNoteCountsFetchIdRef = useRef(0)
   const latestNotesFetchTokenRef = useRef(new Map())
   const activeNotesTaskIdRef = useRef(null)
+  const taskChangesForAllFetchRef = useRef(null)
+  const taskChangesForListFetchRef = useRef(null)
+  const noteChangesForFetchRef = useRef(null)
   const pendingTaskMutationsRef = useRef(new Map())
   const pendingNoteMutationsRef = useRef(new Map())
   const suppressOwnTaskRealtimeUntilRef = useRef(0)
@@ -2379,20 +2384,26 @@ useEffect(() => {
     function handleOnline() {
       setIsOffline(false)
       if (session?.user?.id) {
-setSyncStatus('syncing')
-fetchLists(false)
-fetchAllTasks(false)
-
-const currentSelectedList = selectedListRef.current
+        setSyncStatus('syncing')
+        const currentSelectedList = selectedListRef.current
         const currentActiveTask = activeTaskRef.current
 
-        if (currentSelectedList?.id) {
-          fetchTasks(currentSelectedList.id, false, false)
-        }
-
-        if (currentActiveTask?.id && editingNoteIdRef.current === null) {
-          fetchNotes(currentActiveTask.id, false)
-        }
+        Promise.all([
+          fetchLists(false),
+          fetchAllTasks(false),
+          fetchTaskNoteCounts(false),
+          currentSelectedList?.id
+            ? fetchTasks(currentSelectedList.id, false, false)
+            : Promise.resolve([]),
+          currentActiveTask?.id && editingNoteIdRef.current === null
+            ? fetchNotes(currentActiveTask.id, false)
+            : Promise.resolve(true),
+        ]).then((results) => {
+          if (results.every((result) => result !== null && result !== false)) markSynced()
+        }).catch((error) => {
+          console.error('Σφάλμα επανασύνδεσης:', error)
+          setSyncStatus('error')
+        })
       }
     }
 
@@ -2460,6 +2471,13 @@ useEffect(() => {
   let heartbeatTimer = null
   let checkTimer = null
   let disposed = false
+  let hasSubscribed = false
+  const startedAt = Date.now()
+  let lastPassiveReconcileAt = startedAt
+  let reconcilePromise = null
+  const liveSyncBroadcast = typeof BroadcastChannel === 'function'
+    ? new BroadcastChannel(`todo-live-sync-${userId}`)
+    : null
 
   function readLease() {
     try {
@@ -2497,33 +2515,43 @@ useEffect(() => {
     }
   }
 
-  function startRealtime() {
-    if (disposed) return
+  function reconcileAfterReconnect() {
+    if (reconcilePromise) return reconcilePromise
 
-    if (isOffline || document.visibilityState !== 'visible') {
-      stopRealtime()
-      return
-    }
+    reconcilePromise = (async () => {
+      const currentSelectedList = selectedListRef.current
+      const currentActiveTask = activeTaskRef.current
+      setSyncStatus('syncing')
 
-    if (!canOwnRealtime()) {
-      stopRealtime()
-      return
-    }
+      try {
+        const results = await Promise.all([
+          fetchLists(false),
+          fetchAllTasks(false),
+          fetchTaskNoteCounts(false),
+          currentSelectedList?.id
+            ? fetchTasks(currentSelectedList.id, false, false)
+            : Promise.resolve([]),
+          currentActiveTask?.id && editingNoteIdRef.current === null
+            ? fetchNotes(currentActiveTask.id, false)
+            : Promise.resolve(true),
+        ])
 
-    writeLease()
+        if (!disposed && results.every((result) => result !== null && result !== false)) {
+          markSynced()
+        }
+      } catch (error) {
+        if (disposed) return
+        console.error('Realtime recovery failed:', error)
+        setSyncStatus('error')
+      }
+    })().finally(() => {
+      reconcilePromise = null
+    })
 
-    if (!heartbeatTimer) {
-      heartbeatTimer = window.setInterval(writeLease, 5000)
-    }
+    return reconcilePromise
+  }
 
-    if (channel) return
-
-    channel = supabase
-      .channel(`live-sync-all-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks' },
-        async (payload) => {
+  async function handleTaskChange(payload) {
           const currentSelectedList = selectedListRef.current
           const currentActiveTask = activeTaskRef.current
           const isEditingNote = editingNoteIdRef.current !== null
@@ -2584,12 +2612,9 @@ useEffect(() => {
           ) {
             await fetchNotes(currentActiveTask.id, false)
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'task_notes' },
-        async (payload) => {
+  }
+
+  async function handleNoteChange(payload) {
           const currentActiveTask = activeTaskRef.current
           const isEditingNote = editingNoteIdRef.current !== null
 
@@ -2605,6 +2630,15 @@ useEffect(() => {
 
           const eventType = payload.eventType
           const changedTaskId = payload.new?.task_id || payload.old?.task_id
+          const pendingNotesFetch = noteChangesForFetchRef.current
+          if (incomingNote && pendingNotesFetch?.taskKey === String(changedTaskId)) {
+            pendingNotesFetch.changes.set(String(incomingNote.id), payload)
+          }
+
+          if ((eventType === 'INSERT' || eventType === 'DELETE') && changedTaskId) {
+            latestTaskNoteCountsFetchIdRef.current += 1
+            scheduleRealtimeRefresh('notes', () => fetchTaskNoteCounts(false), 300)
+          }
 
           if (eventType === 'INSERT' && changedTaskId) {
             setNoteCountsByTask((prev) => ({
@@ -2631,24 +2665,80 @@ if (eventType === 'DELETE' && changedTaskId) {
   })
 }
 
-          if (currentActiveTask?.id === changedTaskId && !isEditingNote) {
+          if (currentActiveTask?.id && String(currentActiveTask.id) === String(changedTaskId) && !isEditingNote) {
             applyNoteRealtimePayload(payload)
           }
 
           if (eventType === 'DELETE' && currentActiveTask?.id && !isEditingNote) {
             await fetchNotes(currentActiveTask.id, false)
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'lists' },
-        async () => {
+  }
+
+  async function handleListChange() {
           scheduleRealtimeRefresh('lists', async () => {
             setSyncStatus('syncing')
             await fetchLists(false)
             setSyncStatus('synced')
           })
+  }
+
+  if (liveSyncBroadcast) {
+    liveSyncBroadcast.onmessage = ({ data }) => {
+      if (disposed || !data) return
+      if (data.table === 'tasks') handleTaskChange(data.payload)
+      if (data.table === 'task_notes') handleNoteChange(data.payload)
+      if (data.table === 'lists') handleListChange()
+      if (data.table === 'reconcile' && document.visibilityState === 'visible') {
+        reconcileAfterReconnect()
+      }
+    }
+  }
+
+  function startRealtime() {
+    if (disposed) return
+
+    if (isOffline || document.visibilityState !== 'visible') {
+      stopRealtime()
+      return
+    }
+
+    if (!canOwnRealtime()) {
+      stopRealtime()
+      return
+    }
+
+    writeLease()
+
+    if (!heartbeatTimer) {
+      heartbeatTimer = window.setInterval(writeLease, 5000)
+    }
+
+    if (channel) return
+
+    channel = supabase
+      .channel(`live-sync-all-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          liveSyncBroadcast?.postMessage({ table: 'tasks', payload })
+          return handleTaskChange(payload)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_notes' },
+        (payload) => {
+          liveSyncBroadcast?.postMessage({ table: 'task_notes', payload })
+          return handleNoteChange(payload)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lists' },
+        () => {
+          liveSyncBroadcast?.postMessage({ table: 'lists' })
+          return handleListChange()
         }
       )
       .on(
@@ -2660,25 +2750,33 @@ if (eventType === 'DELETE' && changedTaskId) {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          markSynced()
+          const initialSubscription = !hasSubscribed && Date.now() - startedAt < 5000
+          hasSubscribed = true
+          if (initialSubscription) {
+            markSynced()
+          } else if (Date.now() - lastVisibilitySyncRef.current >= 5000) {
+            reconcileAfterReconnect()
+          }
+          if (!initialSubscription) liveSyncBroadcast?.postMessage({ table: 'reconcile' })
           return
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          fetchLists(false)
-            .then(() => {
-              markSynced()
-            })
-            .catch((error) => {
-              console.error('Realtime recovery failed:', error)
-              setSyncStatus('error')
-            })
+          setSyncStatus('error')
         }
       })
   }
 
   function recheckRealtime() {
     startRealtime()
+    if (
+      !liveSyncBroadcast && !channel && !isOffline &&
+      document.visibilityState === 'visible' && !canOwnRealtime() &&
+      Date.now() - lastPassiveReconcileAt >= 60000
+    ) {
+      lastPassiveReconcileAt = Date.now()
+      reconcileAfterReconnect()
+    }
   }
 
   startRealtime()
@@ -2690,6 +2788,7 @@ if (eventType === 'DELETE' && changedTaskId) {
 
   return () => {
     disposed = true
+    liveSyncBroadcast?.close()
 
     document.removeEventListener('visibilitychange', recheckRealtime)
     window.removeEventListener('storage', recheckRealtime)
@@ -2746,11 +2845,15 @@ function handleVisibilityChange() {
   currentSelectedList?.id
     ? fetchTasks(currentSelectedList.id, false, false)
     : Promise.resolve(),
+  fetchTaskNoteCounts(false),
   currentActiveTask?.id && !isEditingNote
     ? fetchNotes(currentActiveTask.id, false)
     : Promise.resolve(),
-]).then(() => {
-  markSynced()
+]).then((results) => {
+  if (results.every((result) => result !== null && result !== false)) markSynced()
+}).catch((error) => {
+  console.error('Σφάλμα ανανέωσης μετά την επιστροφή:', error)
+  setSyncStatus('error')
 })
       }
     }
@@ -3358,7 +3461,7 @@ const syncText = useMemo(() => {
     console.error('Σφάλμα φόρτωσης λιστών:', error)
     setSyncStatus('error')
     if (updateStatus) setLoadingLists(false)
-    return
+    return false
   }
 
   const loadedLists = data || []
@@ -3384,7 +3487,7 @@ const syncText = useMemo(() => {
     setTaskNotes([])
     if (updateStatus) setLoadingLists(false)
     if (updateStatus) markSynced()
-    return
+    return loadedLists
   }
 
   const savedListId = localStorage.getItem(LAST_SELECTED_LIST_KEY)
@@ -3422,6 +3525,7 @@ const syncText = useMemo(() => {
   } else {
     setLoadingLists(false)
   }
+  return loadedLists
 }
 
 async function fetchTasksPage(buildQuery) {
@@ -3462,6 +3566,8 @@ async function fetchTasksPage(buildQuery) {
   if (!session?.user?.id) return
 
   const fetchId = ++latestAllTasksFetchIdRef.current
+  const liveChanges = new Map()
+  taskChangesForAllFetchRef.current = liveChanges
 
   const { data, error } = await fetchTasksPage(() =>
   supabase
@@ -3473,8 +3579,11 @@ async function fetchTasksPage(buildQuery) {
 )
 
   if (fetchId !== latestAllTasksFetchIdRef.current) {
+    if (taskChangesForAllFetchRef.current === liveChanges) taskChangesForAllFetchRef.current = null
     return
   }
+
+  if (taskChangesForAllFetchRef.current === liveChanges) taskChangesForAllFetchRef.current = null
 
   if (error) {
     console.error('Σφάλμα φόρτωσης όλων των εργασιών:', error)
@@ -3482,9 +3591,11 @@ async function fetchTasksPage(buildQuery) {
     return null
   }
 
-  setAllTasks(data || [])
+  const reconciledTasks = mergeTaskSnapshot(data || [], liveChanges)
+  setAllTasks(reconciledTasks)
+  if (liveChanges.size && (data || []).length >= 500) reconcileTaskSnapshotsAfterConcurrentChanges()
   if (updateStatus) markSynced()
-  return data || []
+  return reconciledTasks
 }
 
   async function fetchTaskNoteCounts(updateStatus = true) {
@@ -3524,7 +3635,7 @@ async function fetchTasksPage(buildQuery) {
   if (error) {
     console.error('Σφάλμα φόρτωσης μετρητών σημειώσεων:', error)
     setSyncStatus('error')
-    return
+    return false
   }
 
   const counts = {}
@@ -3535,6 +3646,7 @@ async function fetchTasksPage(buildQuery) {
 
   setNoteCountsByTask(counts)
   if (updateStatus) markSynced()
+  return true
 }
 
   async function fetchTasks(listId, updateStatus = true, showLoading = updateStatus) {
@@ -3542,6 +3654,8 @@ async function fetchTasksPage(buildQuery) {
   if (!listId) return
 
   const fetchId = ++latestTasksFetchIdRef.current
+  const liveChanges = new Map()
+  taskChangesForListFetchRef.current = liveChanges
 
   if (showLoading) setLoadingTasks(true)
 
@@ -3555,8 +3669,11 @@ const { data, error } = await fetchTasksPage(() =>
 )
 
   if (fetchId !== latestTasksFetchIdRef.current) {
+    if (taskChangesForListFetchRef.current === liveChanges) taskChangesForListFetchRef.current = null
     return
   }
+
+  if (taskChangesForListFetchRef.current === liveChanges) taskChangesForListFetchRef.current = null
 
   if (error) {
     console.error('Σφάλμα φόρτωσης εργασιών:', error)
@@ -3567,11 +3684,12 @@ const { data, error } = await fetchTasksPage(() =>
   }
 
   const loadedTasks = sortTasks(
-  data || [],
+  mergeTaskSnapshot(data || [], liveChanges, listId),
   currentSortModeRef.current,
   currentSortDirectionRef.current
   )
   setTasks(loadedTasks)
+  if (liveChanges.size && (data || []).length >= 500) reconcileTaskSnapshotsAfterConcurrentChanges()
 
   const currentActiveTask = activeTaskRef.current
 
@@ -3612,35 +3730,43 @@ async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
   if (showLoading) {
   setTaskNotes([])
   setNotesLoading(true)
+  setNotesLoadError(false)
 }
 
   const token = `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`
-  latestNotesFetchTokenRef.current.set(taskId, token)
+  latestNotesFetchTokenRef.current.set(taskKey, token)
+  const liveChanges = new Map()
+  noteChangesForFetchRef.current = { taskKey, changes: liveChanges }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('task_notes')
     .select('*')
     .eq('task_id', taskId)
+
+  if (error && activeNotesTaskIdRef.current === taskKey && latestNotesFetchTokenRef.current.get(taskKey) === token) {
+    ({ data, error } = await supabase.from('task_notes').select('*').eq('task_id', taskId))
+  }
 
   if (activeNotesTaskIdRef.current !== taskKey) {
     return
   }
 
-  if (latestNotesFetchTokenRef.current.get(taskId) !== token) {
+  if (latestNotesFetchTokenRef.current.get(taskKey) !== token) {
     return
   }
 
+  if (noteChangesForFetchRef.current?.changes === liveChanges) noteChangesForFetchRef.current = null
+
   if (error) {
   console.error('Σφάλμα φόρτωσης σημειώσεων:', error)
-  setTaskNotes([])
-  if (showLoading) {
+  setNotesLoadError(true)
   setNotesLoading(false)
-}
   setSyncStatus('error')
-  return
+  return false
 }
 
-  const sorted = sortNotes(data || [])
+  const sorted = sortNotes(mergeNoteSnapshot(data || [], liveChanges))
+  setNotesLoadError(false)
 
   if (editingNoteIdRef.current === null) {
     setTaskNotes(sorted)
@@ -3657,10 +3783,9 @@ async function fetchNotes(taskId, updateStatus = true, showLoading = false) {
       })
     })
   }
-  if (showLoading) {
   setNotesLoading(false)
-}
   if (updateStatus) markSynced()
+  return true
 }
   
   async function fetchPendingInvites() {
@@ -3709,7 +3834,7 @@ function invalidateNoteViews(taskId = null) {
 
   if (taskId) {
     latestNotesFetchTokenRef.current.set(
-      taskId,
+      String(taskId),
       `invalidated:${Date.now()}`
     )
   }
@@ -4083,12 +4208,20 @@ function applyNoteRealtimePayload(payload) {
     setActiveTask((prev) => (prev?.id === taskId ? { ...prev, ...patch } : prev))
   }
 
+function recordTaskChangeForPendingFetch(payload) {
+  const task = payload.new || payload.old
+  if (!task) return
+  taskChangesForAllFetchRef.current?.set(String(task.id), payload)
+  taskChangesForListFetchRef.current?.set(String(task.id), payload)
+}
+
 function applyTaskRealtimePayload(payload) {
   const { eventType, new: newRow, old: oldRow } = payload
   const task = newRow || oldRow
   if (!task) return
 
   const changedTaskId = task.id
+  recordTaskChangeForPendingFetch(payload)
   const changedListId = newRow?.list_id ?? oldRow?.list_id
   const currentSelectedListId = selectedListRef.current?.id ?? null
   const activeEditingNoteId = editingNoteIdRef.current
@@ -4557,6 +4690,18 @@ function scheduleRealtimeRefresh(kind, runner, delay = 120) {
     timerRef.current = null
     await runner()
   }, delay)
+}
+
+function reconcileTaskSnapshotsAfterConcurrentChanges() {
+  if (bulkDeleteInProgressRef.current) return
+
+  // Offset pagination can skip an unrelated row if a task is deleted between pages.
+  scheduleRealtimeRefresh('tasks', async () => {
+    if (bulkDeleteInProgressRef.current) return
+    await fetchAllTasks(false)
+    const listId = selectedListRef.current?.id
+    if (listId) await fetchTasks(listId, false, false)
+  }, 800)
 }
   async function handleRenameNote(note, nextContent) {
   const content = nextContent.trim()
@@ -5374,14 +5519,15 @@ await saveTaskPositions(reorderedTasks)
       return
     }
 
+    recordTaskChangeForPendingFetch({ eventType: 'INSERT', new: data })
     setTasks((prev) =>
       sortTasks(
-        prev.map((task) => (task.id === tempTask.id ? data : task)),
+        upsertTaskRows(prev.filter((task) => task.id !== tempTask.id), [data]),
         currentSortMode,
         currentSortDirection
       )
     )
-    setAllTasks((prev) => [...prev, data])
+    setAllTasks((prev) => upsertTaskRows(prev, [data]))
 
     markSynced()
   }
@@ -5460,14 +5606,18 @@ if (error) {
 }
 
 const insertedTasks = data || []
+for (const task of insertedTasks) {
+  recordTaskChangeForPendingFetch({ eventType: 'INSERT', new: task })
+}
+const tempTaskIds = new Set(tempTasks.map((task) => String(task.id)))
 
 setTasks((prev) => {
   const withoutTemps = prev.filter(
-    (task) => !tempTasks.some((temp) => temp.id === task.id)
+    (task) => !tempTaskIds.has(String(task.id))
   )
 
   return sortTasks(
-    [...withoutTemps, ...insertedTasks],
+    upsertTaskRows(withoutTemps, insertedTasks),
     currentSortMode,
     currentSortDirection
   )
@@ -5475,10 +5625,10 @@ setTasks((prev) => {
 
 setAllTasks((prev) => {
   const withoutTemps = prev.filter(
-    (task) => !tempTasks.some((temp) => temp.id === task.id)
+    (task) => !tempTaskIds.has(String(task.id))
   )
 
-  return [...withoutTemps, ...insertedTasks]
+  return upsertTaskRows(withoutTemps, insertedTasks)
 })
 
 setBulkProgress(null)
@@ -6825,6 +6975,11 @@ h1{
   }
 
   markNoteMutation(data.id)
+  latestTaskNoteCountsFetchIdRef.current += 1
+  const pendingNotesFetch = noteChangesForFetchRef.current
+  if (pendingNotesFetch?.taskKey === String(data.task_id)) {
+    pendingNotesFetch.changes.set(String(data.id), { eventType: 'INSERT', new: data })
+  }
 
   const now = new Date().toISOString()
   setTaskNotes((prev) => sortNotes([...prev, data]))
@@ -6832,6 +6987,7 @@ h1{
     ...prev,
     [data.task_id]: (prev[data.task_id] || 0) + 1,
   }))
+  scheduleRealtimeRefresh('notes', () => fetchTaskNoteCounts(false), 300)
   setNewNoteText('')
 
   updateTaskEverywhere(activeTask.id, {
@@ -6905,6 +7061,11 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   setTaskNotes((prev) => prev.filter((note) => note.id !== noteId))
 
   if (noteToDelete?.task_id) {
+    latestTaskNoteCountsFetchIdRef.current += 1
+    const pendingNotesFetch = noteChangesForFetchRef.current
+    if (pendingNotesFetch?.taskKey === String(noteToDelete.task_id)) {
+      pendingNotesFetch.changes.set(String(noteId), { eventType: 'DELETE', old: noteToDelete })
+    }
     setNoteCountsByTask((prev) => ({
       ...prev,
       [noteToDelete.task_id]: Math.max(0, (prev[noteToDelete.task_id] || 0) - 1),
@@ -6931,11 +7092,15 @@ async function handleDeleteNote(noteId, skipConfirm = false) {
   if (noteResult.error) {
     console.error('Σφάλμα διαγραφής σημείωσης:', noteResult.error)
     clearNoteMutation(noteId)
+    noteChangesForFetchRef.current?.changes.delete(String(noteId))
     setTaskNotes(oldNotes)
     setNoteCountsByTask(oldNoteCounts)
+    scheduleRealtimeRefresh('notes', () => fetchTaskNoteCounts(false), 300)
     setSyncStatus('error')
     return
   }
+
+  scheduleRealtimeRefresh('notes', () => fetchTaskNoteCounts(false), 300)
 
   if (activeTask?.id) {
     const taskResult = await supabase
@@ -8486,8 +8651,11 @@ style={
     </div>
   </div>
 ) : taskNotes.length === 0 ? (
-
-    <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
+    notesLoadError ? (
+      <button type="button" onClick={() => fetchNotes(activeTask.id, false, true)}>
+        Δεν φορτώθηκαν οι σημειώσεις. Πάτησε για νέα προσπάθεια.
+      </button>
+    ) : <p className="notes-empty">Δεν υπάρχουν σημειώσεις ακόμη.</p>
   ) : (
     taskNotes.map((note) => (
       <SwipeableNoteItem
