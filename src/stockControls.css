@@ -35,6 +35,10 @@
   transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
 }
 
+.stock-toggle > span {
+  color: inherit;
+}
+
 .stock-toggle:hover:not(:disabled) {
   border-color: var(--text-soft);
 }
@@ -57,6 +61,18 @@
 .stock-limited.active {
   color: #b7791f;
   background: color-mix(in srgb, #b7791f 9%, var(--panel));
+}
+
+:root[data-theme='dark'] .stock-zero.active {
+  color: #fca5a5;
+  background: rgba(127, 29, 29, 0.34);
+  border-color: #ef4444;
+}
+
+:root[data-theme='dark'] .stock-limited.active {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.34);
+  border-color: #f59e0b;
 }
 
 .stock-toggle-check {
@@ -107,6 +123,13 @@
 .stock-quantity-input:disabled,
 .stock-unit-input:disabled {
   opacity: 0.48;
+}
+
+:root[data-theme='dark'] .stock-quantity-input:disabled,
+:root[data-theme='dark'] .stock-unit-input:disabled {
+  color: var(--text-soft);
+  background: var(--panel-2);
+  opacity: 0.72;
 }
 
 .stock-quantity-input {
