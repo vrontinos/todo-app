@@ -4,6 +4,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import App from './App.jsx'
 import StockControls from './StockControls.jsx'
+import StockListBadges from './StockListBadges.jsx'
 import './App.css'
 
 async function showDesktopVersion() {
@@ -42,5 +43,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
     <StockControls />
+    <StockListBadges />
   </React.StrictMode>
 )
