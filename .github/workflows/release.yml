@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   release-windows:
-    # One main-branch release for v1.0.105; normal tag releases still work.
-    if: github.ref_type == 'tag' || contains(github.event.head_commit.message, '[windows-v1.0.105]')
+    # One main-branch release for v1.0.106; normal tag releases still work.
+    if: github.ref_type == 'tag' || contains(github.event.head_commit.message, '[windows-v1.0.106]')
     runs-on: windows-latest
 
     steps:
@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          if ("${{ github.ref_type }}" -ne "tag") { $tag = "v1.0.105" }
+          if ("${{ github.ref_type }}" -ne "tag") { $tag = "v1.0.106" }
           $version = $tag.TrimStart("v")
 
           $bundleDir = "src-tauri/target/release/bundle/nsis"
@@ -89,7 +89,7 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.105' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.106' }}
           target_commitish: ${{ github.sha }}
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
