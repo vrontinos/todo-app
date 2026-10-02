@@ -22,6 +22,43 @@ function getTaskRows(taskId) {
   )
 }
 
+function cleanupCreatedMetaLine(metaLine) {
+  if (!metaLine?.classList?.contains('task-stock-meta-line-created')) return
+  if (metaLine.children.length === 0) metaLine.remove()
+}
+
+function getOrCreateMetaLine(row) {
+  const textBlock = row?.querySelector('.task-text-block')
+  if (!textBlock) return null
+
+  let metaLine = textBlock.querySelector(':scope > .task-meta-line')
+  if (metaLine) return metaLine
+
+  metaLine = document.createElement('div')
+  metaLine.className = 'task-meta-line task-stock-meta-line-created'
+
+  const title = textBlock.querySelector(':scope > .task-title')
+  if (title) {
+    title.insertAdjacentElement('afterend', metaLine)
+  } else {
+    textBlock.appendChild(metaLine)
+  }
+
+  return metaLine
+}
+
+function placeBadge(metaLine, badge) {
+  if (!metaLine || !badge) return
+
+  const notesBadge = metaLine.querySelector(':scope > .task-notes-count')
+  if (notesBadge) {
+    notesBadge.insertAdjacentElement('afterend', badge)
+    return
+  }
+
+  metaLine.insertBefore(badge, metaLine.firstChild)
+}
+
 function applyBadgeToRow(row, task) {
   if (!row) return
 
@@ -29,17 +66,27 @@ function applyBadgeToRow(row, task) {
   const existing = row.querySelector(':scope .task-stock-list-badge')
 
   if (status === 'none') {
+    const oldMetaLine = existing?.parentElement
     existing?.remove()
+    cleanupCreatedMetaLine(oldMetaLine)
     return
   }
+
+  const metaLine = getOrCreateMetaLine(row)
+  if (!metaLine) return
 
   const quantity = formatQuantity(task?.stock_quantity)
   const unit = String(task?.stock_unit || DEFAULT_UNIT).trim() || DEFAULT_UNIT
   const signature = `${status}|${quantity}|${unit}`
 
-  if (existing?.dataset?.stockSignature === signature) return
+  if (existing?.dataset?.stockSignature === signature) {
+    if (existing.parentElement !== metaLine) placeBadge(metaLine, existing)
+    return
+  }
 
+  const oldMetaLine = existing?.parentElement
   existing?.remove()
+  cleanupCreatedMetaLine(oldMetaLine)
 
   const badge = document.createElement('span')
   badge.className = `task-stock-list-badge task-stock-list-badge-${status}`
@@ -64,13 +111,7 @@ function applyBadgeToRow(row, task) {
   }
 
   badge.append(desktopText, mobileText)
-
-  const notesBadge = row.querySelector('.task-notes-count')
-  if (notesBadge?.parentElement) {
-    notesBadge.insertAdjacentElement('afterend', badge)
-  } else {
-    row.appendChild(badge)
-  }
+  placeBadge(metaLine, badge)
 }
 
 export default function StockListBadges() {
@@ -174,7 +215,12 @@ export default function StockListBadges() {
           if (payload.eventType === 'DELETE') {
             const id = String(payload.old?.id || '')
             cacheRef.current.delete(id)
-            for (const row of getTaskRows(id)) row.querySelector(':scope .task-stock-list-badge')?.remove()
+            for (const row of getTaskRows(id)) {
+              const badge = row.querySelector(':scope .task-stock-list-badge')
+              const metaLine = badge?.parentElement
+              badge?.remove()
+              cleanupCreatedMetaLine(metaLine)
+            }
             return
           }
 
@@ -193,7 +239,11 @@ export default function StockListBadges() {
       if (syncTimer) clearTimeout(syncTimer)
       void supabase.removeChannel(channel)
 
-      document.querySelectorAll('.task-stock-list-badge').forEach((badge) => badge.remove())
+      document.querySelectorAll('.task-stock-list-badge').forEach((badge) => {
+        const metaLine = badge.parentElement
+        badge.remove()
+        cleanupCreatedMetaLine(metaLine)
+      })
     }
   }, [])
 
