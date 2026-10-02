@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+.task-stock-list-badge > span {
+  color: inherit;
+}
+
 .task-stock-list-badge-zero {
   color: #8f1d1d;
   background: #ffe5e5;
@@ -26,6 +30,18 @@
   color: #7a4b00;
   background: #fff1c7;
   border: 1px solid #e7c96f;
+}
+
+:root[data-theme='dark'] .task-stock-list-badge-zero {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.5);
+  border-color: #ef4444;
+}
+
+:root[data-theme='dark'] .task-stock-list-badge-limited {
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.5);
+  border-color: #f59e0b;
 }
 
 .task-stock-badge-mobile {

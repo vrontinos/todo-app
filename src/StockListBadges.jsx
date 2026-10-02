@@ -121,6 +121,7 @@ export default function StockListBadges() {
     let stopped = false
     let frameId = null
     let syncTimer = null
+    const taskRefreshTimers = new Map()
 
     function remember(row) {
       if (!row?.id) return
@@ -140,6 +141,48 @@ export default function StockListBadges() {
       for (const [taskId, task] of cacheRef.current.entries()) {
         for (const row of getTaskRows(taskId)) applyBadgeToRow(row, task)
       }
+    }
+
+    async function refreshTask(taskId) {
+      const id = String(taskId || '')
+      if (stopped || !/^\d+$/.test(id)) return
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, stock_status, stock_quantity, stock_unit')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (stopped) return
+
+      if (error) {
+        console.error('Stock list badge refresh failed:', error)
+        return
+      }
+
+      if (data) remember(data)
+    }
+
+    function scheduleTaskRefresh(taskId) {
+      const id = String(taskId || '')
+      if (!/^\d+$/.test(id)) return
+
+      const previous = taskRefreshTimers.get(id)
+      if (previous) clearTimeout(previous)
+
+      const timer = window.setTimeout(() => {
+        taskRefreshTimers.delete(id)
+        cacheRef.current.delete(id)
+        void refreshTask(id)
+      }, 40)
+
+      taskRefreshTimers.set(id, timer)
+    }
+
+    function activeTaskId() {
+      const active = document.querySelector('.task-item-active')?.closest?.('[data-task-id]')
+      const id = String(active?.dataset?.taskId || '')
+      return /^\d+$/.test(id) ? id : null
     }
 
     async function syncVisibleTasks() {
@@ -194,15 +237,32 @@ export default function StockListBadges() {
       })
     }
 
+    function handleMutations(mutations) {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-stock-status') {
+          const row = mutation.target?.closest?.('[data-task-id]')
+          scheduleTaskRefresh(row?.dataset?.taskId)
+          continue
+        }
+
+        const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement
+        if (target?.closest?.('.task-stock-controls-host')) {
+          scheduleTaskRefresh(activeTaskId())
+        }
+      }
+
+      scheduleRefresh()
+    }
+
     const root = document.getElementById('root')
-    const observer = new MutationObserver(scheduleRefresh)
+    const observer = new MutationObserver(handleMutations)
 
     if (root) {
       observer.observe(root, {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ['data-task-id'],
+        attributeFilter: ['data-task-id', 'data-stock-status', 'class'],
       })
     }
 
@@ -237,6 +297,8 @@ export default function StockListBadges() {
       observer.disconnect()
       if (frameId) cancelAnimationFrame(frameId)
       if (syncTimer) clearTimeout(syncTimer)
+      for (const timer of taskRefreshTimers.values()) clearTimeout(timer)
+      taskRefreshTimers.clear()
       void supabase.removeChannel(channel)
 
       document.querySelectorAll('.task-stock-list-badge').forEach((badge) => {
