@@ -33,9 +33,9 @@ jobs:
         shell: pwsh
         run: |
           $packageVersion = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
-          $lockJson = Get-Content "package-lock.json" -Raw | ConvertFrom-Json
-          $lockVersion = [string]$lockJson.version
-          $lockRootVersion = [string]$lockJson.packages."".version
+          $lockJson = Get-Content "package-lock.json" -Raw | ConvertFrom-Json -AsHashtable
+          $lockVersion = [string]$lockJson['version']
+          $lockRootVersion = [string]$lockJson['packages']['']['version']
 
           if ($lockVersion -ne $packageVersion -or $lockRootVersion -ne $packageVersion) {
             if ($lockVersion -ne $lockRootVersion -or [string]::IsNullOrWhiteSpace($lockVersion)) {
