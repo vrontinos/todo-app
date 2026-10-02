@@ -49,6 +49,18 @@
 }
 
 @media (max-width: 1024px) {
+  .task-meta-line > .task-stock-list-badge {
+    order: 0;
+  }
+
+  .task-meta-line > .task-notes-count {
+    order: 1;
+  }
+
+  .task-meta-line > .task-barcode-badge {
+    order: 2;
+  }
+
   .task-stock-list-badge {
     min-height: 20px;
     padding: 2px 6px;
