@@ -28,6 +28,36 @@ jobs:
 
       - run: npm ci
 
+      - name: Keep package-lock release version in sync
+        if: github.ref_type != 'tag'
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
+          $lockJson = Get-Content "package-lock.json" -Raw | ConvertFrom-Json
+          $lockVersion = [string]$lockJson.version
+          $lockRootVersion = [string]$lockJson.packages."".version
+
+          if ($lockVersion -ne $packageVersion -or $lockRootVersion -ne $packageVersion) {
+            if ($lockVersion -ne $lockRootVersion -or [string]::IsNullOrWhiteSpace($lockVersion)) {
+              throw "Unsafe package-lock version state: top=$lockVersion root=$lockRootVersion package=$packageVersion"
+            }
+
+            $raw = Get-Content "package-lock.json" -Raw
+            $pattern = '"version": "' + [regex]::Escape($lockVersion) + '"'
+            $replacement = '"version": "' + $packageVersion + '"'
+            $updated = [regex]::Replace($raw, $pattern, $replacement, 2)
+            Set-Content "package-lock.json" -Value $updated -NoNewline -Encoding UTF8
+          }
+
+          $changes = git status --porcelain -- package-lock.json
+          if ($changes) {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: sync package-lock for v$packageVersion"
+            git push origin HEAD:main
+          }
+
       - name: Production safety preflight
         run: node scripts/safety-preflight.cjs
 
@@ -90,7 +120,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.106' }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ github.ref_type == 'tag' && github.sha || 'main' }}
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
