@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import App from './App.jsx'
+import StockControls from './StockControls.jsx'
 import './App.css'
 
 async function showDesktopVersion() {
@@ -25,9 +26,9 @@ badge.style.opacity = '0.5'
 badge.style.background = 'transparent'
 badge.style.color = '#888'
     badge.style.fontSize = '11px'
-    badge.style.lineHeight = '1'
-    badge.style.pointerEvents = 'none'
-    badge.style.opacity = '0.75'
+badge.style.lineHeight = '1'
+badge.style.pointerEvents = 'none'
+badge.style.opacity = '0.75'
 
     document.body.appendChild(badge)
   } catch (error) {
@@ -40,5 +41,6 @@ showDesktopVersion()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
+    <StockControls />
   </React.StrictMode>
 )
