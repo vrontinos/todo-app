@@ -2635,7 +2635,9 @@ useEffect(() => {
             pendingNotesFetch.changes.set(String(incomingNote.id), payload)
           }
 
-          if ((eventType === 'INSERT' || eventType === 'DELETE') && changedTaskId) {
+          // With RLS, DELETE events can contain only the note's primary key.
+          // Reconcile counts even when Supabase omits task_id from the payload.
+          if (eventType === 'DELETE' || (eventType === 'INSERT' && changedTaskId)) {
             latestTaskNoteCountsFetchIdRef.current += 1
             scheduleRealtimeRefresh('notes', () => fetchTaskNoteCounts(false), 300)
           }

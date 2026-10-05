@@ -2,11 +2,44 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import { mergeNoteSnapshot, mergeTaskSnapshot, upsertTaskRows } from '../src/realtimeSnapshot.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const app = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+
+test('primary-key-only note deletions clear badges without a page refresh', async () => {
+  const handler = app.slice(app.indexOf('  async function handleNoteChange(payload)'), app.indexOf('  async function handleListChange()'))
+  const countsFetcher = 'async function fetchTaskNoteCounts(' + app.split('async function fetchTaskNoteCounts(')[1].split('  async function fetchTasks(')[0]
+  const scheduled = new Map()
+  let counts = { 5: 2, 6: 1 }
+  let reads = 0
+  const context = vm.createContext({
+    activeTaskRef: { current: null },
+    editingNoteIdRef: { current: null },
+    noteChangesForFetchRef: { current: null },
+    latestTaskNoteCountsFetchIdRef: { current: 0 },
+    session: { user: { id: 'viewer' } },
+    isOwnRecentNoteMutation: () => false,
+    setNoteCountsByTask: (value) => { counts = typeof value === 'function' ? value(counts) : value },
+    scheduleRealtimeRefresh: (key, callback) => scheduled.set(key, callback),
+    supabase: { rpc: async () => {
+      reads += 1
+      return { data: [{ task_id: 6, note_count: 1 }], error: null }
+    } },
+  })
+  vm.runInContext(countsFetcher + '\n' + handler, context)
+  // The Import deletes both notes in one transaction. RLS strips task_id.
+  await context.handleNoteChange({ eventType: 'DELETE', new: {}, old: { id: 10 } })
+  await context.handleNoteChange({ eventType: 'DELETE', new: {}, old: { id: 11 } })
+  assert.equal(scheduled.size, 1)
+  assert.equal(context.latestTaskNoteCountsFetchIdRef.current, 2)
+  await scheduled.get('notes')()
+  assert.equal(counts[5], undefined)
+  assert.equal(counts[6], 1)
+  assert.equal(reads, 1)
+})
 
 test('task snapshots keep live inserts, deletes, completion and moves made during pagination', () => {
   const oldRows = [
