@@ -37,10 +37,10 @@ test('bulk task delete calls the bounded RPC helper', () => {
   assert.doesNotMatch(section, /\.delete\(\)\s*\.in\('id', idsToDelete\)/)
 })
 
-test('Windows v1.0.108 release runs once on its marked main commit and preserves tag releases', () => {
+test('Windows v1.0.109 release runs once on its marked main commit and preserves tag releases', () => {
   assert.match(releaseWorkflowSource, /tags:\s*\n\s*- "v\*\.\*\.\*"/)
-  assert.match(releaseWorkflowSource, /if: github\.ref_type == 'tag' \|\| contains\(github\.event\.head_commit\.message, '\[windows-v1\.0\.108\]'\)/)
-  assert.match(releaseWorkflowSource, /tag_name: \$\{\{ github\.ref_type == 'tag' && github\.ref_name \|\| 'v1\.0\.108' \}\}/)
+  assert.match(releaseWorkflowSource, /if: github\.ref_type == 'tag' \|\| contains\(github\.event\.head_commit\.message, '\[windows-v1\.0\.109\]'\)/)
+  assert.match(releaseWorkflowSource, /tag_name: \$\{\{ github\.ref_type == 'tag' && github\.ref_name \|\| 'v1\.0\.109' \}\}/)
 })
 
 test('realtime task DELETE applies local reducer instead of full refetch storm', () => {
