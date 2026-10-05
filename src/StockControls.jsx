@@ -72,9 +72,11 @@ export default function StockControls() {
     cacheRef.current.set(id, normalized)
 
     const taskRow = findTaskRow(id)
-    if (taskRow) {
+    if (taskRow && taskRow.dataset.stockStatus !== normalized.stock_status) {
       taskRow.dataset.stockStatus = normalized.stock_status
     }
+
+    window.dispatchEvent(new CustomEvent('task-stock-state', { detail: normalized }))
 
     if (String(activeTaskIdRef.current || '') === id) {
       setTaskState(normalized)
@@ -104,9 +106,12 @@ export default function StockControls() {
     let stopped = false
     let frameId = null
     let syncTimer = null
+    let syncing = false
+    let retryAfter = 0
+    let retryTimer = null
 
     async function syncVisibleTaskStates() {
-      if (stopped) return
+      if (stopped || syncing || Date.now() < retryAfter) return
 
       const ids = Array.from(document.querySelectorAll('[data-task-id]'))
         .map((element) => String(element.dataset.taskId || ''))
@@ -119,26 +124,35 @@ export default function StockControls() {
         for (const id of uniqueIds) {
           const cached = cacheRef.current.get(id)
           const taskRow = findTaskRow(id)
-          if (cached && taskRow) taskRow.dataset.stockStatus = cached.stock_status
+          if (cached && taskRow && taskRow.dataset.stockStatus !== cached.stock_status) {
+            taskRow.dataset.stockStatus = cached.stock_status
+          }
         }
         return
       }
 
-      for (let index = 0; index < missingIds.length; index += 100) {
-        const batch = missingIds.slice(index, index + 100)
-        const { data, error: fetchError } = await supabase
-          .from('tasks')
-          .select('id, completed, stock_status, stock_quantity, stock_unit')
-          .in('id', batch)
+      syncing = true
+      try {
+        for (let index = 0; index < missingIds.length; index += 100) {
+          const batch = missingIds.slice(index, index + 100)
+          const { data, error: fetchError } = await supabase
+            .from('tasks')
+            .select('id, completed, stock_status, stock_quantity, stock_unit')
+            .in('id', batch)
 
-        if (stopped) return
+          if (stopped) return
 
-        if (fetchError) {
-          console.error('Stock state preload failed:', fetchError)
-          return
+          if (fetchError) {
+            retryAfter = Date.now() + 10000
+            retryTimer = window.setTimeout(() => void syncVisibleTaskStates(), 10000)
+            console.error('Stock state preload failed:', fetchError)
+            return
+          }
+
+          for (const row of data || []) rememberTaskState(row)
         }
-
-        for (const row of data || []) rememberTaskState(row)
+      } finally {
+        syncing = false
       }
     }
 
@@ -202,6 +216,7 @@ export default function StockControls() {
       observer.disconnect()
       if (frameId) cancelAnimationFrame(frameId)
       if (syncTimer) clearTimeout(syncTimer)
+      if (retryTimer) clearTimeout(retryTimer)
 
       if (hostRef.current?.isConnected) {
         hostRef.current.remove()

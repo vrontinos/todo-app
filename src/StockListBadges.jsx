@@ -121,6 +121,9 @@ export default function StockListBadges() {
     let stopped = false
     let frameId = null
     let syncTimer = null
+    let syncing = false
+    let retryAfter = 0
+    let retryTimer = null
     const taskRefreshTimers = new Map()
 
     function remember(row) {
@@ -179,14 +182,8 @@ export default function StockListBadges() {
       taskRefreshTimers.set(id, timer)
     }
 
-    function activeTaskId() {
-      const active = document.querySelector('.task-item-active')?.closest?.('[data-task-id]')
-      const id = String(active?.dataset?.taskId || '')
-      return /^\d+$/.test(id) ? id : null
-    }
-
     async function syncVisibleTasks() {
-      if (stopped) return
+      if (stopped || syncing || Date.now() < retryAfter) return
 
       const ids = [
         ...new Set(
@@ -200,21 +197,28 @@ export default function StockListBadges() {
 
       const missing = ids.filter((id) => !cacheRef.current.has(id))
 
-      for (let index = 0; index < missing.length; index += 100) {
-        const batch = missing.slice(index, index + 100)
-        const { data, error } = await supabase
-          .from('tasks')
-          .select('id, stock_status, stock_quantity, stock_unit')
-          .in('id', batch)
+      syncing = true
+      try {
+        for (let index = 0; index < missing.length; index += 100) {
+          const batch = missing.slice(index, index + 100)
+          const { data, error } = await supabase
+            .from('tasks')
+            .select('id, stock_status, stock_quantity, stock_unit')
+            .in('id', batch)
 
-        if (stopped) return
+          if (stopped) return
 
-        if (error) {
-          console.error('Stock list badge preload failed:', error)
-          return
+          if (error) {
+            retryAfter = Date.now() + 10000
+            retryTimer = window.setTimeout(() => void syncVisibleTasks(), 10000)
+            console.error('Stock list badge preload failed:', error)
+            return
+          }
+
+          for (const task of data || []) remember(task)
         }
-
-        for (const task of data || []) remember(task)
+      } finally {
+        syncing = false
       }
 
       decorateCachedRows()
@@ -241,13 +245,11 @@ export default function StockListBadges() {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes' && mutation.attributeName === 'data-stock-status') {
           const row = mutation.target?.closest?.('[data-task-id]')
-          scheduleTaskRefresh(row?.dataset?.taskId)
+          const id = String(row?.dataset?.taskId || '')
+          if (cacheRef.current.get(id)?.stock_status !== row?.dataset?.stockStatus) {
+            scheduleTaskRefresh(id)
+          }
           continue
-        }
-
-        const target = mutation.target instanceof Element ? mutation.target : mutation.target?.parentElement
-        if (target?.closest?.('.task-stock-controls-host')) {
-          scheduleTaskRefresh(activeTaskId())
         }
       }
 
@@ -255,6 +257,10 @@ export default function StockListBadges() {
     }
 
     const root = document.getElementById('root')
+    function handleStockState(event) {
+      if (!stopped && event.detail?.id) remember(event.detail)
+    }
+    window.addEventListener('task-stock-state', handleStockState)
     const observer = new MutationObserver(handleMutations)
 
     if (root) {
@@ -295,8 +301,10 @@ export default function StockListBadges() {
     return () => {
       stopped = true
       observer.disconnect()
+      window.removeEventListener('task-stock-state', handleStockState)
       if (frameId) cancelAnimationFrame(frameId)
       if (syncTimer) clearTimeout(syncTimer)
+      if (retryTimer) clearTimeout(retryTimer)
       for (const timer of taskRefreshTimers.values()) clearTimeout(timer)
       taskRefreshTimers.clear()
       void supabase.removeChannel(channel)
