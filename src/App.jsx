@@ -10,6 +10,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { supabase } from './supabaseClient'
 import { deleteTasksInBatches } from './deleteTasksInBatches'
 import { mergeNoteSnapshot, mergeTaskSnapshot, upsertTaskRows } from './realtimeSnapshot'
+import { canRenameTaskTitle as hasTaskTitlePermission } from './taskTitlePermissions'
 import './App.css'
 
 import { isTauri } from '@tauri-apps/api/core'
@@ -1288,6 +1289,22 @@ const [mobileDirection, setMobileDirection] = useState('forward')
   const [activeTask, setActiveTask] = useState(null)
   const [editingTaskTitle, setEditingTaskTitle] = useState(false)
   const [editingTaskValue, setEditingTaskValue] = useState('')
+  const [importedTitleEditorId, setImportedTitleEditorId] = useState(null)
+
+  function canRenameTaskTitle(task) {
+    return hasTaskTitlePermission(task, session?.user?.id, importedTitleEditorId)
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const userId = session?.user?.id
+    if (!userId) return
+    supabase.from('imported_task_title_editors').select('user_id').eq('user_id', userId)
+      .then(({ data, error }) => {
+        if (!cancelled) setImportedTitleEditorId(error ? null : data?.[0]?.user_id || null)
+      })
+    return () => { cancelled = true }
+  }, [session?.user?.id])
 
   const [taskNotes, setTaskNotes] = useState([])
   const [notesLoading, setNotesLoading] = useState(false)
@@ -4634,6 +4651,12 @@ async function handleUpdatePassword(e) {
   const now = new Date().toISOString()
   const oldTaskSnapshot = snapshotTaskEverywhere(task.id)
   if (!oldTaskSnapshot) return
+
+  if (!canRenameTaskTitle(oldTaskSnapshot)) {
+    setEditingTaskTitle(false)
+    setEditingTaskValue(oldTaskSnapshot.title)
+    return
+  }
 
   invalidateTaskViews()
   markTaskMutation(task.id)
@@ -8505,7 +8528,7 @@ style={
   <>
     <div className="details-panel">
 <div className="details-panel-header">
-{!editingTaskTitle ? (
+{!editingTaskTitle || !canRenameTaskTitle(activeTask) ? (
   isMobile ? (
     <div
       className="mobile-task-title-readonly"
@@ -8517,10 +8540,11 @@ style={
       }}
       onClick={(e) => {
         e.stopPropagation()
+        if (!canRenameTaskTitle(activeTask)) return
         setEditingTaskTitle(true)
         setEditingTaskValue(activeTask.title)
       }}
-      title="Κλικ για μετονομασία"
+      title={canRenameTaskTitle(activeTask) ? 'Κλικ για μετονομασία' : 'Αλλαγή τίτλου μόνο από τον χρήστη eshop'}
     >
       {activeTask.title}
     </div>
@@ -8529,11 +8553,12 @@ style={
       className="details-task-title-readonly-web"
       onMouseDown={(e) => {
         e.stopPropagation()
+        if (!canRenameTaskTitle(activeTask)) return
         setEditingTaskTitle(true)
         setEditingTaskValue(activeTask.title)
       }}
       onClick={(e) => e.stopPropagation()}
-      title="Κλικ για μετονομασία"
+      title={canRenameTaskTitle(activeTask) ? 'Κλικ για μετονομασία' : 'Αλλαγή τίτλου μόνο από τον χρήστη eshop'}
     >
       {activeTask.title}
     </div>
@@ -8750,6 +8775,8 @@ style={
 
             <button
               className="context-menu-item"
+              disabled={!canRenameTaskTitle(contextMenu.task)}
+              title={canRenameTaskTitle(contextMenu.task) ? undefined : 'Αλλαγή τίτλου μόνο από τον χρήστη eshop'}
               onClick={async () => {
                 closeContextMenu()
                 const nextTitle = window.prompt('Νέο όνομα εργασίας', contextMenu.task.title)
