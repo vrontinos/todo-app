@@ -8528,7 +8528,23 @@ style={
   <>
     <div className="details-panel">
 <div className="details-panel-header">
-{!editingTaskTitle || !canRenameTaskTitle(activeTask) ? (
+{!canRenameTaskTitle(activeTask) ? (
+  <textarea
+    className="details-task-title-input details-task-title-copyable"
+    value={activeTask.title}
+    readOnly
+    rows={1}
+    aria-label="Τίτλος εργασίας για αντιγραφή"
+    onMouseDown={(e) => e.stopPropagation()}
+    onTouchStart={(e) => e.stopPropagation()}
+    onClick={(e) => e.stopPropagation()}
+    onKeyDown={(e) => e.stopPropagation()}
+    onContextMenu={(e) => e.stopPropagation()}
+    onFocus={(e) => autoResizeTextarea(e.target)}
+    ref={(el) => { if (el) autoResizeTextarea(el) }}
+    title="Επιλέξτε το κείμενο για αντιγραφή. Αλλαγή τίτλου μόνο από τον χρήστη eshop."
+  />
+) : !editingTaskTitle ? (
   isMobile ? (
     <div
       className="mobile-task-title-readonly"

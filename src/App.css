@@ -1020,6 +1020,18 @@ background: rgba(34, 197, 94, 0.18);
   overflow: hidden;
 }
 
+.details-task-title-copyable {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+@media (max-width: 1024px) {
+  .details-task-title-copyable {
+    font-size: 18px;
+  }
+}
+
 .details-controls {
   display: flex;
   align-items: center;
